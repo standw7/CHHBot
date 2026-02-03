@@ -17,14 +17,8 @@ const STRENGTH_LABELS: Record<string, string> = {
   sh: 'Short Handed',
 };
 
-// Placeholder team emojis - replace with custom Discord emojis later
-const TEAM_EMOJIS: Record<string, string> = {
-  UTA: ':joy:',
-};
-const DEFAULT_AWAY_EMOJI = ':joy_cat:';
-
-function getTeamEmoji(abbrev: string): string {
-  return TEAM_EMOJIS[abbrev] ?? DEFAULT_AWAY_EMOJI;
+export function getTeamEmoji(abbrev: string): string {
+  return `:${abbrev.toLowerCase()}:`;
 }
 
 export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { content?: string; embed: EmbedBuilder } {

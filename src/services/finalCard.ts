@@ -1,18 +1,19 @@
 import { EmbedBuilder } from 'discord.js';
 import type { BoxscoreResponse } from '../nhl/types.js';
 import { shouldIncludeScoresInEmbed, formatScoreLine, type SpoilerMode } from './spoiler.js';
+import { getTeamEmoji } from './goalCard.js';
 
 export function buildFinalCard(boxscore: BoxscoreResponse, spoilerMode: SpoilerMode): { content?: string; embed: EmbedBuilder } {
   const { homeTeam, awayTeam } = boxscore;
 
   const embed = new EmbedBuilder()
-    .setTitle(`${awayTeam.abbrev} @ ${homeTeam.abbrev} - Final`)
+    .setTitle(`${getTeamEmoji(awayTeam.abbrev)} ${awayTeam.abbrev} @ ${homeTeam.abbrev} ${getTeamEmoji(homeTeam.abbrev)} - Final`)
     .setColor(0x006847);
 
   if (shouldIncludeScoresInEmbed(spoilerMode)) {
     embed.addFields(
-      { name: homeTeam.abbrev, value: `Goals: ${homeTeam.score} | Shots: ${homeTeam.sog}`, inline: true },
-      { name: awayTeam.abbrev, value: `Goals: ${awayTeam.score} | Shots: ${awayTeam.sog}`, inline: true },
+      { name: `${getTeamEmoji(homeTeam.abbrev)} ${homeTeam.abbrev}`, value: `Goals: ${homeTeam.score} | Shots: ${homeTeam.sog}`, inline: true },
+      { name: `${getTeamEmoji(awayTeam.abbrev)} ${awayTeam.abbrev}`, value: `Goals: ${awayTeam.score} | Shots: ${awayTeam.sog}`, inline: true },
     );
   }
 
