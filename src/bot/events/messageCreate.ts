@@ -309,7 +309,8 @@ async function handlePrefixFeed(message: Message, args: string[]): Promise<void>
   if (!sub || sub === 'help') {
     await message.reply(
       '**Feed Commands:**\n' +
-      '`!feed add <url> <label>` - Add an RSS feed (admin)\n' +
+      '`!feed add <twitter/x profile URL>` - Add a Twitter/X account (admin)\n' +
+      '`!feed add <rss url> <label>` - Add a generic RSS feed (admin)\n' +
       '`!feed remove <label>` - Remove a feed (admin)\n' +
       '`!feed list` - List all registered feeds\n\n' +
       'Feeds post to the configured news channel. Set it with:\n' +
@@ -337,14 +338,54 @@ async function handlePrefixFeed(message: Message, args: string[]): Promise<void>
   }
 
   if (sub === 'add') {
-    const url = args[1];
-    const label = args.slice(2).join(' ');
-    if (!url || !label) {
-      await message.reply('Usage: `!feed add <url> <label>`\nExample: `!feed add https://nitter.net/UtahHC/rss Utah HC`');
+    const input = args[1];
+    if (!input) {
+      await message.reply(
+        'Usage:\n' +
+        '`!feed add https://x.com/username` - Add a Twitter/X account\n' +
+        '`!feed add <rss url> <label>` - Add a generic RSS feed'
+      );
       return;
     }
-    addFeedSource(guildId, url, label, message.author.id);
-    await message.reply(`Added feed **${label}**.`);
+
+    // Detect Twitter/X profile URLs or @username
+    const twitterMatch = input.match(/(?:https?:\/\/(?:www\.)?(x\.com|twitter\.com)\/)?([@]?)([\w]+)\/?$/i);
+    const isTwitterUrl = /https?:\/\/(www\.)?(x\.com|twitter\.com)\//i.test(input);
+    const isAtHandle = input.startsWith('@');
+
+    if (isTwitterUrl || isAtHandle) {
+      const username = twitterMatch?.[3];
+      if (!username) {
+        await message.reply('Could not extract username from that URL.');
+        return;
+      }
+
+      await message.reply(`Checking RSS bridges for **@${username}**...`);
+
+      const { tryTwitterRssBridges } = await import('../../services/feedBridge.js');
+      const result = await tryTwitterRssBridges(username);
+
+      if (!result) {
+        await message.reply(
+          `Could not find a working RSS feed for **@${username}**. Twitter RSS bridges can be unreliable.\n` +
+          'You can try adding a specific RSS URL manually: `!feed add <rss-url> <label>`'
+        );
+        return;
+      }
+
+      const label = args.slice(2).join(' ') || `@${username}`;
+      addFeedSource(guildId, result.url, label, message.author.id);
+      await message.reply(`Added **${label}** using ${result.bridge}.\nFeed URL: ${result.url}`);
+    } else {
+      // Generic RSS feed
+      const label = args.slice(2).join(' ');
+      if (!label) {
+        await message.reply('For non-Twitter feeds, provide a label: `!feed add <url> <label>`');
+        return;
+      }
+      addFeedSource(guildId, input, label, message.author.id);
+      await message.reply(`Added feed **${label}**.`);
+    }
   } else if (sub === 'remove') {
     const label = args.slice(1).join(' ');
     if (!label) {
