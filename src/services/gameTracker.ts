@@ -1,0 +1,315 @@
+import { Client, TextChannel } from 'discord.js';
+import pino from 'pino';
+import * as nhlClient from '../nhl/client.js';
+import { getGuildConfig, hasGoalBeenPosted, markGoalPosted, hasFinalBeenPosted, markFinalPosted } from '../db/queries.js';
+import { buildGoalCard } from './goalCard.js';
+import { buildFinalCard } from './finalCard.js';
+import type { SpoilerMode } from './spoiler.js';
+import type { ScheduleGame, Play, PbpTeam } from '../nhl/types.js';
+
+const logger = pino({ name: 'game-tracker' });
+
+type TrackerState = 'IDLE' | 'PRE_GAME' | 'LIVE' | 'FINAL';
+
+interface TrackerContext {
+  state: TrackerState;
+  currentGame: ScheduleGame | null;
+  guildId: string;
+  teamCode: string;
+  pollTimer: ReturnType<typeof setTimeout> | null;
+}
+
+const trackers = new Map<string, TrackerContext>();
+
+export function startTracker(client: Client, guildId: string): void {
+  if (trackers.has(guildId)) {
+    logger.info({ guildId }, 'Tracker already running');
+    return;
+  }
+
+  const config = getGuildConfig(guildId);
+  if (!config) {
+    logger.warn({ guildId }, 'No guild config, cannot start tracker');
+    return;
+  }
+
+  const ctx: TrackerContext = {
+    state: 'IDLE',
+    currentGame: null,
+    guildId,
+    teamCode: config.primary_team,
+    pollTimer: null,
+  };
+
+  trackers.set(guildId, ctx);
+  logger.info({ guildId, teamCode: ctx.teamCode }, 'Starting game tracker');
+  tick(client, ctx);
+}
+
+export function stopTracker(guildId: string): void {
+  const ctx = trackers.get(guildId);
+  if (ctx?.pollTimer) {
+    clearTimeout(ctx.pollTimer);
+  }
+  trackers.delete(guildId);
+  logger.info({ guildId }, 'Stopped game tracker');
+}
+
+export function stopAllTrackers(): void {
+  for (const [guildId] of trackers) {
+    stopTracker(guildId);
+  }
+}
+
+function scheduleNext(client: Client, ctx: TrackerContext, delayMs: number): void {
+  if (ctx.pollTimer) clearTimeout(ctx.pollTimer);
+  ctx.pollTimer = setTimeout(() => tick(client, ctx), delayMs);
+}
+
+async function tick(client: Client, ctx: TrackerContext): Promise<void> {
+  try {
+    switch (ctx.state) {
+      case 'IDLE':
+        await handleIdle(client, ctx);
+        break;
+      case 'PRE_GAME':
+        await handlePreGame(client, ctx);
+        break;
+      case 'LIVE':
+        await handleLive(client, ctx);
+        break;
+      case 'FINAL':
+        await handleFinal(client, ctx);
+        break;
+    }
+  } catch (error) {
+    logger.error({ error, state: ctx.state, guildId: ctx.guildId }, 'Tracker tick error');
+    // Retry after a delay on errors
+    scheduleNext(client, ctx, 30_000);
+  }
+}
+
+async function handleIdle(client: Client, ctx: TrackerContext): Promise<void> {
+  const schedule = await nhlClient.getSchedule(ctx.teamCode);
+  if (!schedule?.games?.length) {
+    scheduleNext(client, ctx, 30 * 60_000); // Check again in 30 min
+    return;
+  }
+
+  const now = Date.now();
+  // Find a live game first
+  const liveGame = schedule.games.find(g => g.gameState === 'LIVE' || g.gameState === 'CRIT');
+  if (liveGame) {
+    ctx.currentGame = liveGame;
+    ctx.state = 'LIVE';
+    logger.info({ guildId: ctx.guildId, gameId: liveGame.id }, 'Found live game, switching to LIVE');
+    scheduleNext(client, ctx, 0);
+    return;
+  }
+
+  // Find next upcoming game
+  const upcoming = schedule.games
+    .filter(g => g.gameState === 'FUT' || g.gameState === 'PRE')
+    .sort((a, b) => new Date(a.startTimeUTC).getTime() - new Date(b.startTimeUTC).getTime());
+
+  const nextGame = upcoming[0];
+  if (!nextGame) {
+    scheduleNext(client, ctx, 30 * 60_000);
+    return;
+  }
+
+  const gameStart = new Date(nextGame.startTimeUTC).getTime();
+  const timeUntilGame = gameStart - now;
+
+  if (timeUntilGame <= 24 * 60 * 60_000) {
+    ctx.currentGame = nextGame;
+    ctx.state = 'PRE_GAME';
+    logger.info({ guildId: ctx.guildId, gameId: nextGame.id, timeUntilGame }, 'Game within 24h, switching to PRE_GAME');
+    scheduleNext(client, ctx, 0);
+  } else {
+    scheduleNext(client, ctx, 30 * 60_000); // Check again in 30 min
+  }
+}
+
+async function handlePreGame(client: Client, ctx: TrackerContext): Promise<void> {
+  if (!ctx.currentGame) {
+    ctx.state = 'IDLE';
+    scheduleNext(client, ctx, 0);
+    return;
+  }
+
+  // Re-check game state from the API
+  const pbp = await nhlClient.getPlayByPlay(ctx.currentGame.id);
+  if (pbp?.gameState === 'LIVE' || pbp?.gameState === 'CRIT') {
+    ctx.state = 'LIVE';
+    logger.info({ guildId: ctx.guildId, gameId: ctx.currentGame.id }, 'Game is now LIVE');
+    scheduleNext(client, ctx, 0);
+    return;
+  }
+
+  if (pbp?.gameState === 'FINAL' || pbp?.gameState === 'OFF') {
+    ctx.state = 'FINAL';
+    scheduleNext(client, ctx, 0);
+    return;
+  }
+
+  const gameStart = new Date(ctx.currentGame.startTimeUTC).getTime();
+  const timeUntilGame = gameStart - Date.now();
+
+  if (timeUntilGame <= 30 * 60_000) {
+    // Within 30 min of puck drop, poll every 60s
+    scheduleNext(client, ctx, 60_000);
+  } else {
+    // More than 30 min out, poll every 5 min
+    scheduleNext(client, ctx, 5 * 60_000);
+  }
+}
+
+async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
+  if (!ctx.currentGame) {
+    ctx.state = 'IDLE';
+    scheduleNext(client, ctx, 0);
+    return;
+  }
+
+  const pbp = await nhlClient.getPlayByPlay(ctx.currentGame.id);
+  if (!pbp) {
+    logger.warn({ guildId: ctx.guildId, gameId: ctx.currentGame.id }, 'Failed to fetch play-by-play');
+    scheduleNext(client, ctx, 10_000);
+    return;
+  }
+
+  // Check if game ended
+  if (pbp.gameState === 'FINAL' || pbp.gameState === 'OFF') {
+    ctx.state = 'FINAL';
+    logger.info({ guildId: ctx.guildId, gameId: ctx.currentGame.id }, 'Game is FINAL');
+    scheduleNext(client, ctx, 0);
+    return;
+  }
+
+  // Detect new goals
+  const goals = pbp.plays.filter(p => p.typeDescKey === 'goal');
+  const config = getGuildConfig(ctx.guildId);
+  if (!config?.gameday_channel_id) {
+    scheduleNext(client, ctx, 10_000);
+    return;
+  }
+
+  const spoilerMode = (config.spoiler_mode ?? 'off') as SpoilerMode;
+  const delayMs = (config.spoiler_delay_seconds ?? 30) * 1000;
+
+  for (const goal of goals) {
+    if (hasGoalBeenPosted(ctx.guildId, ctx.currentGame.id, goal.eventId)) {
+      continue;
+    }
+
+    // Claim this goal immediately
+    markGoalPosted(ctx.guildId, ctx.currentGame.id, goal.eventId);
+    logger.info({
+      guildId: ctx.guildId,
+      gameId: ctx.currentGame.id,
+      eventId: goal.eventId,
+      delay: delayMs,
+    }, 'Goal detected, scheduling delayed post');
+
+    // Determine scoring team
+    const scoringTeamId = goal.details?.eventOwnerTeamId;
+    const isHome = scoringTeamId === pbp.homeTeam.id;
+    const scoringTeamAbbrev = isHome ? pbp.homeTeam.abbrev : pbp.awayTeam.abbrev;
+    const scoringTeamLogo = isHome ? pbp.homeTeam.logo : pbp.awayTeam.logo;
+
+    // Schedule delayed post
+    const cardData = {
+      play: goal,
+      homeTeam: pbp.homeTeam,
+      awayTeam: pbp.awayTeam,
+      scoringTeamAbbrev,
+      scoringTeamLogo,
+    };
+
+    setTimeout(async () => {
+      try {
+        const channel = await client.channels.fetch(config.gameday_channel_id!);
+        if (!channel || !channel.isTextBased()) {
+          logger.error({ channelId: config.gameday_channel_id }, 'Game day channel not found');
+          return;
+        }
+
+        const { content, embed } = buildGoalCard(cardData, spoilerMode);
+        await (channel as TextChannel).send({
+          content: content ?? undefined,
+          embeds: [embed],
+        });
+        logger.info({ guildId: ctx.guildId, eventId: goal.eventId }, 'Goal card posted');
+      } catch (error) {
+        logger.error({ error, eventId: goal.eventId }, 'Failed to post goal card');
+      }
+    }, delayMs);
+  }
+
+  scheduleNext(client, ctx, 10_000); // Poll every 10s during live game
+}
+
+async function handleFinal(client: Client, ctx: TrackerContext): Promise<void> {
+  if (!ctx.currentGame) {
+    ctx.state = 'IDLE';
+    scheduleNext(client, ctx, 0);
+    return;
+  }
+
+  const gameId = ctx.currentGame.id;
+
+  if (hasFinalBeenPosted(ctx.guildId, gameId)) {
+    logger.info({ guildId: ctx.guildId, gameId }, 'Final already posted, returning to IDLE');
+    ctx.currentGame = null;
+    ctx.state = 'IDLE';
+    scheduleNext(client, ctx, 60_000);
+    return;
+  }
+
+  const config = getGuildConfig(ctx.guildId);
+  if (!config?.gameday_channel_id) {
+    ctx.currentGame = null;
+    ctx.state = 'IDLE';
+    scheduleNext(client, ctx, 60_000);
+    return;
+  }
+
+  // Claim the final post
+  markFinalPosted(ctx.guildId, gameId);
+
+  const spoilerMode = (config.spoiler_mode ?? 'off') as SpoilerMode;
+  const delayMs = (config.spoiler_delay_seconds ?? 30) * 1000;
+
+  logger.info({ guildId: ctx.guildId, gameId, delay: delayMs }, 'Scheduling final summary post');
+
+  const boxscore = await nhlClient.getBoxscore(gameId);
+
+  setTimeout(async () => {
+    try {
+      if (!boxscore) {
+        logger.error({ gameId }, 'Failed to fetch boxscore for final summary');
+        return;
+      }
+
+      const channel = await client.channels.fetch(config.gameday_channel_id!);
+      if (!channel || !channel.isTextBased()) {
+        logger.error({ channelId: config.gameday_channel_id }, 'Game day channel not found');
+        return;
+      }
+
+      const { content, embed } = buildFinalCard(boxscore, spoilerMode);
+      await (channel as TextChannel).send({
+        content: content ?? undefined,
+        embeds: [embed],
+      });
+      logger.info({ guildId: ctx.guildId, gameId }, 'Final summary posted');
+    } catch (error) {
+      logger.error({ error, gameId }, 'Failed to post final summary');
+    }
+  }, delayMs);
+
+  ctx.currentGame = null;
+  ctx.state = 'IDLE';
+  scheduleNext(client, ctx, 60_000); // Back to idle, check again in 1 min
+}
