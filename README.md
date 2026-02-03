@@ -5,14 +5,6 @@ Tusky is a Discord bot built for hockey servers. It posts live goal notification
 ---
 
 ## Table of Contents
-
-- [What Tusky Does](#what-tusky-does)
-- [Setting Up Tusky](#setting-up-tusky)
-  - [Step 1: Create a Discord Application](#step-1-create-a-discord-application)
-  - [Step 2: Create the Bot](#step-2-create-the-bot)
-  - [Step 3: Enable Required Settings](#step-3-enable-required-settings)
-  - [Step 4: Invite Tusky to Your Server](#step-4-invite-tusky-to-your-server)
-  - [Step 5: Install and Run the Bot](#step-5-install-and-run-the-bot)
 - [Configuring Tusky in Your Server](#configuring-tusky-in-your-server)
   - [Required Setup](#required-setup)
   - [All Settings](#all-settings)
@@ -43,86 +35,6 @@ Tusky is a Discord bot built for hockey servers. It posts live goal notification
 - **News feed** -- Register Twitter/X accounts or RSS feeds and Tusky posts new content to a news channel.
 - **Auto link fix** -- When someone posts a Twitter/X link, Tusky automatically replies with a version that actually embeds properly in Discord.
 - **Spoiler protection** -- Configurable delay and spoiler tags so people watching on a stream delay don't get spoiled.
-
----
-
-## Setting Up Tusky
-
-### Step 1: Create a Discord Application
-
-1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
-2. Click **New Application** in the top right
-3. Name it whatever you want (e.g., "Tusky") and click **Create**
-4. On the application page, copy the **Application ID** -- you'll need this later
-
-### Step 2: Create the Bot
-
-1. In the left sidebar, click **Bot**
-2. Click **Add Bot** if you haven't already
-3. Under the bot's username, click **Reset Token**
-4. Copy the token that appears -- **save this somewhere safe, you'll only see it once**
-5. If you lose it, you can reset it again, but you'll need to update your config
-
-### Step 3: Enable Required Settings
-
-Still on the **Bot** page in the Developer Portal:
-
-1. Scroll down to **Privileged Gateway Intents**
-2. Turn ON **Message Content Intent** -- this is required for `!` commands to work
-3. Turn ON **Server Members Intent** (optional but recommended)
-4. Click **Save Changes**
-
-Then go to **Installation** in the left sidebar:
-
-1. Make sure **Guild Install** is checked under Installation Contexts
-2. Save changes
-
-### Step 4: Invite Tusky to Your Server
-
-1. Go to **OAuth2** in the left sidebar
-2. Under **Scopes**, check `bot` and `applications.commands`
-3. Under **Bot Permissions**, check:
-   - Send Messages
-   - Embed Links
-   - Read Message History
-   - Add Reactions
-   - Read Messages/View Channels
-   - Manage Messages (needed for the auto link fix to suppress bad embeds)
-4. Copy the generated URL at the bottom
-5. Open that URL in your browser
-6. Select your server from the dropdown and click **Authorize**
-
-### Step 5: Install and Run the Bot
-
-You need [Node.js](https://nodejs.org/) version 20 or newer installed on your computer or server.
-
-1. Download or clone this repository
-2. Open a terminal in the project folder
-3. Install dependencies:
-   ```
-   npm install
-   ```
-4. Create your config file by copying the example:
-   ```
-   cp .env.example .env
-   ```
-5. Open `.env` in a text editor and fill in your values:
-   ```
-   DISCORD_TOKEN=paste-your-bot-token-here
-   DISCORD_CLIENT_ID=paste-your-application-id-here
-   DISCORD_GUILD_ID=paste-your-server-id-here
-   ```
-   To get your server ID: In Discord, go to Settings > Advanced > turn on Developer Mode. Then right-click your server name and click **Copy Server ID**.
-
-6. Start the bot:
-   ```
-   npm run dev
-   ```
-   You should see `Tusky is online!` in the terminal. The bot should now appear online in your server.
-
-> **Note:** The bot needs to stay running for it to work. If you close the terminal, the bot goes offline. For a permanent setup, look into hosting services like [Railway](https://railway.app/) (has a free tier).
-
----
 
 ## Configuring Tusky in Your Server
 
@@ -216,8 +128,8 @@ There's a 5-second cooldown per person per command to prevent spam.
 
 Prefix versions also work:
 ```
-!gif add key:goal url:https://media.giphy.com/media/example/giphy.gif
-!gif remove key:goal url:https://media.giphy.com/media/example/giphy.gif
+!gif add key:goal url:https://tenor.com/view/utah-hockey-club-utah-mammoth-utah-nhl-utah-mammoth-goal-utah-goal-gif-18168794736940957112
+!gif remove key:goal url:https://tenor.com/view/utah-hockey-club-utah-mammoth-utah-nhl-utah-mammoth-goal-utah-goal-gif-18168794736940957112
 !gif list key:goal
 !gif keys
 ```
@@ -240,7 +152,8 @@ Tusky will try to find a working RSS bridge for that account. If it can't find o
 
 **Adding a generic RSS feed:**
 ```
-!feed add https://rss.app/feeds/your-feed-url.xml Utah HC News
+!feed add https://rss.app/feed/yKbExXqc4fl9fPJz Utah Mammoth
+!feed add https://rss.app/feeds/bK9lvV4AidNKmF5B.xml Cole Bagley
 ```
 The text after the URL becomes the label.
 
@@ -278,18 +191,18 @@ These require the **Manage Server** permission in Discord.
 When your team is playing, Tusky automatically watches the game. Every time a goal is scored, it posts a card in your game day channel that looks like this:
 
 ```
-:joy: 🚨 Utah Mammoth #9 Even Strength (5v5) Goal 🚨 :joy:
+:uta: 🚨 Utah Mammoth #9 Even Strength (5v5) Goal 🚨 :uta:
 
 #9 Clayton Keller (22) wrist assists: #29 Barrett Hayton (18), #98 Mikhail Sergachev (25)
 
-:joy: Utah Mammoth :joy:
+:uta: Utah Mammoth :uta:
 Goals: 1
 Shots: 8
-:joy_cat: Arizona Coyotes :joy_cat:
+Arizona Coyotes 
 Goals: 0
 Shots: 5
 
-:joy: 11:28 left in the 1st period
+:uta: 11:28 left in the 1st period
 ```
 
 The card includes:
@@ -382,18 +295,12 @@ To run the simulation again:
 
 ## Troubleshooting
 
-**Bot is online but commands don't work:**
-- Make sure you set `DISCORD_GUILD_ID` in your `.env` file. Without it, slash commands can take up to an hour to show up. With it, they appear instantly.
-- For `!` commands, check that `command_mode` is set to `slash_plus_prefix`: `/config show`
-
 **`!` commands don't do anything:**
 - Run `/config show` and check that **Command Mode** is `slash_plus_prefix`
-- Make sure **Message Content Intent** is enabled in the Discord Developer Portal under Bot settings
 
 **Goal cards aren't posting during games:**
 - Make sure `gameday_channel` is set: `/config set setting:gameday_channel value:#your-channel`
 - Check that the bot has permission to send messages in that channel
-- Restart the bot -- the game tracker starts on boot
 
 **Hall of Fame isn't working:**
 - Make sure `hof_channel` is set: `/config set setting:hof_channel value:#your-channel`
@@ -404,13 +311,3 @@ To run the simulation again:
 - Make sure `news_channel` is set: `/config set setting:news_channel value:#your-channel`
 - Feeds are checked every 5 minutes, so it may take a few minutes for the first post
 - If `!feed add` with a Twitter URL says "no RSS feed found," use an external service like [rss.app](https://rss.app) to create an RSS feed for that account, then add the RSS URL manually
-
-**"Used disallowed intents" error on startup:**
-- Go to the Discord Developer Portal > your app > Bot > Privileged Gateway Intents
-- Enable **Message Content Intent**
-- Save and restart the bot
-
-**Bot crashes or goes offline:**
-- Check the terminal for error messages
-- Make sure your `.env` file has the correct token and client ID
-- If you reset your bot token in the Developer Portal, update it in `.env`
