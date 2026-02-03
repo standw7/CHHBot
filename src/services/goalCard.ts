@@ -17,6 +17,16 @@ const STRENGTH_LABELS: Record<string, string> = {
   sh: 'Short Handed',
 };
 
+// Placeholder team emojis - replace with custom Discord emojis later
+const TEAM_EMOJIS: Record<string, string> = {
+  UTA: ':joy:',
+};
+const DEFAULT_AWAY_EMOJI = ':joy_cat:';
+
+function getTeamEmoji(abbrev: string): string {
+  return TEAM_EMOJIS[abbrev] ?? DEFAULT_AWAY_EMOJI;
+}
+
 export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { content?: string; embed: EmbedBuilder } {
   const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo } = data;
 
@@ -35,7 +45,8 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
   // --- Title ---
   const strengthLabel = STRENGTH_LABELS[strength] ?? strength;
   const numberStr = scorerNumber ? ` #${scorerNumber}` : '';
-  const title = `🚨 ${scoringTeamName}${numberStr} ${strengthLabel} Goal 🚨`;
+  const scoringEmoji = getTeamEmoji(scoringTeamAbbrev);
+  const title = `${scoringEmoji} 🚨 ${scoringTeamName}${numberStr} ${strengthLabel} Goal 🚨 ${scoringEmoji}`;
 
   // --- Description ---
   let description = '';
@@ -63,11 +74,14 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
     const homeTeamName = getTeamFullName(homeTeam.abbrev, homeTeam, awayTeam);
     const awayTeamName = getTeamFullName(awayTeam.abbrev, homeTeam, awayTeam);
 
-    description += `\n\n**${homeTeamName}**`;
+    const homeEmoji = getTeamEmoji(homeTeam.abbrev);
+    const awayEmoji = getTeamEmoji(awayTeam.abbrev);
+
+    description += `\n\n${homeEmoji} **${homeTeamName}** ${homeEmoji}`;
     description += `\nGoals: **${homeScore}**`;
     if (homeTeam.sog !== undefined) description += `\nShots: **${homeTeam.sog}**`;
 
-    description += `\n**${awayTeamName}**`;
+    description += `\n${awayEmoji} **${awayTeamName}** ${awayEmoji}`;
     description += `\nGoals: **${awayScore}**`;
     if (awayTeam.sog !== undefined) description += `\nShots: **${awayTeam.sog}**`;
   }
@@ -79,7 +93,7 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
       ? 'the shootout'
       : `the ${ordinal(play.periodDescriptor?.number ?? 1)} period`;
   const timeRemaining = play.timeRemaining || play.timeInPeriod;
-  description += `\n\n${timeRemaining} left in ${period}`;
+  description += `\n\n${scoringEmoji} ${timeRemaining} left in ${period}`;
 
   const embed = new EmbedBuilder()
     .setTitle(title)
