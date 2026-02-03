@@ -8,7 +8,7 @@ export function wrapScore(text: string, mode: SpoilerMode): string {
 }
 
 export function shouldIncludeScoresInEmbed(mode: SpoilerMode): boolean {
-  return mode !== 'minimal_embed';
+  return mode === 'off';
 }
 
 export function formatScoreLine(
