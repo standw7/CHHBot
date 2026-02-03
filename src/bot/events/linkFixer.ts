@@ -11,11 +11,6 @@ const LINK_REPLACEMENTS: { pattern: RegExp; replace: string; label: string }[] =
     replace: 'https://fxtwitter.com/$3',
     label: 'Twitter/X',
   },
-  {
-    pattern: /https?:\/\/(www\.)?instagram\.com\/(p|reel|tv)\/([\w-]+\S*)/gi,
-    replace: 'https://ddinstagram.com/$2/$3',
-    label: 'Instagram',
-  },
 ];
 
 export function registerLinkFixer(client: Client): void {
