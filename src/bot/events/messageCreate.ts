@@ -26,6 +26,9 @@ export function registerMessageHandler(client: Client): void {
 
     try {
       switch (command) {
+        case 'help':
+          await handlePrefixHelp(message);
+          break;
         case 'next':
           await handlePrefixNext(message);
           break;
@@ -47,6 +50,40 @@ export function registerMessageHandler(client: Client): void {
       logger.error({ error, command }, 'Prefix command error');
     }
   });
+}
+
+async function handlePrefixHelp(message: Message): Promise<void> {
+  const { EmbedBuilder } = await import('discord.js');
+  const { listGifKeys } = await import('../../db/queries.js');
+  const guildId = message.guild!.id;
+
+  const gifKeys = listGifKeys(guildId);
+  const gifKeysText = gifKeys.length > 0
+    ? gifKeys.map(k => `\`!${k}\``).join(', ')
+    : 'None registered yet';
+
+  const embed = new EmbedBuilder()
+    .setTitle('Tusky Commands')
+    .setColor(0x006847)
+    .addFields(
+      { name: '!next', value: 'Show the next scheduled game', inline: false },
+      { name: '!watch', value: 'Where to watch the current/next game', inline: false },
+      { name: '!replay', value: 'Most recent goal replay/highlight', inline: false },
+      { name: '!help', value: 'Show this help message', inline: false },
+      { name: '\u200B', value: '**Media Commands**', inline: false },
+      { name: '!<key>', value: `Post a random gif/media for a key\nRegistered keys: ${gifKeysText}`, inline: false },
+      { name: '\u200B', value: '**Gif Management (Admin)**', inline: false },
+      { name: '!gif add key:<key> url:<url>', value: 'Add a media URL to a key', inline: false },
+      { name: '!gif remove key:<key> url:<url>', value: 'Remove a media URL from a key', inline: false },
+      { name: '!gif list key:<key>', value: 'List all URLs for a key', inline: false },
+      { name: '!gif keys', value: 'List all registered keys', inline: false },
+      { name: '\u200B', value: '**Slash Commands**', inline: false },
+      { name: '/config show', value: 'View current bot configuration', inline: false },
+      { name: '/config set', value: 'Change bot settings (Admin)', inline: false },
+    )
+    .setFooter({ text: 'Tusky - Utah Mammoth Hockey Bot' });
+
+  await message.reply({ embeds: [embed] });
 }
 
 async function handlePrefixNext(message: Message): Promise<void> {
