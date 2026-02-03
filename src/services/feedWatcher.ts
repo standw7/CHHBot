@@ -122,9 +122,12 @@ async function pollFeed(
     }
 
     try {
-      // If the item has a link, also post it as plain text for Discord to embed natively
-      const content = item.link ? item.link : undefined;
-      await textChannel.send({ content, embeds: [embed] });
+      // Convert twitter/x.com links to fxtwitter for proper Discord embeds
+      let linkContent = item.link || undefined;
+      if (linkContent) {
+        linkContent = linkContent.replace(/https?:\/\/(www\.)?(x\.com|twitter\.com)\//gi, 'https://fxtwitter.com/');
+      }
+      await textChannel.send({ content: linkContent, embeds: [embed] });
     } catch (error) {
       logger.error({ err: error, feedLabel }, 'Failed to post feed item');
     }
