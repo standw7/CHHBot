@@ -4,6 +4,7 @@ import { gamecenterWebUrl } from '../../nhl/endpoints.js';
 import { getGuildConfig } from '../../db/queries.js';
 import { wrapScore } from '../../services/spoiler.js';
 import type { SpoilerMode } from '../../services/spoiler.js';
+import type { LandingGoal } from '../../nhl/types.js';
 
 export const data = new SlashCommandBuilder()
   .setName('replay')
@@ -44,34 +45,51 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  const pbp = await nhlClient.getPlayByPlay(targetGame.id);
-  if (!pbp || !pbp.plays) {
-    await interaction.editReply('Could not fetch play-by-play data.');
+  // Use landing endpoint for rich goal data (includes names, highlights)
+  const landing = await nhlClient.getLanding(targetGame.id);
+  if (!landing?.summary?.scoring) {
+    await interaction.editReply('Could not fetch game data.');
     return;
   }
 
-  // Find the most recent goal
-  const goals = pbp.plays.filter(p => p.typeDescKey === 'goal');
-  if (goals.length === 0) {
+  // Find the most recent goal across all periods
+  const allGoals: LandingGoal[] = [];
+  for (const period of landing.summary.scoring) {
+    allGoals.push(...period.goals);
+  }
+
+  if (allGoals.length === 0) {
     await interaction.editReply('No goals yet in this game.');
     return;
   }
 
-  const lastGoal = goals[goals.length - 1];
-  const scorerName = lastGoal.details?.scoringPlayerName ?? 'Unknown';
-  const period = lastGoal.periodDescriptor?.periodType === 'OT'
-    ? 'OT'
-    : `P${lastGoal.periodDescriptor?.number}`;
-  const time = lastGoal.timeInPeriod;
+  const lastGoal = allGoals[allGoals.length - 1];
+  const scorerName = `${lastGoal.firstName.default} ${lastGoal.lastName.default}`;
+  const teamAbbrev = lastGoal.teamAbbrev.default;
+  const period = lastGoal.timeInPeriod;
 
-  // Try to get replay
-  const replay = await nhlClient.getGoalReplay(targetGame.id, lastGoal.eventId);
-  const replayUrl = replay?.topClip?.playbackUrl ?? replay?.clips?.[0]?.playbackUrl;
+  // Get replay URL from landing goal data or try the replay endpoint
+  let replayUrl = lastGoal.highlightClipSharingUrl || lastGoal.pptReplayUrl;
 
-  const teamAbbrevs = `${pbp.awayTeam.abbrev} @ ${pbp.homeTeam.abbrev}`;
-  const scoreLine = `${pbp.awayTeam.abbrev} ${pbp.awayTeam.score} - ${pbp.homeTeam.abbrev} ${pbp.homeTeam.score}`;
+  if (!replayUrl) {
+    // Try the dedicated replay endpoint as fallback
+    const pbp = await nhlClient.getPlayByPlay(targetGame.id);
+    const pbpGoals = pbp?.plays.filter(p => p.typeDescKey === 'goal') ?? [];
+    const matchingPlay = pbpGoals.find(p => p.eventId === lastGoal.eventId) ?? pbpGoals[pbpGoals.length - 1];
 
-  let description = `**Most recent goal:** ${scorerName} (${time} ${period})`;
+    if (matchingPlay?.details?.highlightClipSharingUrl) {
+      replayUrl = matchingPlay.details.highlightClipSharingUrl;
+    } else if (matchingPlay) {
+      const replay = await nhlClient.getGoalReplay(targetGame.id, matchingPlay.eventId);
+      replayUrl = replay?.topClip?.playbackUrl ?? replay?.clips?.[0]?.playbackUrl;
+    }
+  }
+
+  const awayAbbrev = landing.awayTeam.abbrev;
+  const homeAbbrev = landing.homeTeam.abbrev;
+  const scoreLine = `${awayAbbrev} ${landing.awayTeam.score} - ${homeAbbrev} ${landing.homeTeam.score}`;
+
+  let description = `**Most recent goal:** ${scorerName} (${teamAbbrev}) - ${period}`;
   if (spoilerMode !== 'off') {
     description += `\n${wrapScore(scoreLine, spoilerMode)}`;
   } else {
@@ -85,9 +103,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }
 
   const embed = new EmbedBuilder()
-    .setTitle(`Replay - ${teamAbbrevs}`)
+    .setTitle(`Replay - ${awayAbbrev} @ ${homeAbbrev}`)
     .setDescription(description)
     .setColor(0x006847);
+
+  if (lastGoal.headshot) {
+    embed.setThumbnail(lastGoal.headshot);
+  }
 
   await interaction.editReply({ embeds: [embed] });
 }

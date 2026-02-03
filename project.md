@@ -86,7 +86,33 @@ Things that claude code should do while coding this project:
 8. Use `/config set` commands to configure: gameday_channel, hof_channel, team, etc.
 
 **Next steps:**
-- Test with a real Discord token
-- Verify NHL API response formats match our types (API is unofficial, fields may vary)
+- ~~Test with a real Discord token~~
+- ~~Verify NHL API response formats match our types (API is unofficial, fields may vary)~~
 - Add any missing team abbreviation for Utah Mammoth (currently using 'UTA')
 - Potentially add more gif keys and media content
+
+### 2026-02-03: Bug Fixes & Simulation Mode
+
+**Status:** All feedback addressed, simulation mode added for testing.
+
+**Bugs fixed:**
+1. **NHL API types completely wrong** -- Play-by-play only returns player IDs, not names. Updated all types in `src/nhl/types.ts` to match actual API. Added `LandingGoal`, `LandingAssist`, `LandingPeriodScoring` types for the landing endpoint which has rich goal data with names, headshots, assists, and highlight URLs.
+2. **/replay showing "Unknown" scorer** -- Now uses landing endpoint (`/v1/gamecenter/{id}/landing`) which provides `summary.scoring` with full player names, assist details, and highlight clip URLs. Fixed in `src/bot/commands/replay.ts`.
+3. **Game tracker goal cards** -- Updated `src/services/gameTracker.ts` to fetch landing data at post time (after spoiler delay) for rich goal info. Falls back to play-by-play data if landing is unavailable.
+4. **!watch and !replay were stubs** -- Fully implemented both prefix commands in `src/bot/events/messageCreate.ts` with the same logic as their slash command counterparts.
+5. **Guild config not created on startup** -- Fixed `src/index.ts` to auto-create default config for existing guilds when bot starts (was only creating for newly joined guilds).
+
+**New features:**
+- `!help` command -- Shows all available commands with registered gif keys
+- `!sim` command (admin) -- Runs a fake game simulation posting 3 goal cards + final summary to the gameday channel with configured spoiler delay
+- `!sim reset` command (admin) -- Clears simulation data so it can run again
+
+**Key files changed:**
+- `src/nhl/types.ts` -- Completely rewritten to match actual API
+- `src/bot/commands/replay.ts` -- Uses landing endpoint for names/highlights
+- `src/services/goalCard.ts` -- Uses `LandingGoal` data for names, headshots, assists
+- `src/services/gameTracker.ts` -- Fetches landing data before posting goal cards
+- `src/bot/events/messageCreate.ts` -- Full !watch, !replay, !sim, !help implementations
+- `src/services/simulator.ts` -- NEW: Fake game simulation for testing
+
+**Important:** DISCORD_GUILD_ID should be set in .env for instant slash command registration (global commands take up to 1 hour to propagate).

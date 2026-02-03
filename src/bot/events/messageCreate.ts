@@ -41,6 +41,9 @@ export function registerMessageHandler(client: Client): void {
         case 'gif':
           await handlePrefixGifAdmin(message, args.slice(1));
           break;
+        case 'sim':
+          await handlePrefixSim(message, args.slice(1));
+          break;
         default:
           // Check if it's a registered gif key
           await handlePrefixGif(message, command);
@@ -77,6 +80,9 @@ async function handlePrefixHelp(message: Message): Promise<void> {
       { name: '!gif remove key:<key> url:<url>', value: 'Remove a media URL from a key', inline: false },
       { name: '!gif list key:<key>', value: 'List all URLs for a key', inline: false },
       { name: '!gif keys', value: 'List all registered keys', inline: false },
+      { name: '\u200B', value: '**Testing (Admin)**', inline: false },
+      { name: '!sim', value: 'Run a fake game simulation to test goal cards and final summary', inline: false },
+      { name: '!sim reset', value: 'Reset simulation data so you can run it again', inline: false },
       { name: '\u200B', value: '**Slash Commands**', inline: false },
       { name: '/config show', value: 'View current bot configuration', inline: false },
       { name: '/config set', value: 'Change bot settings (Admin)', inline: false },
@@ -144,12 +150,168 @@ async function handlePrefixNext(message: Message): Promise<void> {
 }
 
 async function handlePrefixWatch(message: Message): Promise<void> {
-  // Simplified prefix version - directs to slash command for full functionality
-  await message.reply('Use `/watch` for full broadcast info, or this feature will show basic info soon.');
+  const guildId = message.guild!.id;
+  const config = getGuildConfig(guildId);
+  const teamCode = config?.primary_team ?? 'UTA';
+
+  const { getSchedule, getTvSchedule, getLanding } = await import('../../nhl/client.js');
+  const { EmbedBuilder } = await import('discord.js');
+
+  const schedule = await getSchedule(teamCode);
+  if (!schedule?.games?.length) {
+    await message.reply('No games found for broadcast info.');
+    return;
+  }
+
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+
+  let targetGame = schedule.games.find(g => {
+    const gameDate = g.gameDate || g.startTimeUTC.split('T')[0];
+    return gameDate === todayStr;
+  });
+  if (!targetGame) {
+    targetGame = schedule.games.find(g => new Date(g.startTimeUTC) > now);
+  }
+  if (!targetGame) {
+    await message.reply('No current or upcoming games found.');
+    return;
+  }
+
+  const gameDate = targetGame.gameDate || targetGame.startTimeUTC.split('T')[0];
+  const tvSchedule = await getTvSchedule(gameDate);
+  let broadcasts: { network: string; market: string }[] = [];
+
+  if (tvSchedule?.games) {
+    const tvGame = tvSchedule.games.find(g => g.id === targetGame!.id);
+    if (tvGame?.tvBroadcasts) {
+      broadcasts = tvGame.tvBroadcasts.map(b => ({ network: b.network, market: b.market }));
+    }
+  }
+
+  if (broadcasts.length === 0) {
+    const landing = await getLanding(targetGame.id);
+    if (landing?.tvBroadcasts) {
+      broadcasts = landing.tvBroadcasts.map(b => ({ network: b.network, market: b.market }));
+    }
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle('Where to Watch')
+    .setDescription(`**${targetGame.awayTeam.abbrev}** @ **${targetGame.homeTeam.abbrev}**`)
+    .setColor(0x006847);
+
+  if (broadcasts.length === 0) {
+    embed.addFields({ name: 'Broadcast Info', value: 'No broadcast data available.' });
+  } else {
+    const national = broadcasts.filter(b => b.market === 'N' || b.market === 'national');
+    const home = broadcasts.filter(b => b.market === 'H' || b.market === 'home');
+    const away = broadcasts.filter(b => b.market === 'A' || b.market === 'away');
+
+    if (national.length > 0) embed.addFields({ name: 'National TV', value: national.map(b => b.network).join(', '), inline: true });
+    if (home.length > 0) embed.addFields({ name: 'Home TV', value: home.map(b => b.network).join(', '), inline: true });
+    if (away.length > 0) embed.addFields({ name: 'Away TV', value: away.map(b => b.network).join(', '), inline: true });
+  }
+
+  await message.reply({ embeds: [embed] });
 }
 
 async function handlePrefixReplay(message: Message): Promise<void> {
-  await message.reply('Use `/replay` for the latest goal replay.');
+  const guildId = message.guild!.id;
+  const config = getGuildConfig(guildId);
+  const teamCode = config?.primary_team ?? 'UTA';
+  const spoilerMode = (config?.spoiler_mode ?? 'off') as 'off' | 'wrap_scores' | 'minimal_embed';
+
+  const { getSchedule, getLanding } = await import('../../nhl/client.js');
+  const { gamecenterWebUrl } = await import('../../nhl/endpoints.js');
+  const { wrapScore } = await import('../../services/spoiler.js');
+  const { EmbedBuilder } = await import('discord.js');
+
+  const schedule = await getSchedule(teamCode);
+  if (!schedule?.games?.length) {
+    await message.reply('No games found.');
+    return;
+  }
+
+  let targetGame = schedule.games.find(g => g.gameState === 'LIVE' || g.gameState === 'CRIT');
+  if (!targetGame) {
+    const now = new Date();
+    const pastGames = schedule.games
+      .filter(g => (g.gameState === 'FINAL' || g.gameState === 'OFF') && new Date(g.startTimeUTC) <= now)
+      .sort((a, b) => new Date(b.startTimeUTC).getTime() - new Date(a.startTimeUTC).getTime());
+    targetGame = pastGames[0];
+  }
+  if (!targetGame) {
+    await message.reply('No current or recent games found.');
+    return;
+  }
+
+  const landing = await getLanding(targetGame.id);
+  if (!landing?.summary?.scoring) {
+    await message.reply('Could not fetch game data.');
+    return;
+  }
+
+  const allGoals: Array<{ firstName: { default: string }; lastName: { default: string }; teamAbbrev: { default: string }; timeInPeriod: string; highlightClipSharingUrl?: string; pptReplayUrl?: string; headshot?: string }> = [];
+  for (const period of landing.summary.scoring) {
+    allGoals.push(...period.goals);
+  }
+
+  if (allGoals.length === 0) {
+    await message.reply('No goals yet in this game.');
+    return;
+  }
+
+  const lastGoal = allGoals[allGoals.length - 1];
+  const scorerName = `${lastGoal.firstName.default} ${lastGoal.lastName.default}`;
+  const replayUrl = lastGoal.highlightClipSharingUrl || lastGoal.pptReplayUrl;
+  const scoreLine = `${landing.awayTeam.abbrev} ${landing.awayTeam.score} - ${landing.homeTeam.abbrev} ${landing.homeTeam.score}`;
+
+  let description = `**Most recent goal:** ${scorerName} (${lastGoal.teamAbbrev.default}) - ${lastGoal.timeInPeriod}`;
+  if (spoilerMode !== 'off') {
+    description += `\n${wrapScore(scoreLine, spoilerMode)}`;
+  } else {
+    description += `\n${scoreLine}`;
+  }
+
+  if (replayUrl) {
+    description += `\n\n[Watch Replay](${replayUrl})`;
+  } else {
+    description += `\n\nReplay unavailable. [View on NHL.com](${gamecenterWebUrl(targetGame.id)})`;
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(`Replay - ${landing.awayTeam.abbrev} @ ${landing.homeTeam.abbrev}`)
+    .setDescription(description)
+    .setColor(0x006847);
+
+  if (lastGoal.headshot) embed.setThumbnail(lastGoal.headshot);
+
+  await message.reply({ embeds: [embed] });
+}
+
+async function handlePrefixSim(message: Message, args: string[]): Promise<void> {
+  const { PermissionFlagsBits } = await import('discord.js');
+  const member = message.member;
+  if (!member?.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    await message.reply('You need Manage Server permission to run simulations.');
+    return;
+  }
+
+  const sub = args[0]?.toLowerCase();
+
+  if (sub === 'reset') {
+    const { resetSimulation } = await import('../../services/simulator.js');
+    resetSimulation(message.guild!.id);
+    await message.reply('Simulation data reset. You can run `!sim` again.');
+    return;
+  }
+
+  await message.reply('Starting game simulation. Goal cards will post to the gameday channel with your configured spoiler delay...');
+  const { runSimulation } = await import('../../services/simulator.js');
+  runSimulation(message.client, message.guild!.id).catch(err => {
+    logger.error({ err }, 'Simulation error');
+  });
 }
 
 async function handlePrefixGif(message: Message, key: string): Promise<void> {

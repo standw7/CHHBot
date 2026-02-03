@@ -1,8 +1,11 @@
 import { EmbedBuilder } from 'discord.js';
-import type { Play, PbpTeam } from '../nhl/types.js';
+import type { LandingGoal, PbpTeam, Play } from '../nhl/types.js';
 import { shouldIncludeScoresInEmbed, formatScoreLine, type SpoilerMode } from './spoiler.js';
 
 export interface GoalCardData {
+  // Rich data from landing endpoint (preferred)
+  landingGoal?: LandingGoal;
+  // Fallback: raw play-by-play data (IDs only, no names)
   play: Play;
   homeTeam: PbpTeam;
   awayTeam: PbpTeam;
@@ -11,30 +14,39 @@ export interface GoalCardData {
 }
 
 export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { content?: string; embed: EmbedBuilder } {
-  const { play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo } = data;
-  const details = play.details;
+  const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo } = data;
+
+  // Use landing data for names if available, fall back to play-by-play
+  const scorerName = landingGoal
+    ? `${landingGoal.firstName.default} ${landingGoal.lastName.default}`
+    : 'Unknown';
+  const goalCount = landingGoal?.goalsToDate ?? play.details?.scoringPlayerTotal ?? '?';
+  const shotType = landingGoal?.shotType ?? play.details?.shotType ?? '';
+  const strength = landingGoal?.strength ?? '';
+  const goalModifier = landingGoal?.goalModifier ?? '';
+  const sweaterNumber = landingGoal?.sweaterNumber;
 
   // Build title
-  const scorerName = details?.scoringPlayerName ?? 'Unknown';
-  const goalCount = details?.scorerSeasonGoals ?? details?.scoringPlayerTotal ?? '?';
-  const shotType = details?.shotType ?? '';
-  const modifier = details?.goalModifier ?? '';
-  const strengthDesc = modifier ? ` ${modifier}` : '';
-
-  const title = `${scoringTeamAbbrev}${strengthDesc} Goal`;
+  let title = `${scoringTeamAbbrev}`;
+  if (strength && strength !== 'ev') {
+    const strengthMap: Record<string, string> = { pp: 'Power Play', sh: 'Short Handed' };
+    title += ` ${strengthMap[strength] ?? strength}`;
+  }
+  title += ' Goal';
 
   // Build description
-  let description = `**${scorerName}** (${goalCount})`;
+  let description = sweaterNumber ? `**#${sweaterNumber} ${scorerName}**` : `**${scorerName}**`;
+  description += ` (${goalCount})`;
   if (shotType) description += ` - ${shotType}`;
 
-  if (details?.assists && details.assists.length > 0) {
-    const assistList = details.assists.map(a => {
-      const name = a.playerName ?? a.name ?? `${a.firstName?.default ?? ''} ${a.lastName?.default ?? ''}`.trim();
-      const count = a.seasonAssists ?? a.assistsToDate ?? '?';
-      return `${name} (${count})`;
+  if (landingGoal?.assists && landingGoal.assists.length > 0) {
+    const assistList = landingGoal.assists.map(a => {
+      const name = `${a.firstName.default} ${a.lastName.default}`;
+      const num = a.sweaterNumber ? `#${a.sweaterNumber} ` : '';
+      return `${num}${name} (${a.assistsToDate})`;
     }).join(', ');
     description += `\nAssists: ${assistList}`;
-  } else {
+  } else if (landingGoal?.assists?.length === 0) {
     description += '\nUnassisted';
   }
 
@@ -43,6 +55,11 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
     .setDescription(description)
     .setColor(0x006847)
     .setThumbnail(scoringTeamLogo);
+
+  // Headshot as author icon if available
+  if (landingGoal?.headshot) {
+    embed.setAuthor({ name: scorerName, iconURL: landingGoal.headshot });
+  }
 
   // Period / clock info
   const period = play.periodDescriptor?.periodType === 'OT'
@@ -54,27 +71,22 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
   embed.addFields({ name: 'Game Clock', value: `${timeRemaining} - ${period}`, inline: false });
 
   // Score fields (respect spoiler mode)
-  if (shouldIncludeScoresInEmbed(spoilerMode)) {
-    const homeScore = details?.homeScore ?? homeTeam.score;
-    const awayScore = details?.awayScore ?? awayTeam.score;
-    const homeSog = details?.homeSOG ?? homeTeam.sog;
-    const awaySog = details?.awaySOG ?? awayTeam.sog;
+  const homeScore = landingGoal?.homeScore ?? play.details?.homeScore ?? homeTeam.score;
+  const awayScore = landingGoal?.awayScore ?? play.details?.awayScore ?? awayTeam.score;
 
+  if (shouldIncludeScoresInEmbed(spoilerMode)) {
     embed.addFields(
-      { name: homeTeam.abbrev, value: `Goals: ${homeScore}${homeSog !== undefined ? ` | Shots: ${homeSog}` : ''}`, inline: true },
-      { name: awayTeam.abbrev, value: `Goals: ${awayScore}${awaySog !== undefined ? ` | Shots: ${awaySog}` : ''}`, inline: true },
+      { name: homeTeam.abbrev, value: `Goals: ${homeScore}${homeTeam.sog !== undefined ? ` | Shots: ${homeTeam.sog}` : ''}`, inline: true },
+      { name: awayTeam.abbrev, value: `Goals: ${awayScore}${awayTeam.sog !== undefined ? ` | Shots: ${awayTeam.sog}` : ''}`, inline: true },
     );
   }
 
-  // Spoiler-wrapped score line as separate content (for wrap_scores and minimal_embed)
+  // Spoiler-wrapped score line as separate content
   let content: string | undefined;
   const scoreLine = formatScoreLine(
-    awayTeam.abbrev,
-    details?.awayScore ?? awayTeam.score,
-    homeTeam.abbrev,
-    details?.homeScore ?? homeTeam.score,
-    details?.awaySOG ?? awayTeam.sog,
-    details?.homeSOG ?? homeTeam.sog,
+    awayTeam.abbrev, awayScore,
+    homeTeam.abbrev, homeScore,
+    awayTeam.sog, homeTeam.sog,
     spoilerMode,
   );
   if (scoreLine) {

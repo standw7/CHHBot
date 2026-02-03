@@ -218,15 +218,11 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
     const scoringTeamAbbrev = isHome ? pbp.homeTeam.abbrev : pbp.awayTeam.abbrev;
     const scoringTeamLogo = isHome ? pbp.homeTeam.logo : pbp.awayTeam.logo;
 
-    // Schedule delayed post
-    const cardData = {
-      play: goal,
-      homeTeam: pbp.homeTeam,
-      awayTeam: pbp.awayTeam,
-      scoringTeamAbbrev,
-      scoringTeamLogo,
-    };
+    // Capture gameId and eventId for the closure
+    const gameId = ctx.currentGame.id;
+    const eventId = goal.eventId;
 
+    // Schedule delayed post - fetch landing data at post time for rich info
     setTimeout(async () => {
       try {
         const channel = await client.channels.fetch(config.gameday_channel_id!);
@@ -235,14 +231,40 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
           return;
         }
 
+        // Fetch landing for rich goal data (player names, assists, headshots)
+        let landingGoal;
+        try {
+          const landing = await nhlClient.getLanding(gameId);
+          if (landing?.summary?.scoring) {
+            for (const period of landing.summary.scoring) {
+              const match = period.goals.find(g => g.eventId === eventId);
+              if (match) {
+                landingGoal = match;
+                break;
+              }
+            }
+          }
+        } catch (err) {
+          logger.warn({ err, gameId, eventId }, 'Failed to fetch landing for goal details');
+        }
+
+        const cardData = {
+          landingGoal,
+          play: goal,
+          homeTeam: pbp.homeTeam,
+          awayTeam: pbp.awayTeam,
+          scoringTeamAbbrev,
+          scoringTeamLogo,
+        };
+
         const { content, embed } = buildGoalCard(cardData, spoilerMode);
         await (channel as TextChannel).send({
           content: content ?? undefined,
           embeds: [embed],
         });
-        logger.info({ guildId: ctx.guildId, eventId: goal.eventId }, 'Goal card posted');
+        logger.info({ guildId: ctx.guildId, eventId }, 'Goal card posted');
       } catch (error) {
-        logger.error({ error, eventId: goal.eventId }, 'Failed to post goal card');
+        logger.error({ error, eventId }, 'Failed to post goal card');
       }
     }, delayMs);
   }

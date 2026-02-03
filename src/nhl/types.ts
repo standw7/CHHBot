@@ -1,4 +1,4 @@
-// Types for NHL api-web responses (unofficial API, fields may vary)
+// Types for NHL api-web responses (unofficial API)
 
 export interface ScheduleResponse {
   games: ScheduleGame[];
@@ -24,6 +24,8 @@ export interface ScheduleTeam {
   score?: number;
 }
 
+// --- Play-by-Play ---
+
 export interface PlayByPlayResponse {
   id: number;
   gameState: string;
@@ -40,6 +42,7 @@ export interface PlayByPlayResponse {
 export interface PbpTeam {
   id: number;
   abbrev: string;
+  commonName?: { default: string };
   name?: { default: string };
   logo: string;
   score: number;
@@ -56,35 +59,88 @@ export interface Play {
   };
   timeInPeriod: string;
   timeRemaining: string;
-  details?: GoalDetails;
+  details?: PlayDetails;
+  pptReplayUrl?: string;
 }
 
-export interface GoalDetails {
+export interface PlayDetails {
+  // Goal-specific fields from play-by-play (IDs only, no names)
   scoringPlayerId?: number;
   scoringPlayerTotal?: number;
-  assists?: Assist[];
+  assist1PlayerId?: number;
+  assist1PlayerTotal?: number;
+  assist2PlayerId?: number;
+  assist2PlayerTotal?: number;
+  eventOwnerTeamId?: number;
+  goalieInNetId?: number;
   shotType?: string;
-  goalModifier?: string;
+  zoneCode?: string;
   xCoord?: number;
   yCoord?: number;
-  homeScore?: number;
   awayScore?: number;
-  homeSOG?: number;
-  awaySOG?: number;
-  eventOwnerTeamId?: number;
-  scoringPlayerName?: string;
-  scorerSeasonGoals?: number;
+  homeScore?: number;
+  // Highlight clip URLs (available directly on play-by-play goal events)
+  highlightClipSharingUrl?: string;
+  highlightClip?: number;
+  discreteClip?: number;
 }
 
-export interface Assist {
-  playerId: number;
-  firstName?: { default: string };
-  lastName?: { default: string };
-  assistsToDate?: number;
-  name?: string;
-  playerName?: string;
-  seasonAssists?: number;
+// --- Landing endpoint (has rich goal data with names) ---
+
+export interface LandingResponse {
+  id: number;
+  gameState: string;
+  homeTeam: BoxscoreTeam;
+  awayTeam: BoxscoreTeam;
+  summary?: {
+    scoring?: LandingPeriodScoring[];
+    threeStars?: ThreeStar[];
+  };
+  tvBroadcasts?: TvBroadcast[];
 }
+
+export interface LandingPeriodScoring {
+  periodDescriptor: {
+    number: number;
+    periodType: string;
+  };
+  goals: LandingGoal[];
+}
+
+export interface LandingGoal {
+  situationCode?: string;
+  eventId: number;
+  strength: string; // "ev", "pp", "sh"
+  playerId: number;
+  firstName: { default: string };
+  lastName: { default: string };
+  name: { default: string };
+  teamAbbrev: { default: string };
+  headshot?: string;
+  goalsToDate: number;
+  awayScore: number;
+  homeScore: number;
+  leadingTeamAbbrev?: { default: string };
+  timeInPeriod: string;
+  shotType?: string;
+  goalModifier?: string;
+  assists: LandingAssist[];
+  highlightClipSharingUrl?: string;
+  pptReplayUrl?: string;
+  isHome?: boolean;
+  sweaterNumber?: number;
+}
+
+export interface LandingAssist {
+  playerId: number;
+  firstName: { default: string };
+  lastName: { default: string };
+  name: { default: string };
+  assistsToDate: number;
+  sweaterNumber?: number;
+}
+
+// --- Boxscore ---
 
 export interface BoxscoreResponse {
   id: number;
@@ -114,14 +170,6 @@ export interface ThreeStar {
   sweaterNumber?: number;
   teamAbbrev?: string;
   position?: string;
-}
-
-export interface LandingResponse {
-  id: number;
-  gameState: string;
-  homeTeam: BoxscoreTeam;
-  awayTeam: BoxscoreTeam;
-  tvBroadcasts?: TvBroadcast[];
 }
 
 export interface TvBroadcast {

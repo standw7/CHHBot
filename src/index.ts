@@ -37,10 +37,15 @@ async function main(): Promise<void> {
   client.once('ready', () => {
     logger.info({ user: client.user?.tag }, 'Tusky is online!');
 
-    // Start game tracker for each guild the bot is in
+    // Ensure config exists for all guilds the bot is in, then start trackers
     for (const [guildId] of client.guilds.cache) {
-      const guildConfig = getGuildConfig(guildId);
-      if (guildConfig?.gameday_channel_id) {
+      let guildConfig = getGuildConfig(guildId);
+      if (!guildConfig) {
+        upsertGuildConfig(guildId, {});
+        guildConfig = getGuildConfig(guildId)!;
+        logger.info({ guildId }, 'Created default config for existing guild');
+      }
+      if (guildConfig.gameday_channel_id) {
         startTracker(client, guildId);
       } else {
         logger.info({ guildId }, 'No gameday channel configured, skipping tracker');
@@ -85,6 +90,7 @@ async function main(): Promise<void> {
 }
 
 main().catch(error => {
-  logger.fatal({ error }, 'Failed to start Tusky');
+  logger.fatal({ err: error }, 'Failed to start Tusky');
+  console.error(error);
   process.exit(1);
 });
