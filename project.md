@@ -116,3 +116,32 @@ Things that claude code should do while coding this project:
 - `src/services/simulator.ts` -- NEW: Fake game simulation for testing
 
 **Important:** DISCORD_GUILD_ID should be set in .env for instant slash command registration (global commands take up to 1 hour to propagate).
+
+### 2026-02-03: News Channel & Social Link Auto-Embed
+
+**Status:** Both features implemented and compiling.
+
+**New features:**
+1. **Social link auto-embed** (`src/bot/events/linkFixer.ts`) -- Automatically detects x.com/twitter.com and instagram.com links posted anywhere in the server and replies with fixed embed versions (fxtwitter.com, ddinstagram.com). Suppresses original embeds. Toggle with `/config set setting:link_fix value:on/off`. Enabled by default.
+
+2. **RSS feed watcher** (`src/services/feedWatcher.ts`) -- Polls registered RSS feeds every 5 minutes and posts new items as embeds to the configured news channel. Supports any RSS feed URL (Twitter/X via RSS bridges, team news sites, etc).
+   - `!feed add <url> <label>` -- Register a feed (admin)
+   - `!feed remove <label>` -- Remove a feed (admin)
+   - `!feed list` -- List all feeds
+   - Posts include: title, description, author, timestamp, images, and link
+
+3. **New config settings:**
+   - `news_channel_id` -- Channel where feed items post
+   - `link_fix_enabled` -- Toggle auto-embed link fixing (on/off)
+
+**Key files added/changed:**
+- `src/bot/events/linkFixer.ts` -- NEW: Social link auto-embed handler
+- `src/services/feedWatcher.ts` -- NEW: RSS feed polling service
+- `src/db/models.ts` -- Added FeedSource type, news_channel_id, link_fix_enabled to GuildConfig
+- `src/db/database.ts` -- Added feed_sources table, migration for existing DBs
+- `src/db/queries.ts` -- Added feed CRUD queries
+- `src/bot/commands/config.ts` -- Added news_channel and link_fix settings
+- `src/bot/events/messageCreate.ts` -- Added !feed commands, updated !help
+- `src/index.ts` -- Wired in link fixer and feed watcher
+
+**Dependencies added:** rss-parser

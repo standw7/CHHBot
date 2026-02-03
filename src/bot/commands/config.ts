@@ -23,9 +23,11 @@ export const data = new SlashCommandBuilder()
             { name: 'gameday_channel', value: 'gameday_channel_id' },
             { name: 'hof_channel', value: 'hof_channel_id' },
             { name: 'bot_channel', value: 'bot_commands_channel_id' },
+            { name: 'news_channel', value: 'news_channel_id' },
             { name: 'delay', value: 'spoiler_delay_seconds' },
             { name: 'spoiler_mode', value: 'spoiler_mode' },
             { name: 'command_mode', value: 'command_mode' },
+            { name: 'link_fix', value: 'link_fix_enabled' },
             { name: 'timezone', value: 'timezone' },
           )
       )
@@ -73,9 +75,11 @@ async function handleShow(interaction: ChatInputCommandInteraction, guildId: str
     `**Game Day Channel:** ${config.gameday_channel_id ? `<#${config.gameday_channel_id}>` : 'Not set'}`,
     `**Hall of Fame Channel:** ${config.hof_channel_id ? `<#${config.hof_channel_id}>` : 'Not set'}`,
     `**Bot Commands Channel:** ${config.bot_commands_channel_id ? `<#${config.bot_commands_channel_id}>` : 'Not set'}`,
+    `**News Channel:** ${config.news_channel_id ? `<#${config.news_channel_id}>` : 'Not set'}`,
     `**Spoiler Delay:** ${config.spoiler_delay_seconds}s`,
     `**Spoiler Mode:** ${config.spoiler_mode}`,
     `**Command Mode:** ${config.command_mode}`,
+    `**Link Fix (auto-embed):** ${config.link_fix_enabled ? 'on' : 'off'}`,
     `**Timezone:** ${config.timezone}`,
   ];
 
@@ -108,6 +112,11 @@ async function handleSet(interaction: ChatInputCommandInteraction, guildId: stri
       updates.bot_commands_channel_id = channelId;
       break;
     }
+    case 'news_channel_id': {
+      const channelId = value.replace(/[<#>]/g, '');
+      updates.news_channel_id = channelId;
+      break;
+    }
     case 'spoiler_delay_seconds': {
       const num = parseInt(value, 10);
       if (isNaN(num) || num < 0 || num > 300) {
@@ -124,6 +133,15 @@ async function handleSet(interaction: ChatInputCommandInteraction, guildId: stri
       }
       updates.spoiler_mode = value as GuildConfig['spoiler_mode'];
       break;
+    case 'link_fix_enabled': {
+      const lower = value.toLowerCase();
+      if (!['on', 'off', '1', '0'].includes(lower)) {
+        await interaction.reply({ content: 'Link fix must be: on or off', ephemeral: true });
+        return;
+      }
+      updates.link_fix_enabled = (lower === 'on' || lower === '1') ? 1 : 0;
+      break;
+    }
     case 'command_mode':
       if (!VALID_COMMAND_MODES.includes(value)) {
         await interaction.reply({ content: `Command mode must be one of: ${VALID_COMMAND_MODES.join(', ')}`, ephemeral: true });

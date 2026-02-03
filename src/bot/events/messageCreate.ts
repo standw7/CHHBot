@@ -41,6 +41,9 @@ export function registerMessageHandler(client: Client): void {
         case 'gif':
           await handlePrefixGifAdmin(message, args.slice(1));
           break;
+        case 'feed':
+          await handlePrefixFeed(message, args.slice(1));
+          break;
         case 'sim':
           await handlePrefixSim(message, args.slice(1));
           break;
@@ -80,6 +83,12 @@ async function handlePrefixHelp(message: Message): Promise<void> {
       { name: '!gif remove key:<key> url:<url>', value: 'Remove a media URL from a key', inline: false },
       { name: '!gif list key:<key>', value: 'List all URLs for a key', inline: false },
       { name: '!gif keys', value: 'List all registered keys', inline: false },
+      { name: '\u200B', value: '**News Feeds (Admin)**', inline: false },
+      { name: '!feed add <url> <label>', value: 'Add an RSS feed to the news channel', inline: false },
+      { name: '!feed remove <label>', value: 'Remove a feed', inline: false },
+      { name: '!feed list', value: 'List all registered feeds', inline: false },
+      { name: '\u200B', value: '**Auto Features**', inline: false },
+      { name: 'Link Fix', value: 'Automatically converts x.com/twitter and instagram links for proper embeds (toggle with `/config set setting:link_fix value:on/off`)', inline: false },
       { name: '\u200B', value: '**Testing (Admin)**', inline: false },
       { name: '!sim', value: 'Run a fake game simulation to test goal cards and final summary', inline: false },
       { name: '!sim reset', value: 'Reset simulation data so you can run it again', inline: false },
@@ -288,6 +297,65 @@ async function handlePrefixReplay(message: Message): Promise<void> {
   if (lastGoal.headshot) embed.setThumbnail(lastGoal.headshot);
 
   await message.reply({ embeds: [embed] });
+}
+
+async function handlePrefixFeed(message: Message, args: string[]): Promise<void> {
+  const { PermissionFlagsBits, EmbedBuilder } = await import('discord.js');
+  const { addFeedSource, removeFeedSource, getFeedSources } = await import('../../db/queries.js');
+
+  const guildId = message.guild!.id;
+  const sub = args[0]?.toLowerCase();
+
+  if (!sub || sub === 'help') {
+    await message.reply(
+      '**Feed Commands:**\n' +
+      '`!feed add <url> <label>` - Add an RSS feed (admin)\n' +
+      '`!feed remove <label>` - Remove a feed (admin)\n' +
+      '`!feed list` - List all registered feeds\n\n' +
+      'Feeds post to the configured news channel. Set it with:\n' +
+      '`/config set setting:news_channel value:#channel`'
+    );
+    return;
+  }
+
+  if (sub === 'list') {
+    const feeds = getFeedSources(guildId);
+    if (feeds.length === 0) {
+      await message.reply('No feeds registered yet. Use `!feed add <url> <label>` to add one.');
+      return;
+    }
+    const list = feeds.map((f, i) => `${i + 1}. **${f.label}** - ${f.url}`).join('\n');
+    await message.reply(`**Registered Feeds:**\n${list}`);
+    return;
+  }
+
+  // Admin-only from here
+  const member = message.member;
+  if (!member?.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    await message.reply('You need Manage Server permission to manage feeds.');
+    return;
+  }
+
+  if (sub === 'add') {
+    const url = args[1];
+    const label = args.slice(2).join(' ');
+    if (!url || !label) {
+      await message.reply('Usage: `!feed add <url> <label>`\nExample: `!feed add https://nitter.net/UtahHC/rss Utah HC`');
+      return;
+    }
+    addFeedSource(guildId, url, label, message.author.id);
+    await message.reply(`Added feed **${label}**.`);
+  } else if (sub === 'remove') {
+    const label = args.slice(1).join(' ');
+    if (!label) {
+      await message.reply('Usage: `!feed remove <label>`');
+      return;
+    }
+    const removed = removeFeedSource(guildId, label);
+    await message.reply(removed ? `Removed feed **${label}**.` : `Feed "${label}" not found.`);
+  } else {
+    await message.reply('Unknown subcommand. Use `!feed help` for usage.');
+  }
 }
 
 async function handlePrefixSim(message: Message, args: string[]): Promise<void> {

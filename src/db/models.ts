@@ -4,10 +4,22 @@ export interface GuildConfig {
   gameday_channel_id: string | null;
   hof_channel_id: string | null;
   bot_commands_channel_id: string | null;
+  news_channel_id: string | null;
   spoiler_delay_seconds: number;
   spoiler_mode: 'off' | 'wrap_scores' | 'minimal_embed';
   command_mode: 'slash_only' | 'slash_plus_prefix';
+  link_fix_enabled: number; // 1 = on, 0 = off
   timezone: string;
+}
+
+export interface FeedSource {
+  id: number;
+  guild_id: string;
+  url: string;
+  label: string;
+  last_item_id: string | null;
+  added_by: string;
+  created_at: string;
 }
 
 export interface GifCommand {

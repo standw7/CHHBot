@@ -4,6 +4,8 @@ import { createClient, registerCommands } from './bot/client.js';
 import { registerMessageHandler } from './bot/events/messageCreate.js';
 import { registerReactionHandler } from './bot/events/reactionAdd.js';
 import { startTracker, stopAllTrackers } from './services/gameTracker.js';
+import { registerLinkFixer } from './bot/events/linkFixer.js';
+import { startFeedWatcher, stopFeedWatcher } from './services/feedWatcher.js';
 import { getGuildConfig, upsertGuildConfig } from './db/queries.js';
 import pino from 'pino';
 
@@ -32,10 +34,14 @@ async function main(): Promise<void> {
   // Register event handlers
   registerMessageHandler(client);
   registerReactionHandler(client);
+  registerLinkFixer(client);
 
   // When bot is ready, start game trackers for all configured guilds
   client.once('ready', () => {
     logger.info({ user: client.user?.tag }, 'Tusky is online!');
+
+    // Start feed watcher
+    startFeedWatcher(client);
 
     // Ensure config exists for all guilds the bot is in, then start trackers
     for (const [guildId] of client.guilds.cache) {
@@ -67,6 +73,7 @@ async function main(): Promise<void> {
   const shutdown = async () => {
     logger.info('Shutting down...');
     stopAllTrackers();
+    stopFeedWatcher();
     client.destroy();
     closeDb();
     logger.info('Goodbye!');

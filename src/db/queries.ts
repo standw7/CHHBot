@@ -1,5 +1,5 @@
 import { getDb } from './database.js';
-import type { GuildConfig, GifCommand, PostedGoal, HofMessage } from './models.js';
+import type { GuildConfig, GifCommand, PostedGoal, HofMessage, FeedSource } from './models.js';
 
 // --- Guild Config ---
 
@@ -11,17 +11,19 @@ export function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildCo
   const existing = getGuildConfig(guildId);
   if (!existing) {
     getDb().prepare(`
-      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, spoiler_delay_seconds, spoiler_mode, command_mode, timezone)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       guildId,
       updates.primary_team ?? 'UTA',
       updates.gameday_channel_id ?? null,
       updates.hof_channel_id ?? null,
       updates.bot_commands_channel_id ?? null,
+      updates.news_channel_id ?? null,
       updates.spoiler_delay_seconds ?? 30,
       updates.spoiler_mode ?? 'off',
       updates.command_mode ?? 'slash_plus_prefix',
+      updates.link_fix_enabled ?? 1,
       updates.timezone ?? 'America/Denver'
     );
   } else {
@@ -106,4 +108,30 @@ export function markMessageInducted(guildId: string, messageId: string, channelI
     INSERT OR IGNORE INTO hof_messages (guild_id, original_message_id, original_channel_id, inducted_at)
     VALUES (?, ?, ?, ?)
   `).run(guildId, messageId, channelId, new Date().toISOString());
+}
+
+// --- Feed Sources ---
+
+export function getFeedSources(guildId: string): FeedSource[] {
+  return getDb().prepare('SELECT * FROM feed_sources WHERE guild_id = ? ORDER BY label').all(guildId) as FeedSource[];
+}
+
+export function addFeedSource(guildId: string, url: string, label: string, addedBy: string): void {
+  getDb().prepare(`
+    INSERT INTO feed_sources (guild_id, url, label, last_item_id, added_by, created_at)
+    VALUES (?, ?, ?, NULL, ?, ?)
+  `).run(guildId, url, label, addedBy, new Date().toISOString());
+}
+
+export function removeFeedSource(guildId: string, idOrLabel: string): boolean {
+  // Try by ID first, then by label
+  let result = getDb().prepare('DELETE FROM feed_sources WHERE guild_id = ? AND id = ?').run(guildId, idOrLabel);
+  if (result.changes === 0) {
+    result = getDb().prepare('DELETE FROM feed_sources WHERE guild_id = ? AND label = ?').run(guildId, idOrLabel);
+  }
+  return result.changes > 0;
+}
+
+export function updateFeedLastItem(feedId: number, lastItemId: string): void {
+  getDb().prepare('UPDATE feed_sources SET last_item_id = ? WHERE id = ?').run(lastItemId, feedId);
 }
