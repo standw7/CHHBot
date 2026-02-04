@@ -248,6 +248,7 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
           logger.warn({ err, gameId, eventId }, 'Failed to fetch landing for goal details');
         }
 
+        const guild = client.guilds.cache.get(ctx.guildId);
         const cardData = {
           landingGoal,
           play: goal,
@@ -255,6 +256,7 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
           awayTeam: pbp.awayTeam,
           scoringTeamAbbrev,
           scoringTeamLogo,
+          guild,
         };
 
         const { content, embed } = buildGoalCard(cardData, spoilerMode);
@@ -320,7 +322,8 @@ async function handleFinal(client: Client, ctx: TrackerContext): Promise<void> {
         return;
       }
 
-      const { content, embed } = buildFinalCard(boxscore, spoilerMode);
+      const guild = client.guilds.cache.get(ctx.guildId);
+      const { content, embed } = buildFinalCard(boxscore, spoilerMode, guild);
       await (channel as TextChannel).send({
         content: content ?? undefined,
         embeds: [embed],

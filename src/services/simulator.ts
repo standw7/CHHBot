@@ -161,6 +161,7 @@ export async function runSimulation(client: Client, guildId: string): Promise<vo
   }
 
   const textChannel = channel as TextChannel;
+  const guild = client.guilds.cache.get(guildId);
   const spoilerMode = (config.spoiler_mode ?? 'off') as SpoilerMode;
   const delayMs = (config.spoiler_delay_seconds ?? 30) * 1000;
 
@@ -197,6 +198,7 @@ export async function runSimulation(client: Client, guildId: string): Promise<vo
       awayTeam,
       scoringTeamAbbrev: goal.isHome ? homeTeam.abbrev : awayTeam.abbrev,
       scoringTeamLogo: goal.isHome ? homeTeam.logo : awayTeam.logo,
+      guild,
     };
 
     // Apply spoiler delay
@@ -230,7 +232,7 @@ export async function runSimulation(client: Client, guildId: string): Promise<vo
       },
     };
 
-    const { content, embed } = buildFinalCard(fakeBoxscore, spoilerMode);
+    const { content, embed } = buildFinalCard(fakeBoxscore, spoilerMode, guild);
     await textChannel.send({ content: content ?? undefined, embeds: [embed] });
     logger.info({ guildId }, 'Simulated final summary posted');
   }

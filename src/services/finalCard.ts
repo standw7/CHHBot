@@ -1,19 +1,19 @@
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, Guild } from 'discord.js';
 import type { BoxscoreResponse } from '../nhl/types.js';
 import { shouldIncludeScoresInEmbed, formatScoreLine, type SpoilerMode } from './spoiler.js';
 import { getTeamEmoji } from './goalCard.js';
 
-export function buildFinalCard(boxscore: BoxscoreResponse, spoilerMode: SpoilerMode): { content?: string; embed: EmbedBuilder } {
+export function buildFinalCard(boxscore: BoxscoreResponse, spoilerMode: SpoilerMode, guild?: Guild): { content?: string; embed: EmbedBuilder } {
   const { homeTeam, awayTeam } = boxscore;
 
   const embed = new EmbedBuilder()
-    .setTitle(`${getTeamEmoji(awayTeam.abbrev)} ${awayTeam.abbrev} @ ${homeTeam.abbrev} ${getTeamEmoji(homeTeam.abbrev)} - Final`)
+    .setTitle(`${getTeamEmoji(awayTeam.abbrev, guild)} ${awayTeam.abbrev} @ ${homeTeam.abbrev} ${getTeamEmoji(homeTeam.abbrev, guild)} - Final`)
     .setColor(0x006847);
 
   if (shouldIncludeScoresInEmbed(spoilerMode)) {
     embed.addFields(
-      { name: `${getTeamEmoji(homeTeam.abbrev)} ${homeTeam.abbrev}`, value: `Goals: ${homeTeam.score} | Shots: ${homeTeam.sog}`, inline: true },
-      { name: `${getTeamEmoji(awayTeam.abbrev)} ${awayTeam.abbrev}`, value: `Goals: ${awayTeam.score} | Shots: ${awayTeam.sog}`, inline: true },
+      { name: `${getTeamEmoji(homeTeam.abbrev, guild)} ${homeTeam.abbrev}`, value: `Goals: ${homeTeam.score} | Shots: ${homeTeam.sog}`, inline: true },
+      { name: `${getTeamEmoji(awayTeam.abbrev, guild)} ${awayTeam.abbrev}`, value: `Goals: ${awayTeam.score} | Shots: ${awayTeam.sog}`, inline: true },
     );
   }
 
@@ -26,7 +26,8 @@ export function buildFinalCard(boxscore: BoxscoreResponse, spoilerMode: SpoilerM
         ?? 'Unknown';
       const num = s.sweaterNumber ? `#${s.sweaterNumber}` : '';
       const team = s.teamAbbrev ?? '';
-      return `⭐${s.star}. ${num} ${name} (${team})`;
+      const starEmoji = '⭐'.repeat(s.star);
+      return `${starEmoji} ${num} ${name} (${team})`;
     }).join('\n');
     embed.addFields({ name: 'Stars of the Game', value: starLines, inline: false });
   }

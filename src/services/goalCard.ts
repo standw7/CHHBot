@@ -1,4 +1,4 @@
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, Guild } from 'discord.js';
 import type { LandingGoal, PbpTeam, Play } from '../nhl/types.js';
 import { shouldIncludeScoresInEmbed, formatScoreLine, type SpoilerMode } from './spoiler.js';
 
@@ -9,6 +9,7 @@ export interface GoalCardData {
   awayTeam: PbpTeam;
   scoringTeamAbbrev: string;
   scoringTeamLogo: string;
+  guild?: Guild;
 }
 
 const STRENGTH_LABELS: Record<string, string> = {
@@ -17,12 +18,16 @@ const STRENGTH_LABELS: Record<string, string> = {
   sh: 'Short Handed',
 };
 
-export function getTeamEmoji(abbrev: string): string {
-  return `:${abbrev.toLowerCase()}:`;
+export function getTeamEmoji(abbrev: string, guild?: Guild): string {
+  if (guild) {
+    const emoji = guild.emojis.cache.find(e => e.name?.toLowerCase() === abbrev.toLowerCase());
+    if (emoji) return `<:${emoji.name}:${emoji.id}>`;
+  }
+  return abbrev;
 }
 
 export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { content?: string; embed: EmbedBuilder } {
-  const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo } = data;
+  const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild } = data;
 
   // Scorer info
   const scorerFirst = landingGoal?.firstName?.default ?? '';
@@ -39,7 +44,7 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
   // --- Title ---
   const strengthLabel = STRENGTH_LABELS[strength] ?? strength;
   const numberStr = scorerNumber ? ` #${scorerNumber}` : '';
-  const scoringEmoji = getTeamEmoji(scoringTeamAbbrev);
+  const scoringEmoji = getTeamEmoji(scoringTeamAbbrev, guild);
   const title = `${scoringEmoji} 🚨 ${scoringTeamName}${numberStr} ${strengthLabel} Goal 🚨 ${scoringEmoji}`;
 
   // --- Description ---
@@ -68,8 +73,8 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
     const homeTeamName = getTeamFullName(homeTeam.abbrev, homeTeam, awayTeam);
     const awayTeamName = getTeamFullName(awayTeam.abbrev, homeTeam, awayTeam);
 
-    const homeEmoji = getTeamEmoji(homeTeam.abbrev);
-    const awayEmoji = getTeamEmoji(awayTeam.abbrev);
+    const homeEmoji = getTeamEmoji(homeTeam.abbrev, guild);
+    const awayEmoji = getTeamEmoji(awayTeam.abbrev, guild);
 
     description += `\n\n${homeEmoji} **${homeTeamName}** ${homeEmoji}`;
     description += `\nGoals: **${homeScore}**`;
