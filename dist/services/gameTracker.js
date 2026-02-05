@@ -312,13 +312,22 @@ async function handleFinal(client, ctx) {
     const spoilerMode = (config.spoiler_mode ?? 'off');
     const delayMs = (config.spoiler_delay_seconds ?? 30) * 1000;
     logger.info({ guildId: ctx.guildId, gameId, delay: delayMs }, 'Scheduling final summary post');
-    const boxscore = await nhlClient.getBoxscore(gameId);
     setTimeout(async () => {
         try {
-            if (!boxscore) {
-                logger.error({ gameId }, 'Failed to fetch boxscore for final summary');
+            // Use getLanding instead of getBoxscore - it has more complete data including three stars
+            const landing = await nhlClient.getLanding(gameId);
+            if (!landing) {
+                logger.error({ gameId }, 'Failed to fetch landing for final summary');
                 return;
             }
+            // Convert landing to boxscore format for buildFinalCard
+            const boxscore = {
+                id: landing.id,
+                gameState: landing.gameState,
+                homeTeam: landing.homeTeam,
+                awayTeam: landing.awayTeam,
+                summary: landing.summary,
+            };
             const channel = await client.channels.fetch(config.gameday_channel_id);
             if (!channel || !channel.isTextBased()) {
                 logger.error({ channelId: config.gameday_channel_id }, 'Game day channel not found');
