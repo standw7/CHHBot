@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# Build output
-dist/
+# Build output (committed for low-RAM VM deployment)
+# dist/
 
 # Environment variables
 .env

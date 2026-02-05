@@ -1,0 +1,20 @@
+import type { GuildConfig, GifCommand, FeedSource } from './models.js';
+export declare function getGuildConfig(guildId: string): GuildConfig | undefined;
+export declare function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildConfig, 'guild_id'>>): void;
+export declare function getGifUrls(guildId: string, key: string): string[];
+export declare function addGifUrl(guildId: string, key: string, url: string, addedBy: string): void;
+export declare function removeGifUrl(guildId: string, key: string, url: string): boolean;
+export declare function listGifKeys(guildId: string): string[];
+export declare function listGifUrlsForKey(guildId: string, key: string): GifCommand[];
+export declare function hasGoalBeenPosted(guildId: string, gameId: number, eventId: number): boolean;
+export declare function markGoalPosted(guildId: string, gameId: number, eventId: number): void;
+export declare function getPostedGoalIds(guildId: string, gameId: number): number[];
+export declare function hasFinalBeenPosted(guildId: string, gameId: number): boolean;
+export declare function markFinalPosted(guildId: string, gameId: number): void;
+export declare function hasMessageBeenInducted(guildId: string, messageId: string): boolean;
+export declare function markMessageInducted(guildId: string, messageId: string, channelId: string): void;
+export declare function getFeedSources(guildId: string): FeedSource[];
+export declare function addFeedSource(guildId: string, url: string, label: string, addedBy: string): void;
+export declare function removeFeedSource(guildId: string, idOrLabel: string): boolean;
+export declare function updateFeedLastItem(feedId: number, lastItemId: string): void;
+//# sourceMappingURL=queries.d.ts.map
