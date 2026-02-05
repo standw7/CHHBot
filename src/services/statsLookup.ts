@@ -1,6 +1,7 @@
 import { EmbedBuilder } from 'discord.js';
 import { getClubStats } from '../nhl/client.js';
 import { getMoneyPuckSkaters, type MoneyPuckSkater } from './moneyPuck.js';
+import { extractDateFromQuery, buildGameStatsEmbed } from './gameStats.js';
 import type { SkaterStats, GoalieStats } from '../nhl/statsTypes.js';
 
 // --- Stat category definitions ---
@@ -169,6 +170,12 @@ function positionLabel(code: string): string {
 }
 
 export async function buildStatsEmbed(teamCode: string, query: string): Promise<EmbedBuilder> {
+  // Check if query contains a date - if so, use per-game stats
+  const dateExtract = extractDateFromQuery(query);
+  if (dateExtract) {
+    return buildGameStatsEmbed(teamCode, dateExtract.date, dateExtract.statQuery);
+  }
+
   const match = matchKeywords(query);
 
   if (!match) {
@@ -355,15 +362,17 @@ export function buildStatsHelpEmbed(): EmbedBuilder {
     .setTitle('Stats Lookup')
     .setDescription(
       'Ask me about team stats! Examples:\n\n' +
+      '**Season stats:**\n' +
       '`@Tusky who leads in goals?`\n' +
-      '`@Tusky penalty minutes`\n' +
       '`@Tusky hits`\n' +
-      '`/stats goals`\n' +
       '`!stats xg`\n\n' +
-      '**Skater stats (NHL API):**\n' +
-      'goals, assists, points, +/-, PIM, shots, shooting%, TOI, minutes (total), faceoff%, PPG, SHG, GWG, OTG\n\n' +
-      '**Skater stats (MoneyPuck):**\n' +
-      'hits, blocks, takeaways, giveaways, xG\n\n' +
+      '**Per-game stats:**\n' +
+      '`@Tusky goals on 02/02/26`\n' +
+      '`@Tusky who had the most hits on Feb 2?`\n\n' +
+      '**Season stats (NHL API):**\n' +
+      'goals, assists, points, +/-, PIM, shots, shooting%, TOI, faceoff%, PPG, SHG, GWG, OTG\n\n' +
+      '**Season stats (MoneyPuck):**\n' +
+      'hits, blocks, takeaways, giveaways, xG, minutes (total)\n\n' +
       '**Goalie stats:**\n' +
       'wins, losses, OTL, record, GAA, save%, shutouts'
     )

@@ -5,6 +5,7 @@ exports.buildStatsHelpEmbed = buildStatsHelpEmbed;
 const discord_js_1 = require("discord.js");
 const client_js_1 = require("../nhl/client.js");
 const moneyPuck_js_1 = require("./moneyPuck.js");
+const gameStats_js_1 = require("./gameStats.js");
 function formatPctg(value) {
     return (value * 100).toFixed(1) + '%';
 }
@@ -121,6 +122,11 @@ function positionLabel(code) {
     }
 }
 async function buildStatsEmbed(teamCode, query) {
+    // Check if query contains a date - if so, use per-game stats
+    const dateExtract = (0, gameStats_js_1.extractDateFromQuery)(query);
+    if (dateExtract) {
+        return (0, gameStats_js_1.buildGameStatsEmbed)(teamCode, dateExtract.date, dateExtract.statQuery);
+    }
     const match = matchKeywords(query);
     if (!match) {
         return buildStatNotSupportedEmbed(query);
@@ -270,15 +276,17 @@ function buildStatsHelpEmbed() {
     return new discord_js_1.EmbedBuilder()
         .setTitle('Stats Lookup')
         .setDescription('Ask me about team stats! Examples:\n\n' +
+        '**Season stats:**\n' +
         '`@Tusky who leads in goals?`\n' +
-        '`@Tusky penalty minutes`\n' +
         '`@Tusky hits`\n' +
-        '`/stats goals`\n' +
         '`!stats xg`\n\n' +
-        '**Skater stats (NHL API):**\n' +
-        'goals, assists, points, +/-, PIM, shots, shooting%, TOI, minutes (total), faceoff%, PPG, SHG, GWG, OTG\n\n' +
-        '**Skater stats (MoneyPuck):**\n' +
-        'hits, blocks, takeaways, giveaways, xG\n\n' +
+        '**Per-game stats:**\n' +
+        '`@Tusky goals on 02/02/26`\n' +
+        '`@Tusky who had the most hits on Feb 2?`\n\n' +
+        '**Season stats (NHL API):**\n' +
+        'goals, assists, points, +/-, PIM, shots, shooting%, TOI, faceoff%, PPG, SHG, GWG, OTG\n\n' +
+        '**Season stats (MoneyPuck):**\n' +
+        'hits, blocks, takeaways, giveaways, xG, minutes (total)\n\n' +
         '**Goalie stats:**\n' +
         'wins, losses, OTL, record, GAA, save%, shutouts')
         .setColor(0x006847);
