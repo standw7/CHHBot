@@ -242,8 +242,6 @@ function toiToSeconds(toi: string): number {
   return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
 }
 
-const MEDALS = ['🥇', '🥈', '🥉'];
-
 export async function buildGameStatsEmbed(
   teamCode: string,
   dateStr: string,
@@ -307,7 +305,7 @@ export async function buildGameStatsEmbed(
   const format = category.format ?? ((v: number | string) => `${v}`);
 
   const lines = top5.map((player, i) => {
-    const prefix = i < 3 ? MEDALS[i] : `${i + 1}.`;
+    const prefix = `${i + 1}.`;
     const name = player.name.default;
     const pos = player.position;
     const val = format(player[category.field] as number | string);

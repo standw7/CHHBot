@@ -157,8 +157,6 @@ function matchKeywords(input: string): MatchResult | null {
 
 // --- Embed builder ---
 
-const MEDALS = ['🥇', '🥈', '🥉'];
-
 function positionLabel(code: string): string {
   switch (code) {
     case 'C': return 'C';
@@ -240,7 +238,7 @@ async function buildMoneyPuckEmbed(teamCode: string, categoryKey: string): Promi
   const format = category.format ?? ((v: number) => `${v}`);
 
   const lines = top5.map((player, i) => {
-    const prefix = i < 3 ? MEDALS[i] : `${i + 1}.`;
+    const prefix = `${i + 1}.`;
     const pos = positionLabel(player.position);
     const val = format(player[field] as number);
     return `${prefix} **${player.name}** (${pos}) - **${val}** ${category.abbrev} (${player.gamesPlayed} GP)`;
@@ -281,7 +279,7 @@ function buildSkaterEmbed(skaters: SkaterStats[], category: StatCategory, teamCo
   const format = category.format ?? ((v: number) => `${v}`);
 
   const lines = top5.map((player, i) => {
-    const prefix = i < 3 ? MEDALS[i] : `${i + 1}.`;
+    const prefix = `${i + 1}.`;
     const name = `${player.firstName.default} ${player.lastName.default}`;
     const pos = positionLabel(player.positionCode);
     const val = format(player[field] as number);
@@ -313,7 +311,7 @@ function buildGoalieEmbed(goalies: GoalieStats[], category: StatCategory, teamCo
   const format = category.format ?? ((v: number) => `${v}`);
 
   const lines = top5.map((player, i) => {
-    const prefix = i < 3 ? MEDALS[i] : `${i + 1}.`;
+    const prefix = `${i + 1}.`;
     const name = `${player.firstName.default} ${player.lastName.default}`;
     const val = format(player[field] as number);
     return `${prefix} **${name}** (G) - **${val}** ${category.abbrev} (${player.gamesPlayed} GP)`;
@@ -338,7 +336,7 @@ function buildGoalieRecordEmbed(goalies: GoalieStats[], teamCode: string): Embed
   const top5 = sorted.slice(0, 5);
 
   const lines = top5.map((player, i) => {
-    const prefix = i < 3 ? MEDALS[i] : `${i + 1}.`;
+    const prefix = `${i + 1}.`;
     const name = `${player.firstName.default} ${player.lastName.default}`;
     const record = formatRecord(player);
     return `${prefix} **${name}** (G) - **${record}** (${player.gamesPlayed} GP)`;
@@ -361,14 +359,14 @@ export function buildStatsHelpEmbed(): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle('Stats Lookup')
     .setDescription(
-      'Ask me about team stats! Examples:\n\n' +
+      'Look up team stats using `!stats` or `/stats`\n\n' +
       '**Season stats:**\n' +
-      '`@Tusky who leads in goals?`\n' +
-      '`@Tusky hits`\n' +
-      '`!stats xg`\n\n' +
+      '`!stats goals`\n' +
+      '`!stats hits`\n' +
+      '`/stats xg`\n\n' +
       '**Per-game stats:**\n' +
-      '`@Tusky goals on 02/02/26`\n' +
-      '`@Tusky who had the most hits on Feb 2?`\n\n' +
+      '`!stats goals on 02/02/26`\n' +
+      '`/stats hits on Feb 2`\n\n' +
       '**Season stats (NHL API):**\n' +
       'goals, assists, points, +/-, PIM, shots, shooting%, TOI, faceoff%, PPG, SHG, GWG, OTG\n\n' +
       '**Season stats (MoneyPuck):**\n' +

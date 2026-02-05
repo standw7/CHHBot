@@ -179,7 +179,6 @@ function toiToSeconds(toi) {
     const parts = toi.split(':');
     return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
 }
-const MEDALS = ['🥇', '🥈', '🥉'];
 async function buildGameStatsEmbed(teamCode, dateStr, statQuery) {
     // Find game
     const gameId = await findGameIdForDate(teamCode, dateStr);
@@ -228,7 +227,7 @@ async function buildGameStatsEmbed(teamCode, dateStr, statQuery) {
     const top5 = sorted.slice(0, 5);
     const format = category.format ?? ((v) => `${v}`);
     const lines = top5.map((player, i) => {
-        const prefix = i < 3 ? MEDALS[i] : `${i + 1}.`;
+        const prefix = `${i + 1}.`;
         const name = player.name.default;
         const pos = player.position;
         const val = format(player[category.field]);

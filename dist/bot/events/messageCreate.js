@@ -16,16 +16,6 @@ function registerMessageHandler(client) {
             return;
         if (!message.guild)
             return;
-        // --- @mention handler for stats ---
-        if (client.user && message.mentions.has(client.user, { ignoreEveryone: true, ignoreRoles: true })) {
-            try {
-                await handleMentionStats(message, client);
-            }
-            catch (error) {
-                logger.error({ error }, '@mention stats error');
-            }
-            return;
-        }
         if (!message.content.startsWith('!'))
             return;
         const config = (0, queries_js_1.getGuildConfig)(message.guild.id);
@@ -72,23 +62,6 @@ function registerMessageHandler(client) {
         }
     });
 }
-async function handleMentionStats(message, client) {
-    const { buildStatsEmbed, buildStatsHelpEmbed } = await import('../../services/statsLookup.js');
-    const guildId = message.guild.id;
-    const config = (0, queries_js_1.getGuildConfig)(guildId);
-    const teamCode = config?.primary_team ?? 'UTA';
-    // Strip the mention from the message to get the query
-    const query = message.content
-        .replace(/<@!?\d+>/g, '')
-        .trim();
-    if (!query) {
-        const embed = buildStatsHelpEmbed();
-        await message.reply({ embeds: [embed] });
-        return;
-    }
-    const embed = await buildStatsEmbed(teamCode, query);
-    await message.reply({ embeds: [embed] });
-}
 async function handlePrefixStats(message, args) {
     const { buildStatsEmbed, buildStatsHelpEmbed } = await import('../../services/statsLookup.js');
     const guildId = message.guild.id;
@@ -114,7 +87,7 @@ async function handlePrefixHelp(message) {
     const embed = new EmbedBuilder()
         .setTitle('Tusky Commands')
         .setColor(0x006847)
-        .addFields({ name: '!next', value: 'Show the next scheduled game', inline: false }, { name: '!watch', value: 'Where to watch the current/next game', inline: false }, { name: '!replay', value: 'Most recent goal replay/highlight', inline: false }, { name: '!stats [category]', value: 'Look up team stat leaders (e.g. `!stats goals`, `!stats pim`). Defaults to points.', inline: false }, { name: '@Tusky <question>', value: 'Ask about stats (e.g. `@Tusky who leads in penalty minutes?`)', inline: false }, { name: '!help', value: 'Show this help message', inline: false }, { name: '\u200B', value: '**Media Commands**', inline: false }, { name: '!<key>', value: `Post a random gif/media for a key\nRegistered keys: ${gifKeysText}`, inline: false }, { name: '\u200B', value: '**Gif Management (Admin)**', inline: false }, { name: '!gif add key:<key> url:<url>', value: 'Add a media URL to a key', inline: false }, { name: '!gif remove key:<key> url:<url>', value: 'Remove a media URL from a key', inline: false }, { name: '!gif list key:<key>', value: 'List all URLs for a key', inline: false }, { name: '!gif keys', value: 'List all registered keys', inline: false }, { name: '\u200B', value: '**News Feeds (Admin)**', inline: false }, { name: '!feed add <url> <label>', value: 'Add an RSS feed to the news channel', inline: false }, { name: '!feed remove <label>', value: 'Remove a feed', inline: false }, { name: '!feed list', value: 'List all registered feeds', inline: false }, { name: '\u200B', value: '**Auto Features**', inline: false }, { name: 'Link Fix', value: 'Automatically converts x.com/twitter and instagram links for proper embeds (toggle with `/config set setting:link_fix value:on/off`)', inline: false }, { name: '\u200B', value: '**Testing (Admin)**', inline: false }, { name: '!sim', value: 'Run a fake game simulation to test goal cards and final summary', inline: false }, { name: '!sim reset', value: 'Reset simulation data so you can run it again', inline: false }, { name: '\u200B', value: '**Slash Commands**', inline: false }, { name: '/config show', value: 'View current bot configuration', inline: false }, { name: '/config set', value: 'Change bot settings (Admin)', inline: false })
+        .addFields({ name: '!next', value: 'Show the next scheduled game', inline: false }, { name: '!watch', value: 'Where to watch the current/next game', inline: false }, { name: '!replay', value: 'Most recent goal replay/highlight', inline: false }, { name: '!stats [query]', value: 'Look up team stat leaders (e.g. `!stats goals`, `!stats hits on 02/02/26`)', inline: false }, { name: '!help', value: 'Show this help message', inline: false }, { name: '\u200B', value: '**Media Commands**', inline: false }, { name: '!<key>', value: `Post a random gif/media for a key\nRegistered keys: ${gifKeysText}`, inline: false }, { name: '\u200B', value: '**Gif Management (Admin)**', inline: false }, { name: '!gif add key:<key> url:<url>', value: 'Add a media URL to a key', inline: false }, { name: '!gif remove key:<key> url:<url>', value: 'Remove a media URL from a key', inline: false }, { name: '!gif list key:<key>', value: 'List all URLs for a key', inline: false }, { name: '!gif keys', value: 'List all registered keys', inline: false }, { name: '\u200B', value: '**News Feeds (Admin)**', inline: false }, { name: '!feed add <url> <label>', value: 'Add an RSS feed to the news channel', inline: false }, { name: '!feed remove <label>', value: 'Remove a feed', inline: false }, { name: '!feed list', value: 'List all registered feeds', inline: false }, { name: '\u200B', value: '**Auto Features**', inline: false }, { name: 'Link Fix', value: 'Automatically converts x.com/twitter and instagram links for proper embeds (toggle with `/config set setting:link_fix value:on/off`)', inline: false }, { name: '\u200B', value: '**Testing (Admin)**', inline: false }, { name: '!sim', value: 'Run a fake game simulation to test goal cards and final summary', inline: false }, { name: '!sim reset', value: 'Reset simulation data so you can run it again', inline: false }, { name: '\u200B', value: '**Slash Commands**', inline: false }, { name: '/config show', value: 'View current bot configuration', inline: false }, { name: '/config set', value: 'Change bot settings (Admin)', inline: false })
         .setFooter({ text: 'Tusky - Utah Mammoth Hockey Bot' });
     await message.reply({ embeds: [embed] });
 }
