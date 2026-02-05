@@ -24,6 +24,7 @@ export interface SkaterStats {
   shots: number;
   shootingPctg: number;
   avgTimeOnIcePerGame: number; // seconds
+  avgShiftsPerGame: number;
   faceoffWinPctg: number;
 }
 
@@ -33,10 +34,14 @@ export interface GoalieStats {
   firstName: { default: string };
   lastName: { default: string };
   gamesPlayed: number;
+  gamesStarted: number;
   wins: number;
   losses: number;
-  otLosses: number;
+  overtimeLosses: number;
   goalsAgainstAverage: number;
-  savePctg: number;
+  savePercentage: number;
+  shotsAgainst: number;
+  saves: number;
+  goalsAgainst: number;
   shutouts: number;
 }

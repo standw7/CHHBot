@@ -9,7 +9,7 @@ interface StatCategory {
     sortAscending?: boolean;
     format?: (value: number) => string;
 }
-export declare function matchStatCategory(input: string): StatCategory;
+export declare function matchStatCategory(input: string): StatCategory | null;
 export declare function buildStatsEmbed(teamCode: string, query: string): Promise<EmbedBuilder>;
 export declare function buildStatsHelpEmbed(): EmbedBuilder;
 export {};
