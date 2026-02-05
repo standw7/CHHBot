@@ -90,11 +90,16 @@ async function handleMentionStats(message, client) {
     await message.reply({ embeds: [embed] });
 }
 async function handlePrefixStats(message, args) {
-    const { buildStatsEmbed } = await import('../../services/statsLookup.js');
+    const { buildStatsEmbed, buildStatsHelpEmbed } = await import('../../services/statsLookup.js');
     const guildId = message.guild.id;
     const config = (0, queries_js_1.getGuildConfig)(guildId);
     const teamCode = config?.primary_team ?? 'UTA';
-    const query = args.join(' ') || 'points';
+    const query = args.join(' ');
+    if (!query || query.toLowerCase() === 'help') {
+        const embed = buildStatsHelpEmbed();
+        await message.reply({ embeds: [embed] });
+        return;
+    }
     const embed = await buildStatsEmbed(teamCode, query);
     await message.reply({ embeds: [embed] });
 }
