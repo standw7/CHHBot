@@ -68,20 +68,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const teamAbbrev = lastGoal.teamAbbrev.default;
   const period = lastGoal.timeInPeriod;
 
-  // Get replay URL from landing goal data or try the replay endpoint
-  let replayUrl = lastGoal.highlightClipSharingUrl || lastGoal.pptReplayUrl;
+  // Get replay URL - only use highlightClipSharingUrl (nhl.com links)
+  // Avoid pptReplayUrl and playbackUrl as they point to wsr.nhle.com which blocks public access
+  let replayUrl = lastGoal.highlightClipSharingUrl;
 
   if (!replayUrl) {
-    // Try the dedicated replay endpoint as fallback
+    // Try play-by-play endpoint for a sharing URL
     const pbp = await nhlClient.getPlayByPlay(targetGame.id);
     const pbpGoals = pbp?.plays.filter(p => p.typeDescKey === 'goal') ?? [];
     const matchingPlay = pbpGoals.find(p => p.eventId === lastGoal.eventId) ?? pbpGoals[pbpGoals.length - 1];
 
     if (matchingPlay?.details?.highlightClipSharingUrl) {
       replayUrl = matchingPlay.details.highlightClipSharingUrl;
-    } else if (matchingPlay) {
-      const replay = await nhlClient.getGoalReplay(targetGame.id, matchingPlay.eventId);
-      replayUrl = replay?.topClip?.playbackUrl ?? replay?.clips?.[0]?.playbackUrl;
     }
   }
 

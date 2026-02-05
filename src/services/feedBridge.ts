@@ -11,7 +11,13 @@ interface BridgeResult {
 
 // RSS bridge services that convert Twitter/X profiles to RSS
 // Ordered by reliability -- tries each until one works
+const RSSHUB_BASE = process.env.RSSHUB_URL || 'http://localhost:1200';
+
 const TWITTER_BRIDGES: { name: string; urlTemplate: (username: string) => string }[] = [
+  {
+    name: 'local-rsshub',
+    urlTemplate: (u) => `${RSSHUB_BASE}/twitter/user/${u}`,
+  },
   {
     name: 'rsshub.app',
     urlTemplate: (u) => `https://rsshub.app/twitter/user/${u}`,
