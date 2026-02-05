@@ -5,10 +5,36 @@ exports.buildGoalCard = buildGoalCard;
 const discord_js_1 = require("discord.js");
 const spoiler_js_1 = require("./spoiler.js");
 const STRENGTH_LABELS = {
-    ev: 'Even Strength (5v5)',
+    ev: 'Even Strength',
     pp: 'Power Play',
     sh: 'Short Handed',
 };
+// Parse situationCode to get skater counts
+// Format: XYZW where X=away goalie (1=in,0=pulled), Y=away skaters, Z=home goalie, W=home skaters
+function parseSkaterSituation(situationCode, isHomeScoringTeam) {
+    if (!situationCode || situationCode.length !== 4)
+        return null;
+    const awayGoalie = situationCode[0] === '1';
+    const awaySkaters = parseInt(situationCode[1], 10);
+    const homeGoalie = situationCode[2] === '1';
+    const homeSkaters = parseInt(situationCode[3], 10);
+    // Calculate effective players (skaters + goalie if in net)
+    const homeTotal = homeSkaters + (homeGoalie ? 1 : 0);
+    const awayTotal = awaySkaters + (awayGoalie ? 1 : 0);
+    // Check for pulled goalie situations (empty net)
+    const homeGoaliePulled = !homeGoalie;
+    const awayGoaliePulled = !awayGoalie;
+    if (homeGoaliePulled || awayGoaliePulled) {
+        // Format as skaters vs skaters (e.g., "6v5" or "5v6")
+        if (isHomeScoringTeam) {
+            return `${homeTotal}v${awayTotal}`;
+        }
+        else {
+            return `${awayTotal}v${homeTotal}`;
+        }
+    }
+    return null; // Regular situation, use strength label
+}
 function getTeamEmoji(abbrev, guild) {
     if (guild) {
         const emoji = guild.emojis.cache.find(e => e.name?.toLowerCase() === abbrev.toLowerCase());
@@ -39,7 +65,10 @@ function buildGoalCard(data, spoilerMode) {
     // Scoring team full name
     const scoringTeamName = getTeamFullName(scoringTeamAbbrev, homeTeam, awayTeam);
     // --- Title ---
-    const strengthLabel = STRENGTH_LABELS[strength] ?? strength;
+    const isHomeScoringTeam = scoringTeamAbbrev === homeTeam.abbrev;
+    const skaterSituation = parseSkaterSituation(landingGoal?.situationCode, isHomeScoringTeam);
+    // Use skater situation (e.g., "6v5") for pulled goalie, otherwise use strength label
+    const strengthLabel = skaterSituation ?? (STRENGTH_LABELS[strength] ?? strength);
     const numberStr = scorerNumber ? ` #${scorerNumber}` : '';
     const scoringEmoji = getTeamEmoji(scoringTeamAbbrev, guild);
     const goalEmoji = getGoalEmoji(scoringTeamAbbrev, primaryTeam, guild);
