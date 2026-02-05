@@ -67,7 +67,7 @@ const KEYWORD_MAPPINGS = [
     { keywords: ['penalty minutes', 'pim'], categoryKey: 'pim', source: 'nhl' },
     { keywords: ['shots on goal', 'sog'], categoryKey: 'shots', source: 'nhl' },
     { keywords: ['shooting percentage', 'shooting %', 'shot%', 'sh%'], categoryKey: 'shootingpct', source: 'nhl' },
-    { keywords: ['time on ice', 'ice time', 'toi'], categoryKey: 'toi', source: 'nhl' },
+    { keywords: ['time on ice', 'ice time', 'toi', 'minutes', 'played minutes'], categoryKey: 'toi', source: 'nhl' },
     { keywords: ['faceoff percentage', 'faceoff %', 'fo%', 'faceoffs'], categoryKey: 'faceoffpct', source: 'nhl' },
     { keywords: ['power-play goals', 'power play goals', 'ppg'], categoryKey: 'ppg', source: 'nhl' },
     { keywords: ['shorthanded goals', 'short-handed goals', 'shg'], categoryKey: 'shg', source: 'nhl' },
