@@ -213,4 +213,23 @@ export interface TvScheduleGame {
     };
     tvBroadcasts?: TvBroadcast[];
 }
+export interface StandingsResponse {
+    standings: TeamStanding[];
+}
+export interface TeamStanding {
+    teamAbbrev: {
+        default: string;
+    };
+    teamName: {
+        default: string;
+    };
+    teamLogo: string;
+    gamesPlayed: number;
+    wins: number;
+    losses: number;
+    otLosses: number;
+    points: number;
+    streakCode: string;
+    streakCount: number;
+}
 //# sourceMappingURL=types.d.ts.map

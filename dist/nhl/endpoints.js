@@ -10,6 +10,7 @@ exports.tvScheduleNowUrl = tvScheduleNowUrl;
 exports.tvScheduleDateUrl = tvScheduleDateUrl;
 exports.clubStatsUrl = clubStatsUrl;
 exports.gamecenterWebUrl = gamecenterWebUrl;
+exports.standingsUrl = standingsUrl;
 const BASE_URL = 'https://api-web.nhle.com';
 function scheduleUrl(teamCode) {
     return `${BASE_URL}/v1/club-schedule-season/${teamCode}/now`;
@@ -40,5 +41,8 @@ function clubStatsUrl(teamCode) {
 }
 function gamecenterWebUrl(gameId) {
     return `https://www.nhl.com/gamecenter/${gameId}`;
+}
+function standingsUrl() {
+    return `${BASE_URL}/v1/standings/now`;
 }
 //# sourceMappingURL=endpoints.js.map

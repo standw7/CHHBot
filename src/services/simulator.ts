@@ -184,9 +184,17 @@ export async function runSimulation(client: Client, guildId: string): Promise<vo
     const homeEmoji = getTeamEmoji(fakeHomeTeam.abbrev, guild);
     const awayEmoji = getTeamEmoji(fakeAwayTeam.abbrev, guild);
 
+    // Fake standings for simulation
+    const fakeHomeRecord = { gp: 52, w: 28, l: 18, ot: 6, pts: 62, streak: 'W2' };
+    const fakeAwayRecord = { gp: 51, w: 22, l: 24, ot: 5, pts: 49, streak: 'L1' };
+
+    let description = `${awayEmoji} **${fakeAwayTeam.abbrev}** @ **${fakeHomeTeam.abbrev}** ${homeEmoji}\n\n`;
+    description += `**${fakeAwayTeam.abbrev}**: GP:${fakeAwayRecord.gp} W:${fakeAwayRecord.w} L:${fakeAwayRecord.l} OT:${fakeAwayRecord.ot} PTS:${fakeAwayRecord.pts} S:${fakeAwayRecord.streak}\n`;
+    description += `**${fakeHomeTeam.abbrev}**: GP:${fakeHomeRecord.gp} W:${fakeHomeRecord.w} L:${fakeHomeRecord.l} OT:${fakeHomeRecord.ot} PTS:${fakeHomeRecord.pts} S:${fakeHomeRecord.streak}`;
+
     const startEmbed = new EmbedBuilder()
       .setTitle('Game is starting!')
-      .setDescription(`${awayEmoji} **${fakeAwayTeam.abbrev}** @ **${fakeHomeTeam.abbrev}** ${homeEmoji}`)
+      .setDescription(description)
       .setColor(0x006847);
 
     await textChannel.send({

@@ -204,3 +204,22 @@ export interface TvScheduleGame {
   awayTeam: { abbrev: string };
   tvBroadcasts?: TvBroadcast[];
 }
+
+// --- Standings ---
+
+export interface StandingsResponse {
+  standings: TeamStanding[];
+}
+
+export interface TeamStanding {
+  teamAbbrev: { default: string };
+  teamName: { default: string };
+  teamLogo: string;
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+  otLosses: number;
+  points: number;
+  streakCode: string; // "W", "L", "OT"
+  streakCount: number;
+}

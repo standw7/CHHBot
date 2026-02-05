@@ -7,6 +7,7 @@ import type {
   LandingResponse,
   GoalReplayResponse,
   TvScheduleResponse,
+  StandingsResponse,
 } from './types.js';
 import type { ClubStatsResponse } from './statsTypes.js';
 
@@ -94,6 +95,10 @@ export async function getTvSchedule(date?: string): Promise<TvScheduleResponse |
 
 export async function getClubStats(teamCode: string): Promise<ClubStatsResponse | null> {
   return fetchJson<ClubStatsResponse>(endpoints.clubStatsUrl(teamCode), SCHEDULE_CACHE_TTL);
+}
+
+export async function getStandings(): Promise<StandingsResponse | null> {
+  return fetchJson<StandingsResponse>(endpoints.standingsUrl(), SCHEDULE_CACHE_TTL);
 }
 
 export function clearCache(): void {

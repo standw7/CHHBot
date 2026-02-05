@@ -39,3 +39,7 @@ export function clubStatsUrl(teamCode: string): string {
 export function gamecenterWebUrl(gameId: number): string {
   return `https://www.nhl.com/gamecenter/${gameId}`;
 }
+
+export function standingsUrl(): string {
+  return `${BASE_URL}/v1/standings/now`;
+}

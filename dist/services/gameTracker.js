@@ -385,10 +385,32 @@ async function postGameStartNotification(client, ctx, homeTeam, awayTeam) {
         const { getTeamEmoji } = await import('./goalCard.js');
         const homeEmoji = getTeamEmoji(homeTeam.abbrev, guild);
         const awayEmoji = getTeamEmoji(awayTeam.abbrev, guild);
+        // Fetch standings for team records
+        const standings = await nhlClient.getStandings();
+        const homeStanding = standings?.standings.find(s => s.teamAbbrev.default === homeTeam.abbrev);
+        const awayStanding = standings?.standings.find(s => s.teamAbbrev.default === awayTeam.abbrev);
+        // Format streak (W2, L1, OT, etc.)
+        const formatStreak = (standing) => {
+            if (!standing)
+                return '';
+            const code = standing.streakCode;
+            const count = standing.streakCount;
+            if (code === 'OT')
+                return 'OT';
+            return `${code}${count}`;
+        };
+        // Build description with matchup and records
+        let description = `${awayEmoji} **${awayTeam.abbrev}** @ **${homeTeam.abbrev}** ${homeEmoji}\n\n`;
+        if (awayStanding) {
+            description += `**${awayTeam.abbrev}**: GP:${awayStanding.gamesPlayed} W:${awayStanding.wins} L:${awayStanding.losses} OT:${awayStanding.otLosses} PTS:${awayStanding.points} S:${formatStreak(awayStanding)}\n`;
+        }
+        if (homeStanding) {
+            description += `**${homeTeam.abbrev}**: GP:${homeStanding.gamesPlayed} W:${homeStanding.wins} L:${homeStanding.losses} OT:${homeStanding.otLosses} PTS:${homeStanding.points} S:${formatStreak(homeStanding)}`;
+        }
         const { EmbedBuilder } = await import('discord.js');
         const embed = new EmbedBuilder()
             .setTitle('Game is starting!')
-            .setDescription(`${awayEmoji} **${awayTeam.abbrev}** @ **${homeTeam.abbrev}** ${homeEmoji}`)
+            .setDescription(description)
             .setColor(0x006847);
         await channel.send({
             content: pingContent || undefined,
