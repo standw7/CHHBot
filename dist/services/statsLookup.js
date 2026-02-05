@@ -50,7 +50,7 @@ const KEYWORD_MAPPINGS = [
     { keywords: ['faceoff percentage', 'faceoff pct', 'faceoff%', 'faceoffs', 'fo%', 'faceoff'], categoryKey: 'faceoffpct' },
     { keywords: ['save percentage', 'save pct', 'save%', 'sv%', 'save'], categoryKey: 'savepct' },
     { keywords: ['goals against average', 'goals against', 'gaa'], categoryKey: 'gaa' },
-    { keywords: ['time on ice', 'toi', 'ice time'], categoryKey: 'toi' },
+    { keywords: ['time on ice', 'toi', 'ice time', 'minutes'], categoryKey: 'toi' },
     { keywords: ['games played', 'gp'], categoryKey: 'gp' },
     { keywords: ['plus minus', 'plus/minus', '+/-', 'plusminus'], categoryKey: 'plusminus' },
     { keywords: ['shutouts', 'shutout', 'so'], categoryKey: 'shutouts' },
