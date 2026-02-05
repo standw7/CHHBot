@@ -8,6 +8,7 @@ import type {
   GoalReplayResponse,
   TvScheduleResponse,
 } from './types.js';
+import type { ClubStatsResponse } from './statsTypes.js';
 
 const logger = pino({ name: 'nhl-client' });
 
@@ -89,6 +90,10 @@ export async function getGoalReplay(gameId: number, eventNumber: number): Promis
 export async function getTvSchedule(date?: string): Promise<TvScheduleResponse | null> {
   const url = date ? endpoints.tvScheduleDateUrl(date) : endpoints.tvScheduleNowUrl();
   return fetchJson<TvScheduleResponse>(url, SCHEDULE_CACHE_TTL);
+}
+
+export async function getClubStats(teamCode: string): Promise<ClubStatsResponse | null> {
+  return fetchJson<ClubStatsResponse>(endpoints.clubStatsUrl(teamCode), SCHEDULE_CACHE_TTL);
 }
 
 export function clearCache(): void {

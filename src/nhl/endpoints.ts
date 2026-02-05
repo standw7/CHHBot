@@ -32,6 +32,10 @@ export function tvScheduleDateUrl(date: string): string {
   return `${BASE_URL}/v1/network/tv-schedule/${date}`;
 }
 
+export function clubStatsUrl(teamCode: string): string {
+  return `${BASE_URL}/v1/club-stats/${teamCode}/now`;
+}
+
 export function gamecenterWebUrl(gameId: number): string {
   return `https://www.nhl.com/gamecenter/${gameId}`;
 }

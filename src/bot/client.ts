@@ -16,6 +16,7 @@ import * as watchCmd from './commands/watch.js';
 import * as replayCmd from './commands/replay.js';
 import * as gifCmd from './commands/gif.js';
 import * as configCmd from './commands/config.js';
+import * as statsCmd from './commands/stats.js';
 
 const logger = pino({ name: 'discord-client' });
 
@@ -30,6 +31,7 @@ const commands: Command[] = [
   replayCmd as Command,
   gifCmd as unknown as Command,
   configCmd as unknown as Command,
+  statsCmd as Command,
 ];
 
 export function createClient(): Client {

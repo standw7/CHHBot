@@ -15,6 +15,17 @@ export function registerMessageHandler(client: Client): void {
   client.on('messageCreate', async (message: Message) => {
     if (message.author.bot) return;
     if (!message.guild) return;
+
+    // --- @mention handler for stats ---
+    if (client.user && message.mentions.has(client.user, { ignoreEveryone: true, ignoreRoles: true })) {
+      try {
+        await handleMentionStats(message, client);
+      } catch (error) {
+        logger.error({ error }, '@mention stats error');
+      }
+      return;
+    }
+
     if (!message.content.startsWith('!')) return;
 
     const config = getGuildConfig(message.guild.id);
@@ -38,6 +49,9 @@ export function registerMessageHandler(client: Client): void {
         case 'replay':
           await handlePrefixReplay(message);
           break;
+        case 'stats':
+          await handlePrefixStats(message, args.slice(1));
+          break;
         case 'gif':
           await handlePrefixGifAdmin(message, args.slice(1));
           break;
@@ -58,6 +72,40 @@ export function registerMessageHandler(client: Client): void {
   });
 }
 
+async function handleMentionStats(message: Message, client: Client): Promise<void> {
+  const { buildStatsEmbed, buildStatsHelpEmbed } = await import('../../services/statsLookup.js');
+
+  const guildId = message.guild!.id;
+  const config = getGuildConfig(guildId);
+  const teamCode = config?.primary_team ?? 'UTA';
+
+  // Strip the mention from the message to get the query
+  const query = message.content
+    .replace(/<@!?\d+>/g, '')
+    .trim();
+
+  if (!query) {
+    const embed = buildStatsHelpEmbed();
+    await message.reply({ embeds: [embed] });
+    return;
+  }
+
+  const embed = await buildStatsEmbed(teamCode, query);
+  await message.reply({ embeds: [embed] });
+}
+
+async function handlePrefixStats(message: Message, args: string[]): Promise<void> {
+  const { buildStatsEmbed } = await import('../../services/statsLookup.js');
+
+  const guildId = message.guild!.id;
+  const config = getGuildConfig(guildId);
+  const teamCode = config?.primary_team ?? 'UTA';
+  const query = args.join(' ') || 'points';
+
+  const embed = await buildStatsEmbed(teamCode, query);
+  await message.reply({ embeds: [embed] });
+}
+
 async function handlePrefixHelp(message: Message): Promise<void> {
   const { EmbedBuilder } = await import('discord.js');
   const { listGifKeys } = await import('../../db/queries.js');
@@ -75,6 +123,8 @@ async function handlePrefixHelp(message: Message): Promise<void> {
       { name: '!next', value: 'Show the next scheduled game', inline: false },
       { name: '!watch', value: 'Where to watch the current/next game', inline: false },
       { name: '!replay', value: 'Most recent goal replay/highlight', inline: false },
+      { name: '!stats [category]', value: 'Look up team stat leaders (e.g. `!stats goals`, `!stats pim`). Defaults to points.', inline: false },
+      { name: '@Tusky <question>', value: 'Ask about stats (e.g. `@Tusky who leads in penalty minutes?`)', inline: false },
       { name: '!help', value: 'Show this help message', inline: false },
       { name: '\u200B', value: '**Media Commands**', inline: false },
       { name: '!<key>', value: `Post a random gif/media for a key\nRegistered keys: ${gifKeysText}`, inline: false },
