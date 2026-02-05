@@ -1,7 +1,9 @@
 import { Client, TextChannel } from 'discord.js';
 import pino from 'pino';
 import { getDb } from '../db/database.js';
-import { getGuildConfig, hasGoalBeenPosted, markGoalPosted, hasFinalBeenPosted, markFinalPosted } from '../db/queries.js';
+import { getGuildConfig, hasGoalBeenPosted, markGoalPosted, hasFinalBeenPosted, markFinalPosted, hasGameStartBeenPosted, markGameStartPosted } from '../db/queries.js';
+import { getTeamEmoji } from './goalCard.js';
+import { EmbedBuilder } from 'discord.js';
 import { buildGoalCard } from './goalCard.js';
 import { buildFinalCard } from './finalCard.js';
 import type { SpoilerMode } from './spoiler.js';
@@ -165,16 +167,59 @@ export async function runSimulation(client: Client, guildId: string): Promise<vo
   const spoilerMode = (config.spoiler_mode ?? 'off') as SpoilerMode;
   const delayMs = (config.spoiler_delay_seconds ?? 30) * 1000;
 
-  await textChannel.send('**[SIMULATION] Game starting: ARI @ UTA**');
   logger.info({ guildId }, 'Simulation started');
 
+  // Post game start notification with role ping
+  if (!hasGameStartBeenPosted(guildId, FAKE_GAME_ID)) {
+    markGameStartPosted(guildId, FAKE_GAME_ID);
+
+    let pingContent = '';
+    if (config.gameday_role_id && guild) {
+      const role = guild.roles.cache.get(config.gameday_role_id);
+      if (role) {
+        pingContent = `<@&${config.gameday_role_id}> `;
+      }
+    }
+
+    const homeEmoji = getTeamEmoji(fakeHomeTeam.abbrev, guild);
+    const awayEmoji = getTeamEmoji(fakeAwayTeam.abbrev, guild);
+
+    const startEmbed = new EmbedBuilder()
+      .setTitle('Game is starting!')
+      .setDescription(`${awayEmoji} **${fakeAwayTeam.abbrev}** @ **${fakeHomeTeam.abbrev}** ${homeEmoji}`)
+      .setColor(0x006847);
+
+    await textChannel.send({
+      content: pingContent || undefined,
+      embeds: [startEmbed],
+    });
+  }
+
+  // Post Period 1 starting (no delay, no ping)
+  await new Promise(resolve => setTimeout(resolve, 2_000));
+  const period1Embed = new EmbedBuilder()
+    .setTitle('Period 1 is starting!')
+    .setColor(0x006847);
+  await textChannel.send({ embeds: [period1Embed] });
+
   // Post goals with delays between them
+  let lastPeriod = 1;
   for (let i = 0; i < simGoals.length; i++) {
     const goal = simGoals[i];
 
     // Wait between goals (10 seconds between each for testing)
     if (i > 0) {
       await new Promise(resolve => setTimeout(resolve, 10_000));
+    }
+
+    // Check if period changed - post period start notification (no ping, no delay)
+    if (goal.period > lastPeriod) {
+      const periodName = goal.periodType === 'OT' ? 'Overtime' : `Period ${goal.period}`;
+      const periodEmbed = new EmbedBuilder()
+        .setTitle(`${periodName} is starting!`)
+        .setColor(0x006847);
+      await textChannel.send({ embeds: [periodEmbed] });
+      lastPeriod = goal.period;
     }
 
     // Check dedup
@@ -242,8 +287,9 @@ export async function runSimulation(client: Client, guildId: string): Promise<vo
 }
 
 export function resetSimulation(guildId: string): void {
-  // Remove the fake game's posted goals and finals from DB so simulation can run again
+  // Remove the fake game's posted goals, finals, and game starts from DB so simulation can run again
   const db = getDb();
   db.prepare('DELETE FROM posted_goals WHERE guild_id = ? AND game_id = ?').run(guildId, FAKE_GAME_ID);
   db.prepare('DELETE FROM posted_finals WHERE guild_id = ? AND game_id = ?').run(guildId, FAKE_GAME_ID);
+  db.prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, FAKE_GAME_ID);
 }

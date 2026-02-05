@@ -51,6 +51,9 @@ function registerMessageHandler(client) {
                 case 'sim':
                     await handlePrefixSim(message, args.slice(1));
                     break;
+                case 'gameday':
+                    await handlePrefixGameday(message);
+                    break;
                 default:
                     // Check if it's a registered gif key
                     await handlePrefixGif(message, command);
@@ -87,7 +90,7 @@ async function handlePrefixHelp(message) {
     const embed = new EmbedBuilder()
         .setTitle('Tusky Commands')
         .setColor(0x006847)
-        .addFields({ name: '!next', value: 'Show the next scheduled game', inline: false }, { name: '!watch', value: 'Where to watch the current/next game', inline: false }, { name: '!replay', value: 'Most recent goal replay/highlight', inline: false }, { name: '!stats [query]', value: 'Look up team stat leaders (e.g. `!stats goals`, `!stats hits on 02/02/26`)', inline: false }, { name: '!help', value: 'Show this help message', inline: false }, { name: '\u200B', value: '**Media Commands**', inline: false }, { name: '!<key>', value: `Post a random gif/media for a key\nRegistered keys: ${gifKeysText}`, inline: false }, { name: '\u200B', value: '**Gif Management (Admin)**', inline: false }, { name: '!gif add key:<key> url:<url>', value: 'Add a media URL to a key', inline: false }, { name: '!gif remove key:<key> url:<url>', value: 'Remove a media URL from a key', inline: false }, { name: '!gif list key:<key>', value: 'List all URLs for a key', inline: false }, { name: '!gif keys', value: 'List all registered keys', inline: false }, { name: '\u200B', value: '**News Feeds (Admin)**', inline: false }, { name: '!feed add <url> <label>', value: 'Add an RSS feed to the news channel', inline: false }, { name: '!feed remove <label>', value: 'Remove a feed', inline: false }, { name: '!feed list', value: 'List all registered feeds', inline: false }, { name: '\u200B', value: '**Auto Features**', inline: false }, { name: 'Link Fix', value: 'Automatically converts x.com/twitter and instagram links for proper embeds (toggle with `/config set setting:link_fix value:on/off`)', inline: false }, { name: '\u200B', value: '**Testing (Admin)**', inline: false }, { name: '!sim', value: 'Run a fake game simulation to test goal cards and final summary', inline: false }, { name: '!sim reset', value: 'Reset simulation data so you can run it again', inline: false }, { name: '\u200B', value: '**Slash Commands**', inline: false }, { name: '/config show', value: 'View current bot configuration', inline: false }, { name: '/config set', value: 'Change bot settings (Admin)', inline: false })
+        .addFields({ name: '!next', value: 'Show the next scheduled game', inline: false }, { name: '!watch', value: 'Where to watch the current/next game', inline: false }, { name: '!replay', value: 'Most recent goal replay/highlight', inline: false }, { name: '!stats [query]', value: 'Look up team stat leaders (e.g. `!stats goals`, `!stats hits on 02/02/26`)', inline: false }, { name: '!gameday', value: 'Toggle gameday notifications (get pinged when games start)', inline: false }, { name: '!help', value: 'Show this help message', inline: false }, { name: '\u200B', value: '**Media Commands**', inline: false }, { name: '!<key>', value: `Post a random gif/media for a key\nRegistered keys: ${gifKeysText}`, inline: false }, { name: '\u200B', value: '**Gif Management (Admin)**', inline: false }, { name: '!gif add key:<key> url:<url>', value: 'Add a media URL to a key', inline: false }, { name: '!gif remove key:<key> url:<url>', value: 'Remove a media URL from a key', inline: false }, { name: '!gif list key:<key>', value: 'List all URLs for a key', inline: false }, { name: '!gif keys', value: 'List all registered keys', inline: false }, { name: '\u200B', value: '**News Feeds (Admin)**', inline: false }, { name: '!feed add <url> <label>', value: 'Add an RSS feed to the news channel', inline: false }, { name: '!feed remove <label>', value: 'Remove a feed', inline: false }, { name: '!feed list', value: 'List all registered feeds', inline: false }, { name: '\u200B', value: '**Auto Features**', inline: false }, { name: 'Link Fix', value: 'Automatically converts x.com/twitter and instagram links for proper embeds (toggle with `/config set setting:link_fix value:on/off`)', inline: false }, { name: '\u200B', value: '**Testing (Admin)**', inline: false }, { name: '!sim', value: 'Run a fake game simulation to test goal cards and final summary', inline: false }, { name: '!sim reset', value: 'Reset simulation data so you can run it again', inline: false }, { name: '\u200B', value: '**Slash Commands**', inline: false }, { name: '/config show', value: 'View current bot configuration', inline: false }, { name: '/config set', value: 'Change bot settings (Admin)', inline: false })
         .setFooter({ text: 'Tusky - Utah Mammoth Hockey Bot' });
     await message.reply({ embeds: [embed] });
 }
@@ -360,6 +363,63 @@ async function handlePrefixSim(message, args) {
     runSimulation(message.client, message.guild.id).catch(err => {
         logger.error({ err }, 'Simulation error');
     });
+}
+async function handlePrefixGameday(message) {
+    const { upsertGuildConfig } = await import('../../db/queries.js');
+    const guildId = message.guild.id;
+    const config = (0, queries_js_1.getGuildConfig)(guildId);
+    const member = message.member;
+    if (!member) {
+        await message.reply('Could not find your member information.');
+        return;
+    }
+    const GAMEDAY_ROLE_NAME = 'Gameday';
+    // Find or create the gameday role
+    let role = message.guild.roles.cache.find(r => r.name === GAMEDAY_ROLE_NAME);
+    if (!role) {
+        // Check if we have permissions to create roles
+        const botMember = message.guild.members.me;
+        if (!botMember?.permissions.has('ManageRoles')) {
+            await message.reply(`The "${GAMEDAY_ROLE_NAME}" role doesn't exist and I don't have permission to create it. Ask an admin to create it.`);
+            return;
+        }
+        // Create the role
+        try {
+            role = await message.guild.roles.create({
+                name: GAMEDAY_ROLE_NAME,
+                mentionable: true,
+                reason: 'Created for gameday notifications',
+            });
+            // Save role ID to config
+            upsertGuildConfig(guildId, { gameday_role_id: role.id });
+            logger.info({ guildId, roleId: role.id }, 'Created Gameday role');
+        }
+        catch (error) {
+            logger.error({ error }, 'Failed to create Gameday role');
+            await message.reply('Failed to create the Gameday role. Check bot permissions.');
+            return;
+        }
+    }
+    else if (!config?.gameday_role_id) {
+        // Role exists but not saved in config
+        upsertGuildConfig(guildId, { gameday_role_id: role.id });
+    }
+    // Toggle role on member
+    const hasRole = member.roles.cache.has(role.id);
+    try {
+        if (hasRole) {
+            await member.roles.remove(role);
+            await message.reply(`Removed the **${GAMEDAY_ROLE_NAME}** role. You won't be pinged when games start.`);
+        }
+        else {
+            await member.roles.add(role);
+            await message.reply(`Added the **${GAMEDAY_ROLE_NAME}** role! You'll be pinged when games start.`);
+        }
+    }
+    catch (error) {
+        logger.error({ error }, 'Failed to toggle Gameday role');
+        await message.reply('Failed to update your role. The bot may not have permission to manage roles.');
+    }
 }
 async function handlePrefixGif(message, key) {
     const guildId = message.guild.id;

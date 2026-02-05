@@ -62,6 +62,7 @@ function startTracker(client, guildId) {
         guildId,
         teamCode: config.primary_team,
         pollTimer: null,
+        lastAnnouncedPeriod: 0,
     };
     trackers.set(guildId, ctx);
     logger.info({ guildId, teamCode: ctx.teamCode }, 'Starting game tracker');
@@ -156,6 +157,8 @@ async function handlePreGame(client, ctx) {
     if (pbp?.gameState === 'LIVE' || pbp?.gameState === 'CRIT') {
         ctx.state = 'LIVE';
         logger.info({ guildId: ctx.guildId, gameId: ctx.currentGame.id }, 'Game is now LIVE');
+        // Post game start notification if not already posted
+        await postGameStartNotification(client, ctx, pbp.homeTeam, pbp.awayTeam);
         scheduleNext(client, ctx, 0);
         return;
     }
@@ -193,6 +196,12 @@ async function handleLive(client, ctx) {
         logger.info({ guildId: ctx.guildId, gameId: ctx.currentGame.id }, 'Game is FINAL');
         scheduleNext(client, ctx, 0);
         return;
+    }
+    // Check for period changes and post period start notification (no ping, no delay)
+    const currentPeriod = pbp.period;
+    if (currentPeriod > ctx.lastAnnouncedPeriod && !pbp.clock.inIntermission) {
+        ctx.lastAnnouncedPeriod = currentPeriod;
+        await postPeriodStartNotification(client, ctx, currentPeriod, pbp.plays);
     }
     // Detect new goals
     const goals = pbp.plays.filter(p => p.typeDescKey === 'goal');
@@ -325,6 +334,92 @@ async function handleFinal(client, ctx) {
     }, delayMs);
     ctx.currentGame = null;
     ctx.state = 'IDLE';
+    ctx.lastAnnouncedPeriod = 0;
     scheduleNext(client, ctx, 60_000); // Back to idle, check again in 1 min
+}
+async function postGameStartNotification(client, ctx, homeTeam, awayTeam) {
+    if (!ctx.currentGame)
+        return;
+    const gameId = ctx.currentGame.id;
+    // Check if already posted
+    if ((0, queries_js_1.hasGameStartBeenPosted)(ctx.guildId, gameId)) {
+        logger.info({ guildId: ctx.guildId, gameId }, 'Game start already posted, skipping');
+        return;
+    }
+    const config = (0, queries_js_1.getGuildConfig)(ctx.guildId);
+    if (!config?.gameday_channel_id) {
+        logger.warn({ guildId: ctx.guildId }, 'No gameday channel configured for game start notification');
+        return;
+    }
+    // Mark as posted immediately to prevent duplicates
+    (0, queries_js_1.markGameStartPosted)(ctx.guildId, gameId);
+    try {
+        const channel = await client.channels.fetch(config.gameday_channel_id);
+        if (!channel || !channel.isTextBased()) {
+            logger.error({ channelId: config.gameday_channel_id }, 'Gameday channel not found');
+            return;
+        }
+        const guild = client.guilds.cache.get(ctx.guildId);
+        // Build the ping content
+        let pingContent = '';
+        if (config.gameday_role_id && guild) {
+            const role = guild.roles.cache.get(config.gameday_role_id);
+            if (role) {
+                pingContent = `<@&${config.gameday_role_id}> `;
+            }
+        }
+        // Get team emojis
+        const { getTeamEmoji } = await import('./goalCard.js');
+        const homeEmoji = getTeamEmoji(homeTeam.abbrev, guild);
+        const awayEmoji = getTeamEmoji(awayTeam.abbrev, guild);
+        const { EmbedBuilder } = await import('discord.js');
+        const embed = new EmbedBuilder()
+            .setTitle('Game is starting!')
+            .setDescription(`${awayEmoji} **${awayTeam.abbrev}** @ **${homeTeam.abbrev}** ${homeEmoji}`)
+            .setColor(0x006847);
+        await channel.send({
+            content: pingContent || undefined,
+            embeds: [embed],
+        });
+        logger.info({ guildId: ctx.guildId, gameId }, 'Game start notification posted');
+    }
+    catch (error) {
+        logger.error({ error, gameId: ctx.currentGame.id }, 'Failed to post game start notification');
+    }
+}
+async function postPeriodStartNotification(client, ctx, period, plays) {
+    const config = (0, queries_js_1.getGuildConfig)(ctx.guildId);
+    if (!config?.gameday_channel_id)
+        return;
+    try {
+        const channel = await client.channels.fetch(config.gameday_channel_id);
+        if (!channel || !channel.isTextBased())
+            return;
+        // Determine period name
+        // Check if this is overtime by looking at plays for OT period type
+        const periodPlay = plays.find(p => p.periodDescriptor?.number === period);
+        const isOT = periodPlay?.periodDescriptor?.periodType === 'OT';
+        const isSO = periodPlay?.periodDescriptor?.periodType === 'SO';
+        let periodName;
+        if (isSO) {
+            periodName = 'Shootout';
+        }
+        else if (isOT) {
+            periodName = period === 4 ? 'Overtime' : `Overtime ${period - 3}`;
+        }
+        else {
+            periodName = `Period ${period}`;
+        }
+        const { EmbedBuilder } = await import('discord.js');
+        const embed = new EmbedBuilder()
+            .setTitle(`${periodName} is starting!`)
+            .setColor(0x006847);
+        // No ping for period notifications
+        await channel.send({ embeds: [embed] });
+        logger.info({ guildId: ctx.guildId, period, periodName }, 'Period start notification posted');
+    }
+    catch (error) {
+        logger.error({ error, period }, 'Failed to post period start notification');
+    }
 }
 //# sourceMappingURL=gameTracker.js.map

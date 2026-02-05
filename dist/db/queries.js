@@ -18,6 +18,9 @@ exports.getFeedSources = getFeedSources;
 exports.addFeedSource = addFeedSource;
 exports.removeFeedSource = removeFeedSource;
 exports.updateFeedLastItem = updateFeedLastItem;
+exports.hasGameStartBeenPosted = hasGameStartBeenPosted;
+exports.markGameStartPosted = markGameStartPosted;
+exports.resetGameStart = resetGameStart;
 const database_js_1 = require("./database.js");
 // --- Guild Config ---
 function getGuildConfig(guildId) {
@@ -27,9 +30,9 @@ function upsertGuildConfig(guildId, updates) {
     const existing = getGuildConfig(guildId);
     if (!existing) {
         (0, database_js_1.getDb)().prepare(`
-      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(guildId, updates.primary_team ?? 'UTA', updates.gameday_channel_id ?? null, updates.hof_channel_id ?? null, updates.bot_commands_channel_id ?? null, updates.news_channel_id ?? null, updates.spoiler_delay_seconds ?? 30, updates.spoiler_mode ?? 'off', updates.command_mode ?? 'slash_plus_prefix', updates.link_fix_enabled ?? 1, updates.timezone ?? 'America/Denver');
+      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, gameday_role_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(guildId, updates.primary_team ?? 'UTA', updates.gameday_channel_id ?? null, updates.hof_channel_id ?? null, updates.bot_commands_channel_id ?? null, updates.news_channel_id ?? null, updates.gameday_role_id ?? null, updates.spoiler_delay_seconds ?? 30, updates.spoiler_mode ?? 'off', updates.command_mode ?? 'slash_plus_prefix', updates.link_fix_enabled ?? 1, updates.timezone ?? 'America/Denver');
     }
     else {
         const fields = Object.keys(updates);
@@ -119,5 +122,19 @@ function removeFeedSource(guildId, idOrLabel) {
 }
 function updateFeedLastItem(feedId, lastItemId) {
     (0, database_js_1.getDb)().prepare('UPDATE feed_sources SET last_item_id = ? WHERE id = ?').run(lastItemId, feedId);
+}
+// --- Posted Game Starts ---
+function hasGameStartBeenPosted(guildId, gameId) {
+    const row = (0, database_js_1.getDb)().prepare('SELECT 1 FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').get(guildId, gameId);
+    return !!row;
+}
+function markGameStartPosted(guildId, gameId) {
+    (0, database_js_1.getDb)().prepare(`
+    INSERT OR IGNORE INTO posted_game_starts (guild_id, game_id, posted_at)
+    VALUES (?, ?, ?)
+  `).run(guildId, gameId, new Date().toISOString());
+}
+function resetGameStart(guildId, gameId) {
+    (0, database_js_1.getDb)().prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, gameId);
 }
 //# sourceMappingURL=queries.js.map

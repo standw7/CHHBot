@@ -9,6 +9,8 @@ const pino_1 = __importDefault(require("pino"));
 const database_js_1 = require("../db/database.js");
 const queries_js_1 = require("../db/queries.js");
 const goalCard_js_1 = require("./goalCard.js");
+const discord_js_1 = require("discord.js");
+const goalCard_js_2 = require("./goalCard.js");
 const finalCard_js_1 = require("./finalCard.js");
 const logger = (0, pino_1.default)({ name: 'simulator' });
 // Fake game data for simulation
@@ -136,14 +138,50 @@ async function runSimulation(client, guildId) {
     const guild = client.guilds.cache.get(guildId);
     const spoilerMode = (config.spoiler_mode ?? 'off');
     const delayMs = (config.spoiler_delay_seconds ?? 30) * 1000;
-    await textChannel.send('**[SIMULATION] Game starting: ARI @ UTA**');
     logger.info({ guildId }, 'Simulation started');
+    // Post game start notification with role ping
+    if (!(0, queries_js_1.hasGameStartBeenPosted)(guildId, FAKE_GAME_ID)) {
+        (0, queries_js_1.markGameStartPosted)(guildId, FAKE_GAME_ID);
+        let pingContent = '';
+        if (config.gameday_role_id && guild) {
+            const role = guild.roles.cache.get(config.gameday_role_id);
+            if (role) {
+                pingContent = `<@&${config.gameday_role_id}> `;
+            }
+        }
+        const homeEmoji = (0, goalCard_js_1.getTeamEmoji)(fakeHomeTeam.abbrev, guild);
+        const awayEmoji = (0, goalCard_js_1.getTeamEmoji)(fakeAwayTeam.abbrev, guild);
+        const startEmbed = new discord_js_1.EmbedBuilder()
+            .setTitle('Game is starting!')
+            .setDescription(`${awayEmoji} **${fakeAwayTeam.abbrev}** @ **${fakeHomeTeam.abbrev}** ${homeEmoji}`)
+            .setColor(0x006847);
+        await textChannel.send({
+            content: pingContent || undefined,
+            embeds: [startEmbed],
+        });
+    }
+    // Post Period 1 starting (no delay, no ping)
+    await new Promise(resolve => setTimeout(resolve, 2_000));
+    const period1Embed = new discord_js_1.EmbedBuilder()
+        .setTitle('Period 1 is starting!')
+        .setColor(0x006847);
+    await textChannel.send({ embeds: [period1Embed] });
     // Post goals with delays between them
+    let lastPeriod = 1;
     for (let i = 0; i < simGoals.length; i++) {
         const goal = simGoals[i];
         // Wait between goals (10 seconds between each for testing)
         if (i > 0) {
             await new Promise(resolve => setTimeout(resolve, 10_000));
+        }
+        // Check if period changed - post period start notification (no ping, no delay)
+        if (goal.period > lastPeriod) {
+            const periodName = goal.periodType === 'OT' ? 'Overtime' : `Period ${goal.period}`;
+            const periodEmbed = new discord_js_1.EmbedBuilder()
+                .setTitle(`${periodName} is starting!`)
+                .setColor(0x006847);
+            await textChannel.send({ embeds: [periodEmbed] });
+            lastPeriod = goal.period;
         }
         // Check dedup
         if ((0, queries_js_1.hasGoalBeenPosted)(guildId, FAKE_GAME_ID, goal.eventId)) {
@@ -167,7 +205,7 @@ async function runSimulation(client, guildId) {
         };
         // Apply spoiler delay
         await new Promise(resolve => setTimeout(resolve, delayMs));
-        const { content, embed } = (0, goalCard_js_1.buildGoalCard)(cardData, spoilerMode);
+        const { content, embed } = (0, goalCard_js_2.buildGoalCard)(cardData, spoilerMode);
         await textChannel.send({ content: content ?? undefined, embeds: [embed] });
         logger.info({ eventId: goal.eventId }, 'Simulated goal card posted');
     }
@@ -197,9 +235,10 @@ async function runSimulation(client, guildId) {
     await textChannel.send('**[SIMULATION] Complete!** All game-day features tested.');
 }
 function resetSimulation(guildId) {
-    // Remove the fake game's posted goals and finals from DB so simulation can run again
+    // Remove the fake game's posted goals, finals, and game starts from DB so simulation can run again
     const db = (0, database_js_1.getDb)();
     db.prepare('DELETE FROM posted_goals WHERE guild_id = ? AND game_id = ?').run(guildId, FAKE_GAME_ID);
     db.prepare('DELETE FROM posted_finals WHERE guild_id = ? AND game_id = ?').run(guildId, FAKE_GAME_ID);
+    db.prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, FAKE_GAME_ID);
 }
 //# sourceMappingURL=simulator.js.map

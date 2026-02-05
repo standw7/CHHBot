@@ -17,4 +17,7 @@ export declare function getFeedSources(guildId: string): FeedSource[];
 export declare function addFeedSource(guildId: string, url: string, label: string, addedBy: string): void;
 export declare function removeFeedSource(guildId: string, idOrLabel: string): boolean;
 export declare function updateFeedLastItem(feedId: number, lastItemId: string): void;
+export declare function hasGameStartBeenPosted(guildId: string, gameId: number): boolean;
+export declare function markGameStartPosted(guildId: string, gameId: number): void;
+export declare function resetGameStart(guildId: string, gameId: number): void;
 //# sourceMappingURL=queries.d.ts.map

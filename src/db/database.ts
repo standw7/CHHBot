@@ -80,6 +80,13 @@ function runMigrations(db: Database.Database): void {
       created_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS posted_game_starts (
+      guild_id TEXT,
+      game_id INTEGER,
+      posted_at TEXT,
+      PRIMARY KEY(guild_id, game_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_gif_commands_guild_key ON gif_commands(guild_id, key);
     CREATE INDEX IF NOT EXISTS idx_posted_goals_game ON posted_goals(guild_id, game_id);
     CREATE INDEX IF NOT EXISTS idx_feed_sources_guild ON feed_sources(guild_id);
@@ -93,5 +100,8 @@ function runMigrations(db: Database.Database): void {
   }
   if (!colNames.includes('link_fix_enabled')) {
     db.exec('ALTER TABLE guild_config ADD COLUMN link_fix_enabled INTEGER DEFAULT 1');
+  }
+  if (!colNames.includes('gameday_role_id')) {
+    db.exec('ALTER TABLE guild_config ADD COLUMN gameday_role_id TEXT');
   }
 }

@@ -11,8 +11,8 @@ export function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildCo
   const existing = getGuildConfig(guildId);
   if (!existing) {
     getDb().prepare(`
-      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, gameday_role_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       guildId,
       updates.primary_team ?? 'UTA',
@@ -20,6 +20,7 @@ export function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildCo
       updates.hof_channel_id ?? null,
       updates.bot_commands_channel_id ?? null,
       updates.news_channel_id ?? null,
+      updates.gameday_role_id ?? null,
       updates.spoiler_delay_seconds ?? 30,
       updates.spoiler_mode ?? 'off',
       updates.command_mode ?? 'slash_plus_prefix',
@@ -134,4 +135,22 @@ export function removeFeedSource(guildId: string, idOrLabel: string): boolean {
 
 export function updateFeedLastItem(feedId: number, lastItemId: string): void {
   getDb().prepare('UPDATE feed_sources SET last_item_id = ? WHERE id = ?').run(lastItemId, feedId);
+}
+
+// --- Posted Game Starts ---
+
+export function hasGameStartBeenPosted(guildId: string, gameId: number): boolean {
+  const row = getDb().prepare('SELECT 1 FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').get(guildId, gameId);
+  return !!row;
+}
+
+export function markGameStartPosted(guildId: string, gameId: number): void {
+  getDb().prepare(`
+    INSERT OR IGNORE INTO posted_game_starts (guild_id, game_id, posted_at)
+    VALUES (?, ?, ?)
+  `).run(guildId, gameId, new Date().toISOString());
+}
+
+export function resetGameStart(guildId: string, gameId: number): void {
+  getDb().prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, gameId);
 }
