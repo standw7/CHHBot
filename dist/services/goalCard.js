@@ -17,8 +17,17 @@ function getTeamEmoji(abbrev, guild) {
     }
     return abbrev;
 }
+function getGoalEmoji(scoringTeamAbbrev, primaryTeam, guild) {
+    // Use :mammothgoal: for primary team goals, red siren for opponent goals
+    if (primaryTeam && scoringTeamAbbrev === primaryTeam && guild) {
+        const mammothGoal = guild.emojis.cache.find(e => e.name?.toLowerCase() === 'mammothgoal');
+        if (mammothGoal)
+            return `<:${mammothGoal.name}:${mammothGoal.id}>`;
+    }
+    return '🚨';
+}
 function buildGoalCard(data, spoilerMode) {
-    const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild } = data;
+    const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild, primaryTeam } = data;
     // Scorer info
     const scorerFirst = landingGoal?.firstName?.default ?? '';
     const scorerLast = landingGoal?.lastName?.default ?? '';
@@ -33,7 +42,8 @@ function buildGoalCard(data, spoilerMode) {
     const strengthLabel = STRENGTH_LABELS[strength] ?? strength;
     const numberStr = scorerNumber ? ` #${scorerNumber}` : '';
     const scoringEmoji = getTeamEmoji(scoringTeamAbbrev, guild);
-    const title = `${scoringEmoji} 🚨 ${scoringTeamName}${numberStr} ${strengthLabel} Goal 🚨 ${scoringEmoji}`;
+    const goalEmoji = getGoalEmoji(scoringTeamAbbrev, primaryTeam, guild);
+    const title = `${scoringEmoji} ${goalEmoji} ${scoringTeamName}${numberStr} ${strengthLabel} Goal ${goalEmoji} ${scoringEmoji}`;
     // --- Description ---
     let description = '';
     // Scorer line: #10 Matty Beniers (13) wrist assists: #19 Jared McCann (12), #62 Brandon Montour (14)

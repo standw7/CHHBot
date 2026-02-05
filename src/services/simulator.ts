@@ -199,6 +199,7 @@ export async function runSimulation(client: Client, guildId: string): Promise<vo
       scoringTeamAbbrev: goal.isHome ? homeTeam.abbrev : awayTeam.abbrev,
       scoringTeamLogo: goal.isHome ? homeTeam.logo : awayTeam.logo,
       guild,
+      primaryTeam: config.primary_team,
     };
 
     // Apply spoiler delay

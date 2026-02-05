@@ -10,6 +10,7 @@ export interface GoalCardData {
   scoringTeamAbbrev: string;
   scoringTeamLogo: string;
   guild?: Guild;
+  primaryTeam?: string;
 }
 
 const STRENGTH_LABELS: Record<string, string> = {
@@ -26,8 +27,17 @@ export function getTeamEmoji(abbrev: string, guild?: Guild): string {
   return abbrev;
 }
 
+function getGoalEmoji(scoringTeamAbbrev: string, primaryTeam: string | undefined, guild?: Guild): string {
+  // Use :mammothgoal: for primary team goals, red siren for opponent goals
+  if (primaryTeam && scoringTeamAbbrev === primaryTeam && guild) {
+    const mammothGoal = guild.emojis.cache.find(e => e.name?.toLowerCase() === 'mammothgoal');
+    if (mammothGoal) return `<:${mammothGoal.name}:${mammothGoal.id}>`;
+  }
+  return '🚨';
+}
+
 export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { content?: string; embed: EmbedBuilder } {
-  const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild } = data;
+  const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild, primaryTeam } = data;
 
   // Scorer info
   const scorerFirst = landingGoal?.firstName?.default ?? '';
@@ -45,7 +55,8 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
   const strengthLabel = STRENGTH_LABELS[strength] ?? strength;
   const numberStr = scorerNumber ? ` #${scorerNumber}` : '';
   const scoringEmoji = getTeamEmoji(scoringTeamAbbrev, guild);
-  const title = `${scoringEmoji} 🚨 ${scoringTeamName}${numberStr} ${strengthLabel} Goal 🚨 ${scoringEmoji}`;
+  const goalEmoji = getGoalEmoji(scoringTeamAbbrev, primaryTeam, guild);
+  const title = `${scoringEmoji} ${goalEmoji} ${scoringTeamName}${numberStr} ${strengthLabel} Goal ${goalEmoji} ${scoringEmoji}`;
 
   // --- Description ---
   let description = '';

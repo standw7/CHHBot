@@ -9,6 +9,7 @@ export interface GoalCardData {
     scoringTeamAbbrev: string;
     scoringTeamLogo: string;
     guild?: Guild;
+    primaryTeam?: string;
 }
 export declare function getTeamEmoji(abbrev: string, guild?: Guild): string;
 export declare function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): {

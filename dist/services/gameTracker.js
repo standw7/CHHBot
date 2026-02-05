@@ -257,6 +257,7 @@ async function handleLive(client, ctx) {
                     scoringTeamAbbrev,
                     scoringTeamLogo,
                     guild,
+                    primaryTeam: ctx.teamCode,
                 };
                 const { content, embed } = (0, goalCard_js_1.buildGoalCard)(cardData, spoilerMode);
                 await channel.send({

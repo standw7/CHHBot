@@ -257,6 +257,7 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
           scoringTeamAbbrev,
           scoringTeamLogo,
           guild,
+          primaryTeam: ctx.teamCode,
         };
 
         const { content, embed } = buildGoalCard(cardData, spoilerMode);
