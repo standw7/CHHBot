@@ -94,6 +94,98 @@ async function pollFeed(
   const textChannel = channel as TextChannel;
 
   for (const item of newItems) {
+    // Check if this is a Twitter/X feed
+    const isTwitterFeed = feedUrl.includes('twitter') ||
+      feedUrl.includes('/x.com') ||
+      (item.link && /twitter\.com|x\.com/i.test(item.link));
+
+    if (isTwitterFeed && item.link) {
+      await postTwitterItem(textChannel, item, rssFeed, feedLabel);
+    } else {
+      await postGenericItem(textChannel, item, rssFeed, feedLabel);
+    }
+  }
+
+  // Update last seen item ID
+  const latestItem = items[0];
+  const latestId = latestItem.guid || latestItem.link || latestItem.title || '';
+  if (latestId) {
+    updateFeedLastItem(feedId, latestId);
+  }
+
+  logger.info({ guildId, feedLabel, newCount: newItems.length }, 'Posted new feed items');
+}
+
+async function postTwitterItem(
+  channel: TextChannel,
+  item: RssParser.Item,
+  rssFeed: RssParser.Output<RssParser.Item>,
+  feedLabel: string
+): Promise<void> {
+  try {
+    // Extract handle from tweet URL (twitter.com/handle/status/...)
+    const handleMatch = item.link?.match(/(?:twitter\.com|x\.com)\/([^\/]+)\/status/i);
+    const handle = handleMatch?.[1] || feedLabel.replace('@', '');
+
+    // Get display name from item.creator or feed title
+    const displayName = item.creator || rssFeed.title || handle;
+
+    // Build the content line: "**handle** just posted a new Tweet!"
+    const tweetUrl = item.link || '';
+    const content = `**${handle}** just posted a new Tweet!\n${tweetUrl}`;
+
+    // Build embed
+    const embed = new EmbedBuilder()
+      .setColor(0x000000); // Black like X/Twitter
+
+    // Author line: "Display Name (@handle)"
+    embed.setAuthor({ name: `${displayName} (@${handle})` });
+
+    // Tweet text as description
+    let desc = item.contentSnippet || item.content || item.summary || '';
+    // Clean up HTML entities and extra whitespace
+    desc = desc.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    desc = desc.replace(/\s+/g, ' ').trim();
+    if (desc.length > 500) desc = desc.slice(0, 500) + '...';
+    if (desc) embed.setDescription(desc);
+
+    // Try to get profile picture from feed image
+    const feedAny = rssFeed as unknown as Record<string, unknown>;
+    const feedImage = rssFeed.image?.url || (feedAny.itunes as Record<string, unknown>)?.image;
+    if (feedImage && typeof feedImage === 'string') {
+      embed.setThumbnail(feedImage);
+    }
+
+    // Footer with X branding and timestamp
+    const timestamp = item.pubDate ? new Date(item.pubDate) : new Date();
+    const timeStr = timestamp.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    embed.setFooter({ text: `X • ${timeStr}` });
+
+    // Check for images in enclosure or media
+    const enclosure = (item as Record<string, unknown>).enclosure as { url?: string; type?: string } | undefined;
+    if (enclosure?.url && enclosure.type?.startsWith('image')) {
+      embed.setImage(enclosure.url);
+    }
+
+    await channel.send({ content, embeds: [embed] });
+  } catch (error) {
+    logger.error({ err: error, feedLabel }, 'Failed to post Twitter item');
+  }
+}
+
+async function postGenericItem(
+  channel: TextChannel,
+  item: RssParser.Item,
+  rssFeed: RssParser.Output<RssParser.Item>,
+  feedLabel: string
+): Promise<void> {
+  try {
     const embed = new EmbedBuilder()
       .setColor(0x1DA1F2);
 
@@ -121,24 +213,13 @@ async function pollFeed(
       embed.setImage(enclosure.url);
     }
 
-    try {
-      // Convert twitter/x.com links to fxtwitter for proper Discord embeds
-      let linkContent = item.link || undefined;
-      if (linkContent) {
-        linkContent = linkContent.replace(/https?:\/\/(www\.)?(x\.com|twitter\.com)\//gi, 'https://fxtwitter.com/');
-      }
-      await textChannel.send({ content: linkContent, embeds: [embed] });
-    } catch (error) {
-      logger.error({ err: error, feedLabel }, 'Failed to post feed item');
+    // Convert twitter/x.com links to fxtwitter for proper Discord embeds
+    let linkContent = item.link || undefined;
+    if (linkContent) {
+      linkContent = linkContent.replace(/https?:\/\/(www\.)?(x\.com|twitter\.com)\//gi, 'https://fxtwitter.com/');
     }
+    await channel.send({ content: linkContent, embeds: [embed] });
+  } catch (error) {
+    logger.error({ err: error, feedLabel }, 'Failed to post feed item');
   }
-
-  // Update last seen item ID
-  const latestItem = items[0];
-  const latestId = latestItem.guid || latestItem.link || latestItem.title || '';
-  if (latestId) {
-    updateFeedLastItem(feedId, latestId);
-  }
-
-  logger.info({ guildId, feedLabel, newCount: newItems.length }, 'Posted new feed items');
 }
