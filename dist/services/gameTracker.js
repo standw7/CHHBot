@@ -198,10 +198,14 @@ async function handleLive(client, ctx) {
         return;
     }
     // Check for period changes and post period start notification (no ping, no delay)
+    // Skip period 1 since "Game is starting!" already covers that
     const currentPeriod = pbp.period;
-    if (currentPeriod > ctx.lastAnnouncedPeriod && !pbp.clock.inIntermission) {
+    if (currentPeriod > ctx.lastAnnouncedPeriod && currentPeriod > 1 && !pbp.clock.inIntermission) {
         ctx.lastAnnouncedPeriod = currentPeriod;
         await postPeriodStartNotification(client, ctx, currentPeriod, pbp.plays);
+    }
+    else if (currentPeriod > ctx.lastAnnouncedPeriod) {
+        ctx.lastAnnouncedPeriod = currentPeriod; // Still track period 1, just don't announce it
     }
     // Detect new goals
     const goals = pbp.plays.filter(p => p.typeDescKey === 'goal');

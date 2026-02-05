@@ -195,14 +195,8 @@ export async function runSimulation(client: Client, guildId: string): Promise<vo
     });
   }
 
-  // Post Period 1 starting (no delay, no ping)
-  await new Promise(resolve => setTimeout(resolve, 2_000));
-  const period1Embed = new EmbedBuilder()
-    .setTitle('Period 1 is starting!')
-    .setColor(0x006847);
-  await textChannel.send({ embeds: [period1Embed] });
-
   // Post goals with delays between them
+  // Skip period 1 notification since "Game is starting!" already covers that
   let lastPeriod = 1;
   for (let i = 0; i < simGoals.length; i++) {
     const goal = simGoals[i];
