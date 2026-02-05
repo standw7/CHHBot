@@ -4,6 +4,7 @@ export interface MoneyPuckSkater {
     team: string;
     position: string;
     gamesPlayed: number;
+    icetime: number;
     hits: number;
     takeaways: number;
     giveaways: number;

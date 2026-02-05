@@ -50,6 +50,14 @@ const STAT_CATEGORIES = [
     { key: 'shutouts', label: 'Shutout', abbrev: 'SO', type: 'goalie', field: 'shutouts' },
     { key: 'record', label: 'Record', abbrev: 'W-L-OTL', type: 'goalie', field: 'wins' }, // Special handling
 ];
+function formatTotalMinutes(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+}
 // MoneyPuck stats (fallback for stats not in NHL API)
 const MONEYPUCK_CATEGORIES = [
     { key: 'hits', label: 'Hit', abbrev: 'HIT', field: 'hits' },
@@ -57,6 +65,7 @@ const MONEYPUCK_CATEGORIES = [
     { key: 'takeaways', label: 'Takeaway', abbrev: 'TK', field: 'takeaways' },
     { key: 'giveaways', label: 'Giveaway', abbrev: 'GV', field: 'giveaways' },
     { key: 'xgoals', label: 'Expected Goal', abbrev: 'xG', field: 'xGoals', format: formatXg },
+    { key: 'totalminutes', label: 'Total Minutes', abbrev: 'MIN', field: 'icetime', format: formatTotalMinutes },
 ];
 // Ordered so longer phrases are checked before shorter ones
 const KEYWORD_MAPPINGS = [
@@ -67,7 +76,8 @@ const KEYWORD_MAPPINGS = [
     { keywords: ['penalty minutes', 'pim'], categoryKey: 'pim', source: 'nhl' },
     { keywords: ['shots on goal', 'sog'], categoryKey: 'shots', source: 'nhl' },
     { keywords: ['shooting percentage', 'shooting %', 'shot%', 'sh%'], categoryKey: 'shootingpct', source: 'nhl' },
-    { keywords: ['time on ice', 'ice time', 'toi', 'minutes', 'played minutes'], categoryKey: 'toi', source: 'nhl' },
+    { keywords: ['total minutes', 'played minutes', 'minutes played', 'season minutes', 'total toi', 'minutes'], categoryKey: 'totalminutes', source: 'moneypuck' },
+    { keywords: ['time on ice', 'ice time', 'toi', 'toi/gp', 'avg toi'], categoryKey: 'toi', source: 'nhl' },
     { keywords: ['faceoff percentage', 'faceoff %', 'fo%', 'faceoffs'], categoryKey: 'faceoffpct', source: 'nhl' },
     { keywords: ['power-play goals', 'power play goals', 'ppg'], categoryKey: 'ppg', source: 'nhl' },
     { keywords: ['shorthanded goals', 'short-handed goals', 'shg'], categoryKey: 'shg', source: 'nhl' },
@@ -177,7 +187,7 @@ function buildStatNotSupportedEmbed(query) {
         .setTitle('Stat Not Supported')
         .setDescription(`I couldn't find a stat matching "**${query}**".\n\n` +
         '**Skater stats (NHL API):**\n' +
-        'goals, assists, points, +/-, PIM, shots, shooting%, TOI, faceoff%, PPG, SHG, GWG, OTG\n\n' +
+        'goals, assists, points, +/-, PIM, shots, shooting%, TOI, minutes (total), faceoff%, PPG, SHG, GWG, OTG\n\n' +
         '**Skater stats (MoneyPuck):**\n' +
         'hits, blocks, takeaways, giveaways, xG\n\n' +
         '**Goalie stats:**\n' +
@@ -266,7 +276,7 @@ function buildStatsHelpEmbed() {
         '`/stats goals`\n' +
         '`!stats xg`\n\n' +
         '**Skater stats (NHL API):**\n' +
-        'goals, assists, points, +/-, PIM, shots, shooting%, TOI, faceoff%, PPG, SHG, GWG, OTG\n\n' +
+        'goals, assists, points, +/-, PIM, shots, shooting%, TOI, minutes (total), faceoff%, PPG, SHG, GWG, OTG\n\n' +
         '**Skater stats (MoneyPuck):**\n' +
         'hits, blocks, takeaways, giveaways, xG\n\n' +
         '**Goalie stats:**\n' +

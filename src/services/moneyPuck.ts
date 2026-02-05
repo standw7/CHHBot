@@ -10,6 +10,7 @@ export interface MoneyPuckSkater {
   team: string;
   position: string;
   gamesPlayed: number;
+  icetime: number; // total seconds
   hits: number;
   takeaways: number;
   giveaways: number;
@@ -68,6 +69,7 @@ function parseCSVEfficient(csv: string): MoneyPuckSkater[] {
     position: headers.indexOf('position'),
     situation: headers.indexOf('situation'),
     gamesPlayed: headers.indexOf('games_played'),
+    icetime: headers.indexOf('icetime'),
     hits: headers.indexOf('I_F_hits'),
     takeaways: headers.indexOf('I_F_takeaways'),
     giveaways: headers.indexOf('I_F_giveaways'),
@@ -91,6 +93,7 @@ function parseCSVEfficient(csv: string): MoneyPuckSkater[] {
       team: values[idx.team] ?? '',
       position: values[idx.position] ?? '',
       gamesPlayed: parseInt(values[idx.gamesPlayed] ?? '0', 10),
+      icetime: parseFloat(values[idx.icetime] ?? '0'),
       hits: parseInt(values[idx.hits] ?? '0', 10),
       takeaways: parseInt(values[idx.takeaways] ?? '0', 10),
       giveaways: parseInt(values[idx.giveaways] ?? '0', 10),
