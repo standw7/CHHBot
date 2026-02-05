@@ -1,10 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.matchStatCategory = matchStatCategory;
 exports.buildStatsEmbed = buildStatsEmbed;
 exports.buildStatsHelpEmbed = buildStatsHelpEmbed;
 const discord_js_1 = require("discord.js");
 const client_js_1 = require("../nhl/client.js");
+const moneyPuck_js_1 = require("./moneyPuck.js");
 function formatPctg(value) {
     return (value * 100).toFixed(1) + '%';
 }
@@ -19,9 +19,13 @@ function formatPlusMinus(value) {
 function formatGaa(value) {
     return value.toFixed(2);
 }
+function formatXg(value) {
+    return value.toFixed(1);
+}
 function formatRecord(goalie) {
     return `${goalie.wins}-${goalie.losses}-${goalie.overtimeLosses}`;
 }
+// NHL API stats
 const STAT_CATEGORIES = [
     // Skater stats
     { key: 'goals', label: 'Goal', abbrev: 'G', type: 'skater', field: 'goals' },
@@ -46,43 +50,53 @@ const STAT_CATEGORIES = [
     { key: 'shutouts', label: 'Shutout', abbrev: 'SO', type: 'goalie', field: 'shutouts' },
     { key: 'record', label: 'Record', abbrev: 'W-L-OTL', type: 'goalie', field: 'wins' }, // Special handling
 ];
+// MoneyPuck stats (fallback for stats not in NHL API)
+const MONEYPUCK_CATEGORIES = [
+    { key: 'hits', label: 'Hit', abbrev: 'HIT', field: 'hits' },
+    { key: 'blocks', label: 'Blocked Shot', abbrev: 'BLK', field: 'blockedShots' },
+    { key: 'takeaways', label: 'Takeaway', abbrev: 'TK', field: 'takeaways' },
+    { key: 'giveaways', label: 'Giveaway', abbrev: 'GV', field: 'giveaways' },
+    { key: 'xgoals', label: 'Expected Goal', abbrev: 'xG', field: 'xGoals', format: formatXg },
+];
 // Ordered so longer phrases are checked before shorter ones
 const KEYWORD_MAPPINGS = [
-    // Multi-word phrases first (longest match)
-    { keywords: ['goals scored'], categoryKey: 'goals' },
-    { keywords: ['points per game', 'pts/game'], categoryKey: 'points' }, // Note: API doesn't have PPG stat, using points
-    { keywords: ['plus-minus', 'plus minus', 'plusminus', '+/-'], categoryKey: 'plusminus' },
-    { keywords: ['penalty minutes', 'pim'], categoryKey: 'pim' },
-    { keywords: ['shots on goal', 'sog'], categoryKey: 'shots' },
-    { keywords: ['shooting percentage', 'shooting %', 'shot%', 'sh%'], categoryKey: 'shootingpct' },
-    { keywords: ['time on ice', 'ice time', 'toi'], categoryKey: 'toi' },
-    { keywords: ['faceoff percentage', 'faceoff %', 'fo%', 'faceoffs'], categoryKey: 'faceoffpct' },
-    { keywords: ['power-play goals', 'power play goals', 'ppg'], categoryKey: 'ppg' },
-    { keywords: ['shorthanded goals', 'short-handed goals', 'shg'], categoryKey: 'shg' },
-    { keywords: ['game-winning goals', 'game winning goals', 'game winner', 'gwg'], categoryKey: 'gwg' },
-    { keywords: ['overtime goals', 'otg'], categoryKey: 'otg' },
-    { keywords: ['save percentage', 'save %', 'sv%', 'save pct'], categoryKey: 'savepct' },
-    { keywords: ['goals against average', 'gaa'], categoryKey: 'gaa' },
-    { keywords: ['shutouts', 'shutout'], categoryKey: 'shutouts' },
-    { keywords: ['record', 'wins', 'losses', 'otl'], categoryKey: 'record' },
-    // Single words last
-    { keywords: ['points', 'pts'], categoryKey: 'points' },
-    { keywords: ['goals', 'goal'], categoryKey: 'goals' },
-    { keywords: ['assists', 'assist'], categoryKey: 'assists' },
-    { keywords: ['shots', 'shot'], categoryKey: 'shots' },
+    // NHL API stats
+    { keywords: ['goals scored'], categoryKey: 'goals', source: 'nhl' },
+    { keywords: ['points per game', 'pts/game'], categoryKey: 'points', source: 'nhl' },
+    { keywords: ['plus-minus', 'plus minus', 'plusminus', '+/-'], categoryKey: 'plusminus', source: 'nhl' },
+    { keywords: ['penalty minutes', 'pim'], categoryKey: 'pim', source: 'nhl' },
+    { keywords: ['shots on goal', 'sog'], categoryKey: 'shots', source: 'nhl' },
+    { keywords: ['shooting percentage', 'shooting %', 'shot%', 'sh%'], categoryKey: 'shootingpct', source: 'nhl' },
+    { keywords: ['time on ice', 'ice time', 'toi'], categoryKey: 'toi', source: 'nhl' },
+    { keywords: ['faceoff percentage', 'faceoff %', 'fo%', 'faceoffs'], categoryKey: 'faceoffpct', source: 'nhl' },
+    { keywords: ['power-play goals', 'power play goals', 'ppg'], categoryKey: 'ppg', source: 'nhl' },
+    { keywords: ['shorthanded goals', 'short-handed goals', 'shg'], categoryKey: 'shg', source: 'nhl' },
+    { keywords: ['game-winning goals', 'game winning goals', 'game winner', 'gwg'], categoryKey: 'gwg', source: 'nhl' },
+    { keywords: ['overtime goals', 'otg'], categoryKey: 'otg', source: 'nhl' },
+    { keywords: ['save percentage', 'save %', 'sv%', 'save pct'], categoryKey: 'savepct', source: 'nhl' },
+    { keywords: ['goals against average', 'gaa'], categoryKey: 'gaa', source: 'nhl' },
+    { keywords: ['shutouts', 'shutout'], categoryKey: 'shutouts', source: 'nhl' },
+    { keywords: ['record', 'wins', 'losses', 'otl'], categoryKey: 'record', source: 'nhl' },
+    { keywords: ['points', 'pts'], categoryKey: 'points', source: 'nhl' },
+    { keywords: ['goals', 'goal'], categoryKey: 'goals', source: 'nhl' },
+    { keywords: ['assists', 'assist'], categoryKey: 'assists', source: 'nhl' },
+    { keywords: ['shots', 'shot'], categoryKey: 'shots', source: 'nhl' },
+    // MoneyPuck stats (fallback)
+    { keywords: ['expected goals', 'xg', 'xgoals'], categoryKey: 'xgoals', source: 'moneypuck' },
+    { keywords: ['blocked shots', 'blocks', 'blk'], categoryKey: 'blocks', source: 'moneypuck' },
+    { keywords: ['takeaways', 'takeaway', 'tk'], categoryKey: 'takeaways', source: 'moneypuck' },
+    { keywords: ['giveaways', 'giveaway', 'gv'], categoryKey: 'giveaways', source: 'moneypuck' },
+    { keywords: ['hits', 'hit'], categoryKey: 'hits', source: 'moneypuck' },
 ];
-function matchStatCategory(input) {
+function matchKeywords(input) {
     const lower = input.toLowerCase().trim();
     for (const mapping of KEYWORD_MAPPINGS) {
         for (const keyword of mapping.keywords) {
             if (lower.includes(keyword)) {
-                const cat = STAT_CATEGORIES.find(c => c.key === mapping.categoryKey);
-                if (cat)
-                    return cat;
+                return { categoryKey: mapping.categoryKey, source: mapping.source };
             }
         }
     }
-    // No match found
     return null;
 }
 // --- Embed builder ---
@@ -97,7 +111,16 @@ function positionLabel(code) {
     }
 }
 async function buildStatsEmbed(teamCode, query) {
-    const category = matchStatCategory(query);
+    const match = matchKeywords(query);
+    if (!match) {
+        return buildStatNotSupportedEmbed(query);
+    }
+    // Use MoneyPuck for advanced stats
+    if (match.source === 'moneypuck') {
+        return buildMoneyPuckEmbed(teamCode, match.categoryKey);
+    }
+    // Use NHL API for standard stats
+    const category = STAT_CATEGORIES.find(c => c.key === match.categoryKey);
     if (!category) {
         return buildStatNotSupportedEmbed(query);
     }
@@ -116,15 +139,49 @@ async function buildStatsEmbed(teamCode, query) {
     }
     return buildSkaterEmbed(stats.skaters, category, teamCode);
 }
+async function buildMoneyPuckEmbed(teamCode, categoryKey) {
+    const category = MONEYPUCK_CATEGORIES.find(c => c.key === categoryKey);
+    if (!category) {
+        return buildStatNotSupportedEmbed(categoryKey);
+    }
+    const skaters = await (0, moneyPuck_js_1.getMoneyPuckSkaters)(teamCode);
+    if (!skaters || skaters.length === 0) {
+        return new discord_js_1.EmbedBuilder()
+            .setTitle('Stats Unavailable')
+            .setDescription(`Could not fetch ${category.label.toLowerCase()} stats from MoneyPuck.\n\n` +
+            '*This may be a temporary issue or the team code may not match. Try again later.*')
+            .setColor(0xff0000);
+    }
+    const field = category.field;
+    const sorted = [...skaters].sort((a, b) => {
+        const aVal = a[field];
+        const bVal = b[field];
+        return bVal - aVal; // descending
+    });
+    const top5 = sorted.slice(0, 5);
+    const format = category.format ?? ((v) => `${v}`);
+    const lines = top5.map((player, i) => {
+        const prefix = i < 3 ? MEDALS[i] : `${i + 1}.`;
+        const pos = positionLabel(player.position);
+        const val = format(player[field]);
+        return `${prefix} **${player.name}** (${pos}) - **${val}** ${category.abbrev} (${player.gamesPlayed} GP)`;
+    });
+    return new discord_js_1.EmbedBuilder()
+        .setTitle(`${teamCode} ${category.label} Leaders`)
+        .setDescription(lines.join('\n'))
+        .setColor(0x006847)
+        .setFooter({ text: '2025-2026 Season • Data: MoneyPuck' });
+}
 function buildStatNotSupportedEmbed(query) {
     return new discord_js_1.EmbedBuilder()
         .setTitle('Stat Not Supported')
         .setDescription(`I couldn't find a stat matching "**${query}**".\n\n` +
-        '**Supported skater stats:**\n' +
+        '**Skater stats (NHL API):**\n' +
         'goals, assists, points, +/-, PIM, shots, shooting%, TOI, faceoff%, PPG, SHG, GWG, OTG\n\n' +
-        '**Supported goalie stats:**\n' +
-        'wins, losses, OTL, record, GAA, save%, shutouts\n\n' +
-        '*Note: Hits, blocks, takeaways, giveaways, PP%, PK%, and xG are not available from this API.*')
+        '**Skater stats (MoneyPuck):**\n' +
+        'hits, blocks, takeaways, giveaways, xG\n\n' +
+        '**Goalie stats:**\n' +
+        'wins, losses, OTL, record, GAA, save%, shutouts')
         .setColor(0xff6600)
         .setFooter({ text: 'Try !stats help for usage examples' });
 }
@@ -205,11 +262,13 @@ function buildStatsHelpEmbed() {
         .setDescription('Ask me about team stats! Examples:\n\n' +
         '`@Tusky who leads in goals?`\n' +
         '`@Tusky penalty minutes`\n' +
-        '`@Tusky save percentage`\n' +
+        '`@Tusky hits`\n' +
         '`/stats goals`\n' +
-        '`!stats pim`\n\n' +
-        '**Skater stats:**\n' +
+        '`!stats xg`\n\n' +
+        '**Skater stats (NHL API):**\n' +
         'goals, assists, points, +/-, PIM, shots, shooting%, TOI, faceoff%, PPG, SHG, GWG, OTG\n\n' +
+        '**Skater stats (MoneyPuck):**\n' +
+        'hits, blocks, takeaways, giveaways, xG\n\n' +
         '**Goalie stats:**\n' +
         'wins, losses, OTL, record, GAA, save%, shutouts')
         .setColor(0x006847);
