@@ -15,6 +15,7 @@ Tusky is a Discord bot built for hockey servers. It posts live goal notification
   - [Admin Commands](#admin-commands)
 - [Features](#features)
   - [Live Goal Cards](#live-goal-cards)
+  - [Game Start & Period Notifications](#game-start--period-notifications)
   - [Final Game Summary](#final-game-summary)
   - [Hall of Fame](#hall-of-fame)
   - [Auto Link Fix](#auto-link-fix)
@@ -100,6 +101,75 @@ Tusky supports both slash commands (`/command`) and prefix commands (`!command`)
 | `/watch` or `!watch` | Shows where to watch the current or next game -- TV networks, streaming |
 | `/replay` or `!replay` | Shows the most recent goal with scorer name, time, and a replay link |
 | `!help` | Shows a list of all available commands |
+
+### Stats Commands
+
+Look up team stat leaders for the current season or for a specific game.
+
+| Command | What it does |
+|---------|-------------|
+| `/stats [category]` or `!stats [category]` | Shows top 5 players in a stat category |
+| `!stats help` | Shows all available stat categories |
+
+**Season stats examples:**
+```
+!stats goals
+!stats assists
+!stats points
+!stats hits
+!stats blocks
+!stats takeaways
+!stats giveaways
+!stats pim
+!stats minutes
+!stats save%
+!stats wins
+```
+
+**Per-game stats** -- add a date to see leaders from a specific game:
+```
+!stats goals on 02/02/26
+!stats hits on Jan 15
+!stats blocks on 1/20/2026
+```
+
+**Available stat categories:**
+
+| Category | Keywords |
+|----------|----------|
+| Goals | `goals`, `goal` |
+| Assists | `assists`, `assist` |
+| Points | `points`, `pts` |
+| Plus/Minus | `plus-minus`, `+/-`, `plusminus` |
+| Penalty Minutes | `pim`, `penalty minutes`, `penalties` |
+| Hits | `hits`, `hit` |
+| Blocked Shots | `blocks`, `blocked shots`, `blk` |
+| Takeaways | `takeaways`, `takeaway`, `tk` |
+| Giveaways | `giveaways`, `giveaway`, `gv` |
+| Time on Ice | `toi`, `minutes`, `ice time` |
+| Shots | `shots`, `sog` |
+| Shooting % | `shooting%`, `sh%` |
+| Faceoff % | `faceoff%`, `fo%` |
+| Power Play Goals | `ppg`, `power play goals` |
+| Shorthanded Goals | `shg`, `shorthanded goals` |
+| Game Winning Goals | `gwg`, `game winning goals` |
+| Overtime Goals | `otg`, `overtime goals` |
+| Expected Goals | `xg`, `expected goals` |
+| Goalie Wins | `wins` |
+| Goals Against Avg | `gaa`, `goals against` |
+| Save % | `save%`, `sv%` |
+| Shutouts | `shutouts`, `so` |
+| Goalie Record | `record` |
+
+### Gameday Notifications
+
+| Command | What it does |
+|---------|-------------|
+| `!gameday` | Toggle the Gameday role on yourself |
+
+When you have the **Gameday** role, you'll be pinged when games start. Use `!gameday` again to remove the role and stop getting pinged.
+
+The bot will automatically create the "Gameday" role if it doesn't exist (requires Manage Roles permission).
 
 ### Media / GIF Commands
 
@@ -191,14 +261,14 @@ These require the **Manage Server** permission in Discord.
 When your team is playing, Tusky automatically watches the game. Every time a goal is scored, it posts a card in your game day channel that looks like this:
 
 ```
-:uta: 🚨 Utah Mammoth #9 Even Strength (5v5) Goal 🚨 :uta:
+:uta: :mammothgoal: Utah Mammoth #9 Even Strength Goal :mammothgoal: :uta:
 
 #9 Clayton Keller (22) wrist assists: #29 Barrett Hayton (18), #98 Mikhail Sergachev (25)
 
 :uta: Utah Mammoth :uta:
 Goals: 1
 Shots: 8
-Arizona Coyotes 
+Arizona Coyotes
 Goals: 0
 Shots: 5
 
@@ -212,7 +282,21 @@ The card includes:
 - Current score and shots for both teams
 - Time remaining in the period
 
+**Goal emoji:** When your team scores, Tusky uses a custom `:mammothgoal:` emoji (if uploaded to your server). When the opponent scores, it uses the standard 🚨 siren emoji. Upload a custom emoji named `mammothgoal` to your server for this to work.
+
+**Pulled goalie detection:** When a goal is scored with a pulled goalie, the card shows the actual skater situation (e.g., "6v5 Goal" or "5v6 Goal") instead of "Even Strength Goal".
+
 Goals are posted after a configurable delay (default 30 seconds) to protect people watching on a stream delay.
+
+### Game Start & Period Notifications
+
+Tusky posts notifications when games and periods start:
+
+**Game Start** -- When the game begins, Tusky posts a "Game is starting!" embed and pings the `@Gameday` role. Users can opt in/out of these pings with the `!gameday` command.
+
+**Period Notifications** -- At the start of Period 2, Period 3, Overtime, and Shootout, Tusky posts an embed like "Period 2 is starting!" These do NOT ping anyone -- they're just informational.
+
+Period 1 is not announced separately since "Game is starting!" already covers it.
 
 ### Final Game Summary
 
@@ -280,8 +364,11 @@ You can test all the game day features without waiting for a real game. Make sur
 ```
 
 This posts a fake 3-goal game with goal cards and a final summary, using your configured spoiler delay. It simulates:
+- "Game is starting!" notification (pings @Gameday role)
 - 1st period goal by Clayton Keller (even strength)
+- "Period 2 is starting!" notification
 - 2nd period goal by Nick Schmaltz (power play)
+- "Period 3 is starting!" notification
 - 3rd period goal by Logan Cooley (even strength)
 - Final summary with three stars
 
