@@ -430,12 +430,23 @@ async function handlePrefixPlayer(message, args) {
         }
         else {
             // Skater stats
-            const spct = seasonStats.shootingPctg ? (seasonStats.shootingPctg * 100).toFixed(1) : '0.0';
-            const foPct = seasonStats.faceoffWinningPctg ? (seasonStats.faceoffWinningPctg * 100).toFixed(1) : null;
+            const spct = seasonStats.shootingPctg
+                ? (seasonStats.shootingPctg > 1 ? seasonStats.shootingPctg.toFixed(1) : (seasonStats.shootingPctg * 100).toFixed(1))
+                : '0.0';
+            // Handle faceoff % - API might return as decimal (0.52) or percentage (52.3)
+            let foPct = null;
+            if (seasonStats.faceoffWinningPctg !== undefined && seasonStats.faceoffWinningPctg !== null) {
+                const foValue = seasonStats.faceoffWinningPctg > 1
+                    ? seasonStats.faceoffWinningPctg
+                    : seasonStats.faceoffWinningPctg * 100;
+                if (foValue > 0) {
+                    foPct = foValue.toFixed(1);
+                }
+            }
             let statsText = `GP: **${seasonStats.gamesPlayed}** | G: **${seasonStats.goals}** | A: **${seasonStats.assists}** | P: **${seasonStats.points}**\n` +
                 `+/-: **${seasonStats.plusMinus > 0 ? '+' : ''}${seasonStats.plusMinus}** | PIM: **${seasonStats.pim}** | Shots: **${seasonStats.shots}** | S%: **${spct}%**\n` +
                 `PPG: **${seasonStats.powerPlayGoals}** | TOI: **${seasonStats.avgToi}**`;
-            if (foPct && parseFloat(foPct) > 0) {
+            if (foPct) {
                 statsText += ` | FO%: **${foPct}%**`;
             }
             embed.addFields({
