@@ -9,6 +9,54 @@ const parser = new RssParser();
 const POLL_INTERVAL = 5 * 60_000; // 5 minutes
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+// Extract image URL from RSS item - checks multiple sources
+function extractImageFromItem(item: RssParser.Item): string | null {
+  const itemAny = item as Record<string, unknown>;
+
+  // 1. Check enclosure (standard RSS)
+  const enclosure = itemAny.enclosure as { url?: string; type?: string } | undefined;
+  if (enclosure?.url && enclosure.type?.startsWith('image')) {
+    return enclosure.url;
+  }
+
+  // 2. Check media:content (common in RSS feeds)
+  const mediaContent = itemAny['media:content'] as { $?: { url?: string; medium?: string } } | undefined;
+  if (mediaContent?.$?.url && (!mediaContent.$.medium || mediaContent.$.medium === 'image')) {
+    return mediaContent.$.url;
+  }
+
+  // 3. Check media:thumbnail
+  const mediaThumbnail = itemAny['media:thumbnail'] as { $?: { url?: string } } | undefined;
+  if (mediaThumbnail?.$?.url) {
+    return mediaThumbnail.$.url;
+  }
+
+  // 4. Extract from HTML content (look for <img> tags)
+  const content = item.content || item.summary || '';
+  const imgMatch = content.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if (imgMatch?.[1]) {
+    // Skip small images (likely emojis or icons)
+    const imgUrl = imgMatch[1];
+    if (!imgUrl.includes('emoji') && !imgUrl.includes('icon') && !imgUrl.includes('avatar')) {
+      return imgUrl;
+    }
+  }
+
+  // 5. Look for video poster/thumbnail in content
+  const videoMatch = content.match(/<video[^>]+poster=["']([^"']+)["']/i);
+  if (videoMatch?.[1]) {
+    return videoMatch[1];
+  }
+
+  // 6. Check for pbs.twimg.com URLs in content (Twitter media)
+  const twimgMatch = content.match(/https:\/\/pbs\.twimg\.com\/media\/[^\s"'<>]+/i);
+  if (twimgMatch?.[0]) {
+    return twimgMatch[0];
+  }
+
+  return null;
+}
+
 export function startFeedWatcher(client: Client): void {
   if (pollTimer) return;
   logger.info('Starting feed watcher');
@@ -167,10 +215,10 @@ async function postTwitterItem(
     });
     embed.setFooter({ text: `X • ${timeStr}` });
 
-    // Check for images in enclosure or media
-    const enclosure = (item as Record<string, unknown>).enclosure as { url?: string; type?: string } | undefined;
-    if (enclosure?.url && enclosure.type?.startsWith('image')) {
-      embed.setImage(enclosure.url);
+    // Extract images from various sources
+    const imageUrl = extractImageFromItem(item);
+    if (imageUrl) {
+      embed.setImage(imageUrl);
     }
 
     await channel.send({ content, embeds: [embed] });
@@ -207,10 +255,10 @@ async function postGenericItem(
 
     embed.setFooter({ text: feedLabel });
 
-    // Check for images in enclosure or media
-    const enclosure = (item as Record<string, unknown>).enclosure as { url?: string; type?: string } | undefined;
-    if (enclosure?.url && enclosure.type?.startsWith('image')) {
-      embed.setImage(enclosure.url);
+    // Extract images from various sources
+    const imageUrl = extractImageFromItem(item);
+    if (imageUrl) {
+      embed.setImage(imageUrl);
     }
 
     // Convert twitter/x.com links to fxtwitter for proper Discord embeds
