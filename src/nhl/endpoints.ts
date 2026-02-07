@@ -43,3 +43,15 @@ export function gamecenterWebUrl(gameId: number): string {
 export function standingsUrl(): string {
   return `${BASE_URL}/v1/standings/now`;
 }
+
+export function playerSearchUrl(query: string): string {
+  return `${BASE_URL}/v1/player-spotlight`;
+}
+
+export function playerStatsUrl(playerId: number): string {
+  return `${BASE_URL}/v1/player/${playerId}/landing`;
+}
+
+export function searchPlayersUrl(query: string): string {
+  return `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=10&q=${encodeURIComponent(query)}`;
+}

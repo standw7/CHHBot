@@ -224,6 +224,9 @@ export interface TeamStanding {
         default: string;
     };
     teamLogo: string;
+    divisionName: string;
+    conferenceName: string;
+    divisionSequence: number;
     gamesPlayed: number;
     wins: number;
     losses: number;
@@ -231,5 +234,98 @@ export interface TeamStanding {
     points: number;
     streakCode: string;
     streakCount: number;
+}
+export interface PlayerSearchResult {
+    playerId: string;
+    name: string;
+    positionCode: string;
+    teamAbbrev: string;
+    lastTeamAbbrev?: string;
+    sweaterNumber?: number;
+    active: boolean;
+    height: string;
+    weightInPounds: number;
+    birthDate: string;
+    birthCity: string;
+    birthCountry: string;
+}
+export interface PlayerLandingResponse {
+    playerId: number;
+    isActive: boolean;
+    firstName: {
+        default: string;
+    };
+    lastName: {
+        default: string;
+    };
+    sweaterNumber: number;
+    position: string;
+    headshot: string;
+    heroImage?: string;
+    teamLogo?: string;
+    currentTeamAbbrev?: string;
+    currentTeamId?: number;
+    heightInInches: number;
+    weightInPounds: number;
+    birthDate: string;
+    birthCity: {
+        default: string;
+    };
+    birthCountry: string;
+    shootsCatches: string;
+    featuredStats?: {
+        season: number;
+        regularSeason?: {
+            subSeason: PlayerSeasonStats;
+            career: PlayerSeasonStats;
+        };
+    };
+    careerTotals?: {
+        regularSeason?: PlayerSeasonStats;
+    };
+    last5Games?: PlayerGameLog[];
+}
+export interface PlayerSeasonStats {
+    gamesPlayed: number;
+    goals: number;
+    assists: number;
+    points: number;
+    plusMinus: number;
+    pim: number;
+    gameWinningGoals: number;
+    otGoals: number;
+    powerPlayGoals: number;
+    powerPlayPoints: number;
+    shorthandedGoals: number;
+    shorthandedPoints: number;
+    shots: number;
+    shootingPctg: number;
+    avgToi: string;
+    faceoffWinningPctg: number;
+    wins?: number;
+    losses?: number;
+    otLosses?: number;
+    goalsAgainstAvg?: number;
+    savePctg?: number;
+    shutouts?: number;
+    gamesStarted?: number;
+}
+export interface PlayerGameLog {
+    gameId: number;
+    gameDate: string;
+    teamAbbrev: string;
+    opponentAbbrev: string;
+    goals?: number;
+    assists?: number;
+    points?: number;
+    plusMinus?: number;
+    pim?: number;
+    shots?: number;
+    toi?: string;
+    gamesStarted?: number;
+    decision?: string;
+    goalsAgainst?: number;
+    savePctg?: number;
+    shotsAgainst?: number;
 }
 //# sourceMappingURL=types.d.ts.map

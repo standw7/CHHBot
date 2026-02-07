@@ -45,6 +45,8 @@ exports.getGoalReplay = getGoalReplay;
 exports.getTvSchedule = getTvSchedule;
 exports.getClubStats = getClubStats;
 exports.getStandings = getStandings;
+exports.searchPlayers = searchPlayers;
+exports.getPlayerStats = getPlayerStats;
 exports.clearCache = clearCache;
 const pino_1 = __importDefault(require("pino"));
 const endpoints = __importStar(require("./endpoints.js"));
@@ -116,6 +118,12 @@ async function getClubStats(teamCode) {
 }
 async function getStandings() {
     return fetchJson(endpoints.standingsUrl(), SCHEDULE_CACHE_TTL);
+}
+async function searchPlayers(query) {
+    return fetchJson(endpoints.searchPlayersUrl(query), SCHEDULE_CACHE_TTL);
+}
+async function getPlayerStats(playerId) {
+    return fetchJson(endpoints.playerStatsUrl(playerId), SCHEDULE_CACHE_TTL);
 }
 function clearCache() {
     cache.clear();

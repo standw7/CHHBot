@@ -54,6 +54,15 @@ function registerMessageHandler(client) {
                 case 'gameday':
                     await handlePrefixGameday(message);
                     break;
+                case 'player':
+                    await handlePrefixPlayer(message, args.slice(1));
+                    break;
+                case 'standings':
+                    await handlePrefixStandings(message, args.slice(1));
+                    break;
+                case 'schedule':
+                    await handlePrefixSchedule(message, args.slice(1));
+                    break;
                 default:
                     // Check if it's a registered gif key
                     await handlePrefixGif(message, command);
@@ -90,7 +99,7 @@ async function handlePrefixHelp(message) {
     const embed = new EmbedBuilder()
         .setTitle('Tusky Commands')
         .setColor(0x006847)
-        .addFields({ name: '!next', value: 'Show the next scheduled game', inline: false }, { name: '!watch', value: 'Where to watch the current/next game', inline: false }, { name: '!replay', value: 'Most recent goal replay/highlight', inline: false }, { name: '!stats [query]', value: 'Look up team stat leaders (e.g. `!stats goals`, `!stats hits on 02/02/26`)', inline: false }, { name: '!gameday', value: 'Toggle gameday notifications (get pinged when games start)', inline: false }, { name: '!help', value: 'Show this help message', inline: false }, { name: '\u200B', value: '**Media Commands**', inline: false }, { name: '!<key>', value: `Post a random gif/media for a key\nRegistered keys: ${gifKeysText}`, inline: false }, { name: '\u200B', value: '**Gif Management (Admin)**', inline: false }, { name: '!gif add key:<key> url:<url>', value: 'Add a media URL to a key', inline: false }, { name: '!gif remove key:<key> url:<url>', value: 'Remove a media URL from a key', inline: false }, { name: '!gif list key:<key>', value: 'List all URLs for a key', inline: false }, { name: '!gif keys', value: 'List all registered keys', inline: false }, { name: '\u200B', value: '**News Feeds (Admin)**', inline: false }, { name: '!feed add <url> <label>', value: 'Add an RSS feed to the news channel', inline: false }, { name: '!feed remove <label>', value: 'Remove a feed', inline: false }, { name: '!feed list', value: 'List all registered feeds', inline: false }, { name: '\u200B', value: '**Auto Features**', inline: false }, { name: 'Link Fix', value: 'Automatically converts x.com/twitter and instagram links for proper embeds (toggle with `/config set setting:link_fix value:on/off`)', inline: false }, { name: '\u200B', value: '**Testing (Admin)**', inline: false }, { name: '!sim', value: 'Run a fake game simulation to test goal cards and final summary', inline: false }, { name: '!sim reset', value: 'Reset simulation data so you can run it again', inline: false }, { name: '\u200B', value: '**Slash Commands**', inline: false }, { name: '/config show', value: 'View current bot configuration', inline: false }, { name: '/config set', value: 'Change bot settings (Admin)', inline: false })
+        .addFields({ name: '!next', value: 'Show the next scheduled game', inline: false }, { name: '!watch', value: 'Where to watch the current/next game', inline: false }, { name: '!replay', value: 'Most recent goal replay/highlight', inline: false }, { name: '!stats [query]', value: 'Look up team stat leaders (e.g. `!stats goals`, `!stats hits on 02/02/26`)', inline: false }, { name: '!player <name>', value: 'Look up player stats (e.g. `!player Keller`)', inline: false }, { name: '!standings [filter]', value: 'Show standings (e.g. `!standings`, `!standings west`, `!standings league`)', inline: false }, { name: '!schedule [count]', value: 'Show upcoming games (e.g. `!schedule`, `!schedule 10`)', inline: false }, { name: '!gameday', value: 'Toggle gameday notifications (get pinged when games start)', inline: false }, { name: '!help', value: 'Show this help message', inline: false }, { name: '\u200B', value: '**Media Commands**', inline: false }, { name: '!<key>', value: `Post a random gif/media for a key\nRegistered keys: ${gifKeysText}`, inline: false }, { name: '\u200B', value: '**Gif Management (Admin)**', inline: false }, { name: '!gif add key:<key> url:<url>', value: 'Add a media URL to a key', inline: false }, { name: '!gif remove key:<key> url:<url>', value: 'Remove a media URL from a key', inline: false }, { name: '!gif list key:<key>', value: 'List all URLs for a key', inline: false }, { name: '!gif keys', value: 'List all registered keys', inline: false }, { name: '\u200B', value: '**News Feeds (Admin)**', inline: false }, { name: '!feed add <url> <label>', value: 'Add an RSS feed to the news channel', inline: false }, { name: '!feed remove <label>', value: 'Remove a feed', inline: false }, { name: '!feed list', value: 'List all registered feeds', inline: false }, { name: '\u200B', value: '**Auto Features**', inline: false }, { name: 'Link Fix', value: 'Automatically converts x.com/twitter and instagram links for proper embeds (toggle with `/config set setting:link_fix value:on/off`)', inline: false }, { name: '\u200B', value: '**Testing (Admin)**', inline: false }, { name: '!sim', value: 'Run a fake game simulation to test goal cards and final summary', inline: false }, { name: '!sim reset', value: 'Reset simulation data so you can run it again', inline: false }, { name: '\u200B', value: '**Slash Commands**', inline: false }, { name: '/config show', value: 'View current bot configuration', inline: false }, { name: '/config set', value: 'Change bot settings (Admin)', inline: false })
         .setFooter({ text: 'Tusky - Utah Mammoth Hockey Bot' });
     await message.reply({ embeds: [embed] });
 }
@@ -363,6 +372,217 @@ async function handlePrefixSim(message, args) {
     runSimulation(message.client, message.guild.id).catch(err => {
         logger.error({ err }, 'Simulation error');
     });
+}
+async function handlePrefixPlayer(message, args) {
+    const { searchPlayers, getPlayerStats } = await import('../../nhl/client.js');
+    const { EmbedBuilder } = await import('discord.js');
+    const query = args.join(' ');
+    if (!query) {
+        await message.reply('Usage: `!player <name>` (e.g., `!player Keller`)');
+        return;
+    }
+    // Search for player
+    const results = await searchPlayers(query);
+    if (!results || results.length === 0) {
+        await message.reply(`No player found matching "${query}".`);
+        return;
+    }
+    // Get the first active player, or just the first result
+    const player = results.find(p => p.active) || results[0];
+    const playerId = parseInt(player.playerId, 10);
+    // Fetch detailed stats
+    const stats = await getPlayerStats(playerId);
+    if (!stats) {
+        await message.reply(`Could not fetch stats for ${player.name}.`);
+        return;
+    }
+    const embed = new EmbedBuilder()
+        .setTitle(`${stats.firstName.default} ${stats.lastName.default}`)
+        .setColor(0x006847);
+    if (stats.headshot) {
+        embed.setThumbnail(stats.headshot);
+    }
+    // Basic info
+    const position = stats.position === 'G' ? 'Goalie' :
+        stats.position === 'D' ? 'Defenseman' :
+            stats.position === 'C' ? 'Center' :
+                stats.position === 'L' ? 'Left Wing' :
+                    stats.position === 'R' ? 'Right Wing' : stats.position;
+    const heightFt = Math.floor(stats.heightInInches / 12);
+    const heightIn = stats.heightInInches % 12;
+    let info = `**#${stats.sweaterNumber}** | **${position}** | **${stats.currentTeamAbbrev || 'FA'}**\n`;
+    info += `${heightFt}'${heightIn}" | ${stats.weightInPounds} lbs | Shoots: ${stats.shootsCatches}\n`;
+    info += `Born: ${stats.birthCity.default}, ${stats.birthCountry}`;
+    embed.setDescription(info);
+    // Season stats
+    const seasonStats = stats.featuredStats?.regularSeason?.subSeason;
+    if (seasonStats) {
+        if (stats.position === 'G') {
+            // Goalie stats
+            const gaa = seasonStats.goalsAgainstAvg?.toFixed(2) || '0.00';
+            const svPct = seasonStats.savePctg ? (seasonStats.savePctg * 100).toFixed(1) : '0.0';
+            embed.addFields({
+                name: '2024-25 Season',
+                value: `GP: **${seasonStats.gamesPlayed}** | W: **${seasonStats.wins}** | L: **${seasonStats.losses}** | OT: **${seasonStats.otLosses}**\n` +
+                    `GAA: **${gaa}** | SV%: **${svPct}%** | SO: **${seasonStats.shutouts}**`,
+                inline: false,
+            });
+        }
+        else {
+            // Skater stats
+            const spct = seasonStats.shootingPctg ? (seasonStats.shootingPctg * 100).toFixed(1) : '0.0';
+            embed.addFields({
+                name: '2024-25 Season',
+                value: `GP: **${seasonStats.gamesPlayed}** | G: **${seasonStats.goals}** | A: **${seasonStats.assists}** | P: **${seasonStats.points}**\n` +
+                    `+/-: **${seasonStats.plusMinus > 0 ? '+' : ''}${seasonStats.plusMinus}** | PIM: **${seasonStats.pim}** | Shots: **${seasonStats.shots}** | S%: **${spct}%**\n` +
+                    `PPG: **${seasonStats.powerPlayGoals}** | TOI: **${seasonStats.avgToi}**`,
+                inline: false,
+            });
+        }
+    }
+    // Last 5 games
+    if (stats.last5Games && stats.last5Games.length > 0) {
+        const last5Lines = stats.last5Games.slice(0, 5).map(g => {
+            const date = new Date(g.gameDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            if (stats.position === 'G') {
+                const decision = g.decision || '-';
+                const svPct = g.savePctg ? (g.savePctg * 100).toFixed(1) : '-';
+                return `${date} vs ${g.opponentAbbrev}: **${decision}** | ${g.goalsAgainst} GA | ${svPct}%`;
+            }
+            else {
+                return `${date} vs ${g.opponentAbbrev}: **${g.goals}G ${g.assists}A** | ${g.plusMinus && g.plusMinus > 0 ? '+' : ''}${g.plusMinus || 0} | ${g.shots || 0} SOG`;
+            }
+        });
+        embed.addFields({
+            name: 'Last 5 Games',
+            value: last5Lines.join('\n'),
+            inline: false,
+        });
+    }
+    await message.reply({ embeds: [embed] });
+}
+async function handlePrefixStandings(message, args) {
+    const { getStandings } = await import('../../nhl/client.js');
+    const { EmbedBuilder } = await import('discord.js');
+    const guildId = message.guild.id;
+    const config = (0, queries_js_1.getGuildConfig)(guildId);
+    const teamCode = config?.primary_team ?? 'UTA';
+    const standings = await getStandings();
+    if (!standings?.standings) {
+        await message.reply('Could not fetch standings.');
+        return;
+    }
+    const filter = args[0]?.toLowerCase();
+    // Find the user's team to get their division/conference
+    const userTeam = standings.standings.find(t => t.teamAbbrev.default === teamCode);
+    const userDivision = userTeam?.divisionName || 'Central';
+    const userConference = userTeam?.conferenceName || 'Western';
+    let filteredTeams = standings.standings;
+    let title = 'NHL Standings';
+    if (filter === 'league' || filter === 'nhl') {
+        // Show top 16 league-wide
+        filteredTeams = standings.standings.sort((a, b) => b.points - a.points).slice(0, 16);
+        title = 'NHL Standings (Top 16)';
+    }
+    else if (filter === 'west' || filter === 'western') {
+        filteredTeams = standings.standings.filter(t => t.conferenceName === 'Western');
+        title = 'Western Conference Standings';
+    }
+    else if (filter === 'east' || filter === 'eastern') {
+        filteredTeams = standings.standings.filter(t => t.conferenceName === 'Eastern');
+        title = 'Eastern Conference Standings';
+    }
+    else if (filter === 'central') {
+        filteredTeams = standings.standings.filter(t => t.divisionName === 'Central');
+        title = 'Central Division Standings';
+    }
+    else if (filter === 'pacific') {
+        filteredTeams = standings.standings.filter(t => t.divisionName === 'Pacific');
+        title = 'Pacific Division Standings';
+    }
+    else if (filter === 'atlantic') {
+        filteredTeams = standings.standings.filter(t => t.divisionName === 'Atlantic');
+        title = 'Atlantic Division Standings';
+    }
+    else if (filter === 'metropolitan' || filter === 'metro') {
+        filteredTeams = standings.standings.filter(t => t.divisionName === 'Metropolitan');
+        title = 'Metropolitan Division Standings';
+    }
+    else {
+        // Default: show user's division
+        filteredTeams = standings.standings.filter(t => t.divisionName === userDivision);
+        title = `${userDivision} Division Standings`;
+    }
+    // Sort by points (descending), then by wins
+    filteredTeams.sort((a, b) => b.points - a.points || b.wins - a.wins);
+    // Build standings table
+    const lines = filteredTeams.map((team, i) => {
+        const rank = i + 1;
+        const streak = team.streakCode === 'OT' ? 'OT' : `${team.streakCode}${team.streakCount}`;
+        const highlight = team.teamAbbrev.default === teamCode ? '**' : '';
+        return `${rank}. ${highlight}${team.teamAbbrev.default}${highlight} | ${team.gamesPlayed} | ${team.wins} | ${team.losses} | ${team.otLosses} | ${team.points} | ${streak}`;
+    });
+    const header = '` # | Team | GP | W | L | OT | PTS | S `';
+    const embed = new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(header + '\n' + lines.join('\n'))
+        .setColor(0x006847)
+        .setFooter({ text: 'Use: !standings [league|west|east|central|pacific|atlantic|metro]' });
+    await message.reply({ embeds: [embed] });
+}
+async function handlePrefixSchedule(message, args) {
+    const { getSchedule } = await import('../../nhl/client.js');
+    const { EmbedBuilder } = await import('discord.js');
+    const guildId = message.guild.id;
+    const config = (0, queries_js_1.getGuildConfig)(guildId);
+    const teamCode = config?.primary_team ?? 'UTA';
+    const timezone = config?.timezone ?? 'America/Denver';
+    const count = parseInt(args[0], 10) || 7;
+    const maxGames = Math.min(count, 15);
+    const schedule = await getSchedule(teamCode);
+    if (!schedule?.games?.length) {
+        await message.reply('No games found in the schedule.');
+        return;
+    }
+    const now = new Date();
+    const upcomingGames = schedule.games
+        .filter(g => new Date(g.startTimeUTC) > now || g.gameState === 'LIVE' || g.gameState === 'CRIT')
+        .slice(0, maxGames);
+    if (upcomingGames.length === 0) {
+        await message.reply('No upcoming games found.');
+        return;
+    }
+    const lines = upcomingGames.map(game => {
+        const gameDate = new Date(game.startTimeUTC);
+        const dateStr = gameDate.toLocaleDateString('en-US', {
+            timeZone: timezone,
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+        });
+        const timeStr = gameDate.toLocaleTimeString('en-US', {
+            timeZone: timezone,
+            hour: 'numeric',
+            minute: '2-digit',
+        });
+        const isHome = game.homeTeam.abbrev === teamCode;
+        const opponent = isHome ? game.awayTeam.abbrev : game.homeTeam.abbrev;
+        const location = isHome ? 'vs' : '@';
+        let status = `${dateStr} ${timeStr}`;
+        if (game.gameState === 'LIVE' || game.gameState === 'CRIT') {
+            status = '🔴 LIVE';
+        }
+        else if (game.gameState === 'FINAL' || game.gameState === 'OFF') {
+            status = 'FINAL';
+        }
+        return `${status} | **${location} ${opponent}**`;
+    });
+    const embed = new EmbedBuilder()
+        .setTitle(`${teamCode} Upcoming Schedule`)
+        .setDescription(lines.join('\n'))
+        .setColor(0x006847)
+        .setFooter({ text: `Use: !schedule [number] to show more games (max 15)` });
+    await message.reply({ embeds: [embed] });
 }
 async function handlePrefixGameday(message) {
     const { upsertGuildConfig } = await import('../../db/queries.js');

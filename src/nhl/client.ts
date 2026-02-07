@@ -8,6 +8,8 @@ import type {
   GoalReplayResponse,
   TvScheduleResponse,
   StandingsResponse,
+  PlayerSearchResult,
+  PlayerLandingResponse,
 } from './types.js';
 import type { ClubStatsResponse } from './statsTypes.js';
 
@@ -99,6 +101,14 @@ export async function getClubStats(teamCode: string): Promise<ClubStatsResponse 
 
 export async function getStandings(): Promise<StandingsResponse | null> {
   return fetchJson<StandingsResponse>(endpoints.standingsUrl(), SCHEDULE_CACHE_TTL);
+}
+
+export async function searchPlayers(query: string): Promise<PlayerSearchResult[] | null> {
+  return fetchJson<PlayerSearchResult[]>(endpoints.searchPlayersUrl(query), SCHEDULE_CACHE_TTL);
+}
+
+export async function getPlayerStats(playerId: number): Promise<PlayerLandingResponse | null> {
+  return fetchJson<PlayerLandingResponse>(endpoints.playerStatsUrl(playerId), SCHEDULE_CACHE_TTL);
 }
 
 export function clearCache(): void {

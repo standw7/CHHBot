@@ -11,6 +11,9 @@ exports.tvScheduleDateUrl = tvScheduleDateUrl;
 exports.clubStatsUrl = clubStatsUrl;
 exports.gamecenterWebUrl = gamecenterWebUrl;
 exports.standingsUrl = standingsUrl;
+exports.playerSearchUrl = playerSearchUrl;
+exports.playerStatsUrl = playerStatsUrl;
+exports.searchPlayersUrl = searchPlayersUrl;
 const BASE_URL = 'https://api-web.nhle.com';
 function scheduleUrl(teamCode) {
     return `${BASE_URL}/v1/club-schedule-season/${teamCode}/now`;
@@ -44,5 +47,14 @@ function gamecenterWebUrl(gameId) {
 }
 function standingsUrl() {
     return `${BASE_URL}/v1/standings/now`;
+}
+function playerSearchUrl(query) {
+    return `${BASE_URL}/v1/player-spotlight`;
+}
+function playerStatsUrl(playerId) {
+    return `${BASE_URL}/v1/player/${playerId}/landing`;
+}
+function searchPlayersUrl(query) {
+    return `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=10&q=${encodeURIComponent(query)}`;
 }
 //# sourceMappingURL=endpoints.js.map

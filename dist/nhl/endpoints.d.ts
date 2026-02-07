@@ -9,4 +9,7 @@ export declare function tvScheduleDateUrl(date: string): string;
 export declare function clubStatsUrl(teamCode: string): string;
 export declare function gamecenterWebUrl(gameId: number): string;
 export declare function standingsUrl(): string;
+export declare function playerSearchUrl(query: string): string;
+export declare function playerStatsUrl(playerId: number): string;
+export declare function searchPlayersUrl(query: string): string;
 //# sourceMappingURL=endpoints.d.ts.map
