@@ -171,6 +171,51 @@ When you have the **Gameday** role, you'll be pinged when games start. Use `!gam
 
 The bot will automatically create the "Gameday" role if it doesn't exist (requires Manage Roles permission).
 
+### Player Lookup
+
+| Command | What it does |
+|---------|-------------|
+| `!player <name>` | Look up a player's stats |
+
+**Examples:**
+```
+!player Keller
+!player Connor McDavid
+!player Hellebuyck
+```
+
+Shows:
+- Player photo, number, position, team
+- Height, weight, shoots/catches, birthplace
+- **Skaters:** GP, G, A, P, +/-, PIM, Shots, S%, PPG, TOI
+- **Goalies:** GP, W, L, OT, GAA, SV%, SO
+- Last 5 games performance
+
+### Standings
+
+| Command | What it does |
+|---------|-------------|
+| `!standings` | Show your team's division standings |
+| `!standings league` | Show top 16 NHL teams |
+| `!standings west` | Western Conference standings |
+| `!standings east` | Eastern Conference standings |
+| `!standings central` | Central Division standings |
+| `!standings pacific` | Pacific Division standings |
+| `!standings atlantic` | Atlantic Division standings |
+| `!standings metro` | Metropolitan Division standings |
+
+Shows: Rank, Team, GP, W, L, OT, PTS, Streak
+
+### Schedule
+
+| Command | What it does |
+|---------|-------------|
+| `!schedule` | Show next 7 upcoming games |
+| `!schedule 10` | Show next 10 games |
+| `!schedule 15` | Show next 15 games (max) |
+
+Shows date, time, opponent, and home/away for each game. Live games are marked with 🔴.
+
 ### Media / GIF Commands
 
 These let you set up custom commands for GIFs, videos, and memes.
