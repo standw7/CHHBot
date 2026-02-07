@@ -493,7 +493,7 @@ async function handlePrefixStandings(message, args) {
         return line;
     };
     let embed;
-    const header = '`   Team | GP | W-L-OT | PTS`\n';
+    const header = '`   Team | GP | W-L-OT | PTS`\n\n';
     if (filter === 'league' || filter === 'nhl') {
         // Show top 16 league-wide
         const sorted = [...standings.standings].sort((a, b) => b.points - a.points).slice(0, 16);
@@ -503,22 +503,19 @@ async function handlePrefixStandings(message, args) {
             .setDescription(header + lines.join('\n'))
             .setColor(0x006847);
     }
-    else if (filter === 'west' || filter === 'western' || filter === 'east' || filter === 'eastern') {
-        const conf = (filter === 'west' || filter === 'western') ? 'Western' : 'Eastern';
-        const confTeams = standings.standings.filter(t => t.conferenceName === conf);
-        confTeams.sort((a, b) => b.points - a.points);
-        const lines = confTeams.map((team, i) => formatTeam(team, i + 1));
-        embed = new EmbedBuilder()
-            .setTitle(`${conf} Conference Standings`)
-            .setDescription(header + lines.join('\n'))
-            .setColor(0x006847);
-    }
     else {
-        // Default: Playoff picture for user's conference
-        const confTeams = standings.standings.filter(t => t.conferenceName === userConference);
+        // Playoff picture - default to user's conference, or specified conference
+        let conference = userConference;
+        if (filter === 'east' || filter === 'eastern') {
+            conference = 'Eastern';
+        }
+        else if (filter === 'west' || filter === 'western') {
+            conference = 'Western';
+        }
+        const confTeams = standings.standings.filter(t => t.conferenceName === conference);
         // Get divisions in this conference
-        const div1Name = userConference === 'Western' ? 'Central' : 'Atlantic';
-        const div2Name = userConference === 'Western' ? 'Pacific' : 'Metropolitan';
+        const div1Name = conference === 'Western' ? 'Central' : 'Atlantic';
+        const div2Name = conference === 'Western' ? 'Pacific' : 'Metropolitan';
         const div1Teams = confTeams.filter(t => t.divisionName === div1Name).sort((a, b) => b.points - a.points);
         const div2Teams = confTeams.filter(t => t.divisionName === div2Name).sort((a, b) => b.points - a.points);
         // Top 3 from each division make playoffs
@@ -527,10 +524,10 @@ async function handlePrefixStandings(message, args) {
         // Wild card: remaining teams sorted by points, top 2 get in
         const wildCardEligible = [...div1Teams.slice(3), ...div2Teams.slice(3)].sort((a, b) => b.points - a.points);
         const wildCardIn = wildCardEligible.slice(0, 2);
-        const wildCardChase = wildCardEligible.slice(2, 6); // Next 4 teams chasing
+        const wildCardChase = wildCardEligible.slice(2, 8); // Next 6 teams chasing
         // Calculate point difference from WC2 cutoff
         const wc2Points = wildCardIn[1]?.points || 0;
-        let description = '`   Team | GP | W-L-OT | PTS`\n\n';
+        let description = header;
         description += `**${div1Name} Division**\n`;
         div1Playoff.forEach((team, i) => {
             description += formatTeam(team, i + 1) + '\n';
@@ -549,10 +546,10 @@ async function handlePrefixStandings(message, args) {
             description += formatTeam(team, i + 1, diff) + '\n';
         });
         embed = new EmbedBuilder()
-            .setTitle(`${userConference} Conference Playoff Picture`)
+            .setTitle(`${conference} Conference Playoff Picture`)
             .setDescription(description)
             .setColor(0x006847)
-            .setFooter({ text: 'Points diff from WC2 | !standings [league|west|east]' });
+            .setFooter({ text: 'Points diff from WC2 | !standings [west|east|league]' });
     }
     await message.reply({ embeds: [embed] });
 }
