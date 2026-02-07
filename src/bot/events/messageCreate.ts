@@ -602,13 +602,15 @@ async function handlePrefixStandings(message: Message, args: string[]): Promise<
 
   let embed: InstanceType<typeof EmbedBuilder>;
 
+  const header = '`   Team | GP | W-L-OT | PTS`\n';
+
   if (filter === 'league' || filter === 'nhl') {
     // Show top 16 league-wide
     const sorted = [...standings.standings].sort((a, b) => b.points - a.points).slice(0, 16);
     const lines = sorted.map((team, i) => formatTeam(team, i + 1));
     embed = new EmbedBuilder()
       .setTitle('NHL Standings (Top 16)')
-      .setDescription(lines.join('\n'))
+      .setDescription(header + lines.join('\n'))
       .setColor(0x006847);
   } else if (filter === 'west' || filter === 'western' || filter === 'east' || filter === 'eastern') {
     const conf = (filter === 'west' || filter === 'western') ? 'Western' : 'Eastern';
@@ -617,7 +619,7 @@ async function handlePrefixStandings(message: Message, args: string[]): Promise<
     const lines = confTeams.map((team, i) => formatTeam(team, i + 1));
     embed = new EmbedBuilder()
       .setTitle(`${conf} Conference Standings`)
-      .setDescription(lines.join('\n'))
+      .setDescription(header + lines.join('\n'))
       .setColor(0x006847);
   } else {
     // Default: Playoff picture for user's conference
@@ -642,7 +644,8 @@ async function handlePrefixStandings(message: Message, args: string[]): Promise<
     // Calculate point difference from WC2 cutoff
     const wc2Points = wildCardIn[1]?.points || 0;
 
-    let description = `**${div1Name} Division**\n`;
+    let description = '`   Team | GP | W-L-OT | PTS`\n\n';
+    description += `**${div1Name} Division**\n`;
     div1Playoff.forEach((team, i) => {
       description += formatTeam(team, i + 1) + '\n';
     });
