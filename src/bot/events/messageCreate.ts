@@ -534,12 +534,16 @@ async function handlePrefixPlayer(message: Message, args: string[]): Promise<voi
         ? (seasonStats.shootingPctg > 1 ? seasonStats.shootingPctg.toFixed(1) : (seasonStats.shootingPctg * 100).toFixed(1))
         : '0.0';
 
-      // Handle faceoff % - API might return as decimal (0.52) or percentage (52.3)
+      // avgToi and faceoffWinningPctg are in careerTotals, not season stats
+      const careerStats = stats.careerTotals?.regularSeason;
+      const avgToi = careerStats?.avgToi || 'N/A';
+
+      // Handle faceoff % from career stats
       let foPct: string | null = null;
-      if (seasonStats.faceoffWinningPctg !== undefined && seasonStats.faceoffWinningPctg !== null) {
-        const foValue = seasonStats.faceoffWinningPctg > 1
-          ? seasonStats.faceoffWinningPctg
-          : seasonStats.faceoffWinningPctg * 100;
+      if (careerStats?.faceoffWinningPctg !== undefined && careerStats?.faceoffWinningPctg !== null) {
+        const foValue = careerStats.faceoffWinningPctg > 1
+          ? careerStats.faceoffWinningPctg
+          : careerStats.faceoffWinningPctg * 100;
         if (foValue > 0) {
           foPct = foValue.toFixed(1);
         }
@@ -547,7 +551,7 @@ async function handlePrefixPlayer(message: Message, args: string[]): Promise<voi
 
       let statsText = `GP: **${seasonStats.gamesPlayed}** | G: **${seasonStats.goals}** | A: **${seasonStats.assists}** | P: **${seasonStats.points}**\n` +
                `+/-: **${seasonStats.plusMinus > 0 ? '+' : ''}${seasonStats.plusMinus}** | PIM: **${seasonStats.pim}** | Shots: **${seasonStats.shots}** | S%: **${spct}%**\n` +
-               `PPG: **${seasonStats.powerPlayGoals}** | TOI: **${seasonStats.avgToi}**`;
+               `PPG: **${seasonStats.powerPlayGoals}** | TOI: **${avgToi}**`;
       if (foPct) {
         statsText += ` | FO%: **${foPct}%**`;
       }
