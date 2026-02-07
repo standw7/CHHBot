@@ -431,11 +431,16 @@ async function handlePrefixPlayer(message, args) {
         else {
             // Skater stats
             const spct = seasonStats.shootingPctg ? (seasonStats.shootingPctg * 100).toFixed(1) : '0.0';
+            const foPct = seasonStats.faceoffWinningPctg ? (seasonStats.faceoffWinningPctg * 100).toFixed(1) : null;
+            let statsText = `GP: **${seasonStats.gamesPlayed}** | G: **${seasonStats.goals}** | A: **${seasonStats.assists}** | P: **${seasonStats.points}**\n` +
+                `+/-: **${seasonStats.plusMinus > 0 ? '+' : ''}${seasonStats.plusMinus}** | PIM: **${seasonStats.pim}** | Shots: **${seasonStats.shots}** | S%: **${spct}%**\n` +
+                `PPG: **${seasonStats.powerPlayGoals}** | TOI: **${seasonStats.avgToi}**`;
+            if (foPct && parseFloat(foPct) > 0) {
+                statsText += ` | FO%: **${foPct}%**`;
+            }
             embed.addFields({
                 name: '2024-25 Season',
-                value: `GP: **${seasonStats.gamesPlayed}** | G: **${seasonStats.goals}** | A: **${seasonStats.assists}** | P: **${seasonStats.points}**\n` +
-                    `+/-: **${seasonStats.plusMinus > 0 ? '+' : ''}${seasonStats.plusMinus}** | PIM: **${seasonStats.pim}** | Shots: **${seasonStats.shots}** | S%: **${spct}%**\n` +
-                    `PPG: **${seasonStats.powerPlayGoals}** | TOI: **${seasonStats.avgToi}**`,
+                value: statsText,
                 inline: false,
             });
         }
@@ -477,57 +482,76 @@ async function handlePrefixStandings(message, args) {
     const userTeam = standings.standings.find(t => t.teamAbbrev.default === teamCode);
     const userDivision = userTeam?.divisionName || 'Central';
     const userConference = userTeam?.conferenceName || 'Western';
-    let filteredTeams = standings.standings;
-    let title = 'NHL Standings';
-    if (filter === 'league' || filter === 'nhl') {
-        // Show top 16 league-wide
-        filteredTeams = standings.standings.sort((a, b) => b.points - a.points).slice(0, 16);
-        title = 'NHL Standings (Top 16)';
-    }
-    else if (filter === 'west' || filter === 'western') {
-        filteredTeams = standings.standings.filter(t => t.conferenceName === 'Western');
-        title = 'Western Conference Standings';
-    }
-    else if (filter === 'east' || filter === 'eastern') {
-        filteredTeams = standings.standings.filter(t => t.conferenceName === 'Eastern');
-        title = 'Eastern Conference Standings';
-    }
-    else if (filter === 'central') {
-        filteredTeams = standings.standings.filter(t => t.divisionName === 'Central');
-        title = 'Central Division Standings';
-    }
-    else if (filter === 'pacific') {
-        filteredTeams = standings.standings.filter(t => t.divisionName === 'Pacific');
-        title = 'Pacific Division Standings';
-    }
-    else if (filter === 'atlantic') {
-        filteredTeams = standings.standings.filter(t => t.divisionName === 'Atlantic');
-        title = 'Atlantic Division Standings';
-    }
-    else if (filter === 'metropolitan' || filter === 'metro') {
-        filteredTeams = standings.standings.filter(t => t.divisionName === 'Metropolitan');
-        title = 'Metropolitan Division Standings';
-    }
-    else {
-        // Default: show user's division
-        filteredTeams = standings.standings.filter(t => t.divisionName === userDivision);
-        title = `${userDivision} Division Standings`;
-    }
-    // Sort by points (descending), then by wins
-    filteredTeams.sort((a, b) => b.points - a.points || b.wins - a.wins);
-    // Build standings table
-    const lines = filteredTeams.map((team, i) => {
-        const rank = i + 1;
+    // Helper to format a team line
+    const formatTeam = (team, rank, showDiff) => {
         const streak = team.streakCode === 'OT' ? 'OT' : `${team.streakCode}${team.streakCount}`;
         const highlight = team.teamAbbrev.default === teamCode ? '**' : '';
-        return `${rank}. ${highlight}${team.teamAbbrev.default}${highlight} | ${team.gamesPlayed} | ${team.wins} | ${team.losses} | ${team.otLosses} | ${team.points} | ${streak}`;
-    });
-    const header = '` # | Team | GP | W | L | OT | PTS | S `';
-    const embed = new EmbedBuilder()
-        .setTitle(title)
-        .setDescription(header + '\n' + lines.join('\n'))
-        .setColor(0x006847)
-        .setFooter({ text: 'Use: !standings [league|west|east|central|pacific|atlantic|metro]' });
+        let line = `${rank}. ${highlight}${team.teamAbbrev.default}${highlight} | ${team.gamesPlayed} | ${team.wins}-${team.losses}-${team.otLosses} | ${team.points}`;
+        if (showDiff !== undefined && showDiff !== 0) {
+            line += ` (${showDiff > 0 ? '+' : ''}${showDiff})`;
+        }
+        return line;
+    };
+    let embed;
+    if (filter === 'league' || filter === 'nhl') {
+        // Show top 16 league-wide
+        const sorted = [...standings.standings].sort((a, b) => b.points - a.points).slice(0, 16);
+        const lines = sorted.map((team, i) => formatTeam(team, i + 1));
+        embed = new EmbedBuilder()
+            .setTitle('NHL Standings (Top 16)')
+            .setDescription(lines.join('\n'))
+            .setColor(0x006847);
+    }
+    else if (filter === 'west' || filter === 'western' || filter === 'east' || filter === 'eastern') {
+        const conf = (filter === 'west' || filter === 'western') ? 'Western' : 'Eastern';
+        const confTeams = standings.standings.filter(t => t.conferenceName === conf);
+        confTeams.sort((a, b) => b.points - a.points);
+        const lines = confTeams.map((team, i) => formatTeam(team, i + 1));
+        embed = new EmbedBuilder()
+            .setTitle(`${conf} Conference Standings`)
+            .setDescription(lines.join('\n'))
+            .setColor(0x006847);
+    }
+    else {
+        // Default: Playoff picture for user's conference
+        const confTeams = standings.standings.filter(t => t.conferenceName === userConference);
+        // Get divisions in this conference
+        const div1Name = userConference === 'Western' ? 'Central' : 'Atlantic';
+        const div2Name = userConference === 'Western' ? 'Pacific' : 'Metropolitan';
+        const div1Teams = confTeams.filter(t => t.divisionName === div1Name).sort((a, b) => b.points - a.points);
+        const div2Teams = confTeams.filter(t => t.divisionName === div2Name).sort((a, b) => b.points - a.points);
+        // Top 3 from each division make playoffs
+        const div1Playoff = div1Teams.slice(0, 3);
+        const div2Playoff = div2Teams.slice(0, 3);
+        // Wild card: remaining teams sorted by points, top 2 get in
+        const wildCardEligible = [...div1Teams.slice(3), ...div2Teams.slice(3)].sort((a, b) => b.points - a.points);
+        const wildCardIn = wildCardEligible.slice(0, 2);
+        const wildCardChase = wildCardEligible.slice(2, 6); // Next 4 teams chasing
+        // Calculate point difference from WC2 cutoff
+        const wc2Points = wildCardIn[1]?.points || 0;
+        let description = `**${div1Name} Division**\n`;
+        div1Playoff.forEach((team, i) => {
+            description += formatTeam(team, i + 1) + '\n';
+        });
+        description += `\n**${div2Name} Division**\n`;
+        div2Playoff.forEach((team, i) => {
+            description += formatTeam(team, i + 1) + '\n';
+        });
+        description += `\n**Wild Card**\n`;
+        wildCardIn.forEach((team, i) => {
+            description += formatTeam(team, `WC${i + 1}`) + '\n';
+        });
+        description += `\n**In The Hunt**\n`;
+        wildCardChase.forEach((team, i) => {
+            const diff = team.points - wc2Points;
+            description += formatTeam(team, i + 1, diff) + '\n';
+        });
+        embed = new EmbedBuilder()
+            .setTitle(`${userConference} Conference Playoff Picture`)
+            .setDescription(description)
+            .setColor(0x006847)
+            .setFooter({ text: 'Points diff from WC2 | !standings [league|west|east]' });
+    }
     await message.reply({ embeds: [embed] });
 }
 async function handlePrefixSchedule(message, args) {
