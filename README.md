@@ -10,6 +10,11 @@ Tusky is a Discord bot built for hockey servers. It posts live goal notification
   - [All Settings](#all-settings)
 - [Commands](#commands)
   - [Game Info Commands](#game-info-commands)
+  - [Stats Commands](#stats-commands)
+  - [Gameday Notifications](#gameday-notifications)
+  - [Player Lookup](#player-lookup)
+  - [Standings](#standings)
+  - [Schedule](#schedule)
   - [Media / GIF Commands](#media--gif-commands)
   - [News Feed Commands](#news-feed-commands)
   - [Admin Commands](#admin-commands)
@@ -187,7 +192,7 @@ The bot will automatically create the "Gameday" role if it doesn't exist (requir
 Shows:
 - Player photo, number, position, team
 - Height, weight, shoots/catches, birthplace
-- **Skaters:** GP, G, A, P, +/-, PIM, Shots, S%, PPG, TOI
+- **Skaters:** GP, G, A, P, +/-, PIM, Shots, S%, PPG, TOI, FO% (for players who take faceoffs)
 - **Goalies:** GP, W, L, OT, GAA, SV%, SO
 - Last 5 games performance
 
@@ -195,16 +200,17 @@ Shows:
 
 | Command | What it does |
 |---------|-------------|
-| `!standings` | Show your team's division standings |
-| `!standings league` | Show top 16 NHL teams |
-| `!standings west` | Western Conference standings |
-| `!standings east` | Eastern Conference standings |
-| `!standings central` | Central Division standings |
-| `!standings pacific` | Pacific Division standings |
-| `!standings atlantic` | Atlantic Division standings |
-| `!standings metro` | Metropolitan Division standings |
+| `!standings` | Show your conference's playoff picture |
+| `!standings league` | Show top 16 NHL teams by points |
+| `!standings west` | Western Conference playoff picture |
+| `!standings east` | Eastern Conference playoff picture |
 
-Shows: Rank, Team, GP, W, L, OT, PTS, Streak
+The playoff picture shows:
+- Top 3 from each division (playoff spots)
+- Wild Card 1 and Wild Card 2
+- "In The Hunt" - next 6 teams chasing wild card spots with point difference from WC2
+
+Shows: Rank, Team, GP, W-L-OT, PTS (and point differential for teams in the hunt)
 
 ### Schedule
 
@@ -336,7 +342,7 @@ Goals are posted after a configurable delay (default 30 seconds) to protect peop
 
 Tusky posts notifications when games and periods start:
 
-**Game Start** -- When the game begins, Tusky posts a "Game is starting!" embed and pings the `@Gameday` role. Users can opt in/out of these pings with the `!gameday` command.
+**Game Start** -- When the game begins, Tusky posts a "Game is starting!" embed showing both teams with their season records (e.g., "UTA (25-15-5) vs EDM (30-10-3)") and pings the `@Gameday` role. Users can opt in/out of these pings with the `!gameday` command.
 
 **Period Notifications** -- At the start of Period 2, Period 3, Overtime, and Shootout, Tusky posts an embed like "Period 2 is starting!" These do NOT ping anyone -- they're just informational.
 
@@ -446,4 +452,8 @@ To run the simulation again:
 **Feed posts aren't appearing:**
 - Make sure `news_channel` is set: `/config set setting:news_channel value:#your-channel`
 - Feeds are checked every 5 minutes, so it may take a few minutes for the first post
-- If `!feed add` with a Twitter URL says "no RSS feed found," use an external service like [rss.app](https://rss.app) to create an RSS feed for that account, then add the RSS URL manually
+- If `!feed add` with a Twitter URL says "no RSS feed found," the RSS bridges may be temporarily down -- try again later or use a different Twitter account
+
+**Player stats showing wrong data:**
+- TOI and FO% are pulled from the current season stats, not career averages
+- FO% only shows for players who have taken faceoffs this season
