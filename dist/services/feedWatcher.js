@@ -190,32 +190,36 @@ async function postTwitterItem(channel, item, rssFeed, feedLabel) {
             })
                 .setDescription(tweetData.text)
                 .setURL(tweetUrl);
+            // Add quoted tweet if present
+            if (tweetData.quote) {
+                const q = tweetData.quote;
+                let quoteText = `> **${q.author.name}** (@${q.author.screen_name})\n`;
+                // Add each line of the quoted tweet with > prefix
+                const quoteLines = q.text.split('\n').map(line => `> ${line}`).join('\n');
+                quoteText += quoteLines;
+                // Add link to quoted tweet
+                quoteText += `\n> [View quoted tweet](${q.url})`;
+                embed.addFields({
+                    name: 'Quoting',
+                    value: quoteText,
+                    inline: false,
+                });
+                // If quoted tweet has media and main tweet doesn't, show quoted media
+                if (!tweetData.media?.photos && !tweetData.media?.videos) {
+                    if (q.media?.photos && q.media.photos.length > 0) {
+                        embed.setImage(q.media.photos[0].url);
+                    }
+                    else if (q.media?.videos && q.media.videos.length > 0) {
+                        embed.setImage(q.media.videos[0].thumbnail_url);
+                    }
+                }
+            }
             // Add media if present - prefer photos, fall back to video thumbnail
             if (tweetData.media?.photos && tweetData.media.photos.length > 0) {
                 embed.setImage(tweetData.media.photos[0].url);
             }
             else if (tweetData.media?.videos && tweetData.media.videos.length > 0) {
                 embed.setImage(tweetData.media.videos[0].thumbnail_url);
-            }
-            // Footer with engagement stats and relative time
-            const tweetTime = new Date(tweetData.created_timestamp * 1000);
-            const now = Date.now();
-            const diffMs = now - tweetTime.getTime();
-            const diffMins = Math.floor(diffMs / 60000);
-            const diffHours = Math.floor(diffMs / 3600000);
-            const diffDays = Math.floor(diffMs / 86400000);
-            let timeAgo;
-            if (diffMins < 1) {
-                timeAgo = 'Just now';
-            }
-            else if (diffMins < 60) {
-                timeAgo = `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
-            }
-            else if (diffHours < 24) {
-                timeAgo = `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
-            }
-            else {
-                timeAgo = `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
             }
             // Format engagement numbers (1234 -> 1.2K)
             const formatCount = (n) => {
@@ -230,10 +234,12 @@ async function postTwitterItem(channel, item, rssFeed, feedLabel) {
                 `🔁 ${formatCount(tweetData.retweets)}`,
                 `❤️ ${formatCount(tweetData.likes)}`,
             ].join('  ');
+            // Footer with engagement stats, timestamp shows on hover via setTimestamp
             embed.setFooter({
-                text: `${stats}  •  𝕏  •  ${timeAgo}`,
+                text: `${stats}  •  𝕏`,
             });
             // Add Discord timestamp (shows in viewer's local timezone on hover)
+            const tweetTime = new Date(tweetData.created_timestamp * 1000);
             embed.setTimestamp(tweetTime);
             // Post just the embed, no fxtwitter link (cleaner look)
             await channel.send({ embeds: [embed] });
