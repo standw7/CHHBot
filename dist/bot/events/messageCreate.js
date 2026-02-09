@@ -374,7 +374,7 @@ async function handlePrefixSim(message, args) {
     });
 }
 async function handlePrefixPlayer(message, args) {
-    const { searchPlayers, getPlayerStats } = await import('../../nhl/client.js');
+    const { searchPlayers, getPlayerStats, getClubStats } = await import('../../nhl/client.js');
     const { EmbedBuilder } = await import('discord.js');
     const query = args.join(' ');
     if (!query) {
@@ -395,6 +395,31 @@ async function handlePrefixPlayer(message, args) {
     if (!stats) {
         await message.reply(`Could not fetch stats for ${player.name}.`);
         return;
+    }
+    // Fetch club stats to get season TOI and FO%
+    let seasonToi = null;
+    let seasonFoPct = null;
+    if (stats.currentTeamAbbrev) {
+        const clubStats = await getClubStats(stats.currentTeamAbbrev);
+        if (clubStats?.skaters) {
+            const playerClubStats = clubStats.skaters.find(s => s.playerId === playerId);
+            if (playerClubStats) {
+                // Convert seconds to MM:SS
+                const toiSeconds = playerClubStats.avgTimeOnIcePerGame;
+                if (toiSeconds > 0) {
+                    const mins = Math.floor(toiSeconds / 60);
+                    const secs = Math.round(toiSeconds % 60);
+                    seasonToi = `${mins}:${secs.toString().padStart(2, '0')}`;
+                }
+                // FO% - already a percentage (0.51 = 51%)
+                if (playerClubStats.faceoffWinPctg > 0) {
+                    const foPct = playerClubStats.faceoffWinPctg > 1
+                        ? playerClubStats.faceoffWinPctg
+                        : playerClubStats.faceoffWinPctg * 100;
+                    seasonFoPct = foPct.toFixed(1);
+                }
+            }
+        }
     }
     const embed = new EmbedBuilder()
         .setTitle(`${stats.firstName.default} ${stats.lastName.default}`)
@@ -433,24 +458,13 @@ async function handlePrefixPlayer(message, args) {
             const spct = seasonStats.shootingPctg
                 ? (seasonStats.shootingPctg > 1 ? seasonStats.shootingPctg.toFixed(1) : (seasonStats.shootingPctg * 100).toFixed(1))
                 : '0.0';
-            // avgToi and faceoffWinningPctg are in careerTotals, not season stats
-            const careerStats = stats.careerTotals?.regularSeason;
-            const avgToi = careerStats?.avgToi || 'N/A';
-            // Handle faceoff % from career stats
-            let foPct = null;
-            if (careerStats?.faceoffWinningPctg !== undefined && careerStats?.faceoffWinningPctg !== null) {
-                const foValue = careerStats.faceoffWinningPctg > 1
-                    ? careerStats.faceoffWinningPctg
-                    : careerStats.faceoffWinningPctg * 100;
-                if (foValue > 0) {
-                    foPct = foValue.toFixed(1);
-                }
-            }
+            // Use season TOI and FO% from club stats (not career averages)
+            const avgToi = seasonToi || 'N/A';
             let statsText = `GP: **${seasonStats.gamesPlayed}** | G: **${seasonStats.goals}** | A: **${seasonStats.assists}** | P: **${seasonStats.points}**\n` +
                 `+/-: **${seasonStats.plusMinus > 0 ? '+' : ''}${seasonStats.plusMinus}** | PIM: **${seasonStats.pim}** | Shots: **${seasonStats.shots}** | S%: **${spct}%**\n` +
                 `PPG: **${seasonStats.powerPlayGoals}** | TOI: **${avgToi}**`;
-            if (foPct) {
-                statsText += ` | FO%: **${foPct}%**`;
+            if (seasonFoPct) {
+                statsText += ` | FO%: **${seasonFoPct}%**`;
             }
             embed.addFields({
                 name: '2024-25 Season',

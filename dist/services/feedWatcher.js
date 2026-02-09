@@ -13,6 +13,35 @@ const logger = (0, pino_1.default)({ name: 'feed-watcher' });
 const parser = new rss_parser_1.default();
 const POLL_INTERVAL = 5 * 60_000; // 5 minutes
 let pollTimer = null;
+// Fetch tweet data from fxtwitter API
+async function fetchTweetData(tweetUrl) {
+    try {
+        // Extract username and tweet ID from URL
+        // Handles: twitter.com/user/status/123, x.com/user/status/123
+        const match = tweetUrl.match(/(?:twitter\.com|x\.com)\/([^\/]+)\/status\/(\d+)/i);
+        if (!match)
+            return null;
+        const [, username, tweetId] = match;
+        const apiUrl = `https://api.fxtwitter.com/${username}/status/${tweetId}`;
+        const response = await fetch(apiUrl, {
+            headers: { 'User-Agent': 'Tusky-Discord-Bot/1.0' },
+        });
+        if (!response.ok) {
+            logger.warn({ tweetUrl, status: response.status }, 'fxtwitter API error');
+            return null;
+        }
+        const data = await response.json();
+        if (data.code !== 200 || !data.tweet) {
+            logger.warn({ tweetUrl, code: data.code, message: data.message }, 'fxtwitter API returned error');
+            return null;
+        }
+        return data.tweet;
+    }
+    catch (error) {
+        logger.error({ err: error, tweetUrl }, 'Failed to fetch tweet data');
+        return null;
+    }
+}
 // Extract image URL from RSS item - checks multiple sources
 function extractImageFromItem(item) {
     const itemAny = item;
@@ -147,50 +176,100 @@ async function pollFeed(client, guildId, channelId, feedId, feedUrl, feedLabel, 
 }
 async function postTwitterItem(channel, item, rssFeed, feedLabel) {
     try {
-        // Extract handle from tweet URL (twitter.com/handle/status/...)
-        const handleMatch = item.link?.match(/(?:twitter\.com|x\.com)\/([^\/]+)\/status/i);
-        const handle = handleMatch?.[1] || feedLabel.replace('@', '');
-        // Get display name from item.creator or feed title
-        const displayName = item.creator || rssFeed.title || handle;
-        // Build the content line: "**handle** just posted a new Tweet!"
         const tweetUrl = item.link || '';
-        const content = `**${handle}** just posted a new Tweet!\n${tweetUrl}`;
-        // Build embed
-        const embed = new discord_js_1.EmbedBuilder()
-            .setColor(0x000000); // Black like X/Twitter
-        // Author line: "Display Name (@handle)"
-        embed.setAuthor({ name: `${displayName} (@${handle})` });
-        // Tweet text as description
-        let desc = item.contentSnippet || item.content || item.summary || '';
-        // Clean up HTML entities and extra whitespace
-        desc = desc.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-        desc = desc.replace(/\s+/g, ' ').trim();
-        if (desc.length > 500)
-            desc = desc.slice(0, 500) + '...';
-        if (desc)
-            embed.setDescription(desc);
-        // Try to get profile picture from feed image
-        const feedAny = rssFeed;
-        const feedImage = rssFeed.image?.url || feedAny.itunes?.image;
-        if (feedImage && typeof feedImage === 'string') {
-            embed.setThumbnail(feedImage);
+        // Try to fetch rich tweet data from fxtwitter API
+        const tweetData = tweetUrl ? await fetchTweetData(tweetUrl) : null;
+        if (tweetData) {
+            // We have rich tweet data - build a proper embed
+            const embed = new discord_js_1.EmbedBuilder()
+                .setColor(0x000000) // Black like X/Twitter
+                .setAuthor({
+                name: `${tweetData.author.name} (@${tweetData.author.screen_name})`,
+                iconURL: tweetData.author.avatar_url,
+                url: `https://x.com/${tweetData.author.screen_name}`,
+            })
+                .setDescription(tweetData.text)
+                .setURL(tweetUrl);
+            // Add media if present - prefer photos, fall back to video thumbnail
+            if (tweetData.media?.photos && tweetData.media.photos.length > 0) {
+                embed.setImage(tweetData.media.photos[0].url);
+            }
+            else if (tweetData.media?.videos && tweetData.media.videos.length > 0) {
+                embed.setImage(tweetData.media.videos[0].thumbnail_url);
+            }
+            // Footer with engagement stats and relative time
+            const tweetTime = new Date(tweetData.created_timestamp * 1000);
+            const now = Date.now();
+            const diffMs = now - tweetTime.getTime();
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+            let timeAgo;
+            if (diffMins < 1) {
+                timeAgo = 'Just now';
+            }
+            else if (diffMins < 60) {
+                timeAgo = `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
+            }
+            else if (diffHours < 24) {
+                timeAgo = `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+            }
+            else {
+                timeAgo = `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+            }
+            // Format engagement numbers (1234 -> 1.2K)
+            const formatCount = (n) => {
+                if (n >= 1000000)
+                    return `${(n / 1000000).toFixed(1)}M`;
+                if (n >= 1000)
+                    return `${(n / 1000).toFixed(1)}K`;
+                return n.toString();
+            };
+            const stats = [
+                `💬 ${formatCount(tweetData.replies)}`,
+                `🔁 ${formatCount(tweetData.retweets)}`,
+                `❤️ ${formatCount(tweetData.likes)}`,
+            ].join('  ');
+            embed.setFooter({
+                text: `${stats}  •  𝕏  •  ${timeAgo}`,
+            });
+            // Post just the embed, no fxtwitter link (cleaner look)
+            await channel.send({ embeds: [embed] });
         }
-        // Footer with X branding and timestamp
-        const timestamp = item.pubDate ? new Date(item.pubDate) : new Date();
-        const timeStr = timestamp.toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true,
-        });
-        embed.setFooter({ text: `X • ${timeStr}` });
-        // Extract images from various sources
-        const imageUrl = extractImageFromItem(item);
-        if (imageUrl) {
-            embed.setImage(imageUrl);
+        else {
+            // Fallback: use RSS data if API fails
+            const handleMatch = tweetUrl.match(/(?:twitter\.com|x\.com)\/([^\/]+)\/status/i);
+            const handle = handleMatch?.[1] || feedLabel.replace('@', '');
+            const displayName = item.creator || rssFeed.title || handle;
+            const embed = new discord_js_1.EmbedBuilder()
+                .setColor(0x000000)
+                .setAuthor({ name: `${displayName} (@${handle})` })
+                .setURL(tweetUrl);
+            // Tweet text as description
+            let desc = item.contentSnippet || item.content || item.summary || '';
+            desc = desc.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+            desc = desc.replace(/\s+/g, ' ').trim();
+            if (desc.length > 500)
+                desc = desc.slice(0, 500) + '...';
+            if (desc)
+                embed.setDescription(desc);
+            // Footer with timestamp
+            const timestamp = item.pubDate ? new Date(item.pubDate) : new Date();
+            const timeStr = timestamp.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+            });
+            embed.setFooter({ text: `𝕏 • ${timeStr}` });
+            // Extract images from RSS
+            const imageUrl = extractImageFromItem(item);
+            if (imageUrl) {
+                embed.setImage(imageUrl);
+            }
+            await channel.send({ embeds: [embed] });
         }
-        await channel.send({ content, embeds: [embed] });
     }
     catch (error) {
         logger.error({ err: error, feedLabel }, 'Failed to post Twitter item');
