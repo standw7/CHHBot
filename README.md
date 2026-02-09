@@ -263,12 +263,11 @@ or
 ```
 !feed add @NHLUtahHC
 ```
-Tusky will try to find a working RSS bridge for that account. If it can't find one, you can use an external RSS service like [rss.app](https://rss.app) to create a feed and add it manually.
+Tusky will automatically try multiple RSS bridges (RSSHub, Nitter instances, bird.makeup) to find a working feed for that account.
 
 **Adding a generic RSS feed:**
 ```
-!feed add https://rss.app/feed/yKbExXqc4fl9fPJz Utah Mammoth
-!feed add https://rss.app/feeds/bK9lvV4AidNKmF5B.xml Cole Bagley
+!feed add https://example.com/feed.xml Utah News
 ```
 The text after the URL becomes the label.
 
@@ -280,7 +279,7 @@ The text after the URL becomes the label.
 | `!feed remove <label>` | Remove a feed by its label |
 | `!feed help` | Show feed command usage |
 
-Feeds are checked every 5 minutes. New items are posted to the configured news channel. Twitter/X links in feed posts are automatically converted to fxtwitter.com for proper embeds.
+Feeds are checked every 5 minutes. New items are posted to the configured news channel with rich embeds showing the author's profile picture, tweet text, images, and engagement stats (likes, retweets, replies).
 
 ### Admin Commands
 
@@ -376,7 +375,12 @@ Turn this on or off with:
 
 Register Twitter accounts or RSS feeds and Tusky will post new content to your news channel every 5 minutes. Great for keeping up with team reporters, official accounts, and hockey news.
 
-Twitter/X links in feed posts are automatically converted to fxtwitter.com so they embed properly.
+Twitter/X posts are displayed as rich embeds with:
+- Author profile picture and handle
+- Full tweet text
+- Images and media
+- Engagement stats (replies, retweets, likes)
+- Timestamp that shows in your local timezone on hover
 
 ### Spoiler Mode
 
