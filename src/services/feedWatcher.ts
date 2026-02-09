@@ -289,6 +289,9 @@ async function postTwitterItem(
         text: `${stats}  •  𝕏  •  ${timeAgo}`,
       });
 
+      // Add Discord timestamp (shows in viewer's local timezone on hover)
+      embed.setTimestamp(tweetTime);
+
       // Post just the embed, no fxtwitter link (cleaner look)
       await channel.send({ embeds: [embed] });
     } else {
@@ -311,14 +314,8 @@ async function postTwitterItem(
 
       // Footer with timestamp
       const timestamp = item.pubDate ? new Date(item.pubDate) : new Date();
-      const timeStr = timestamp.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      });
-      embed.setFooter({ text: `𝕏 • ${timeStr}` });
+      embed.setFooter({ text: '𝕏' });
+      embed.setTimestamp(timestamp);
 
       // Extract images from RSS
       const imageUrl = extractImageFromItem(item);
