@@ -306,8 +306,6 @@ async function handlePrefixFeed(message, args) {
         const parser = new RssParser();
         const results = [];
         for (const feed of feeds) {
-            // Escape @ to prevent Discord mentions
-            const safeLabel = feed.label.replace(/@/g, '');
             try {
                 const rssFeed = await parser.parseURL(feed.url);
                 const itemCount = rssFeed.items?.length || 0;
@@ -315,11 +313,11 @@ async function handlePrefixFeed(message, args) {
                 const latestTitle = latestItem?.title?.slice(0, 50) || 'No title';
                 const latestDate = latestItem?.pubDate ? new Date(latestItem.pubDate).toLocaleString() : 'Unknown';
                 const hasLastId = feed.last_item_id ? '✓' : '✗';
-                results.push(`✅ **${safeLabel}**\n   Items: ${itemCount} | Latest: ${latestDate}\n   Tracking: ${hasLastId} | "${latestTitle}..."`);
+                results.push(`✅ **${feed.label}**\n   Items: ${itemCount} | Latest: ${latestDate}\n   Tracking: ${hasLastId} | "${latestTitle}..."`);
             }
             catch (error) {
                 const errMsg = error instanceof Error ? error.message : 'Unknown error';
-                results.push(`❌ **${safeLabel}**\n   Error: ${errMsg.slice(0, 100)}`);
+                results.push(`❌ **${feed.label}**\n   Error: ${errMsg.slice(0, 100)}`);
             }
         }
         await message.reply({ content: `**Feed Status:**\n\n${results.join('\n\n')}`, allowedMentions: { parse: [] } });
