@@ -18,6 +18,7 @@ exports.getFeedSources = getFeedSources;
 exports.addFeedSource = addFeedSource;
 exports.removeFeedSource = removeFeedSource;
 exports.updateFeedLastItem = updateFeedLastItem;
+exports.resetFeedLastItem = resetFeedLastItem;
 exports.hasGameStartBeenPosted = hasGameStartBeenPosted;
 exports.markGameStartPosted = markGameStartPosted;
 exports.resetGameStart = resetGameStart;
@@ -122,6 +123,10 @@ function removeFeedSource(guildId, idOrLabel) {
 }
 function updateFeedLastItem(feedId, lastItemId) {
     (0, database_js_1.getDb)().prepare('UPDATE feed_sources SET last_item_id = ? WHERE id = ?').run(lastItemId, feedId);
+}
+function resetFeedLastItem(guildId, label) {
+    const result = (0, database_js_1.getDb)().prepare('UPDATE feed_sources SET last_item_id = NULL WHERE guild_id = ? AND label = ?').run(guildId, label);
+    return result.changes > 0;
 }
 // --- Posted Game Starts ---
 function hasGameStartBeenPosted(guildId, gameId) {

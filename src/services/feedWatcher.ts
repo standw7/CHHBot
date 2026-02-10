@@ -180,7 +180,10 @@ async function pollFeed(
     return;
   }
 
-  if (!rssFeed.items || rssFeed.items.length === 0) return;
+  if (!rssFeed.items || rssFeed.items.length === 0) {
+    logger.info({ feedLabel, feedUrl }, 'Feed returned no items');
+    return;
+  }
 
   // Find new items since last check
   const items = rssFeed.items;
@@ -188,19 +191,47 @@ async function pollFeed(
 
   if (!lastItemId) {
     // First poll - just post the most recent item and save the marker
+    logger.info({ feedLabel }, 'First poll for feed, posting most recent item');
     newItems = items.slice(0, 1);
   } else {
     // Find items newer than our last seen
+    let foundLastItem = false;
     for (const item of items) {
       const itemId = item.guid || item.link || item.title || '';
-      if (itemId === lastItemId) break;
+      if (itemId === lastItemId) {
+        foundLastItem = true;
+        break;
+      }
       newItems.push(item);
     }
-    // Cap at 5 to avoid flooding on first run or after long downtime
-    newItems = newItems.slice(0, 5);
+
+    // If we didn't find the lastItemId, the item may have aged out of the feed
+    // Only post items from the last 2 hours to avoid flooding with old content
+    if (!foundLastItem && newItems.length > 0) {
+      const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+      const recentItems = newItems.filter(item => {
+        if (!item.pubDate) return false;
+        const itemTime = new Date(item.pubDate).getTime();
+        return itemTime > twoHoursAgo;
+      });
+
+      if (recentItems.length < newItems.length) {
+        logger.info(
+          { feedLabel, totalNew: newItems.length, recentNew: recentItems.length },
+          'lastItemId not found in feed, filtering to recent items only'
+        );
+        newItems = recentItems;
+      }
+    }
+
+    // Cap at 3 to avoid flooding
+    newItems = newItems.slice(0, 3);
   }
 
-  if (newItems.length === 0) return;
+  if (newItems.length === 0) {
+    logger.debug({ feedLabel }, 'No new items to post');
+    return;
+  }
 
   // Post in chronological order (oldest first)
   newItems.reverse();

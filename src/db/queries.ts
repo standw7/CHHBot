@@ -137,6 +137,11 @@ export function updateFeedLastItem(feedId: number, lastItemId: string): void {
   getDb().prepare('UPDATE feed_sources SET last_item_id = ? WHERE id = ?').run(lastItemId, feedId);
 }
 
+export function resetFeedLastItem(guildId: string, label: string): boolean {
+  const result = getDb().prepare('UPDATE feed_sources SET last_item_id = NULL WHERE guild_id = ? AND label = ?').run(guildId, label);
+  return result.changes > 0;
+}
+
 // --- Posted Game Starts ---
 
 export function hasGameStartBeenPosted(guildId: string, gameId: number): boolean {

@@ -352,7 +352,9 @@ async function handlePrefixFeed(message: Message, args: string[]): Promise<void>
       '`!feed add <twitter/x profile URL>` - Add a Twitter/X account (admin)\n' +
       '`!feed add <rss url> <label>` - Add a generic RSS feed (admin)\n' +
       '`!feed remove <label>` - Remove a feed (admin)\n' +
-      '`!feed list` - List all registered feeds\n\n' +
+      '`!feed list` - List all registered feeds\n' +
+      '`!feed status` - Check health of all feeds (admin)\n' +
+      '`!feed reset <label>` - Reset a feed to re-post latest item (admin)\n\n' +
       'Feeds post to the configured news channel. Set it with:\n' +
       '`/config set setting:news_channel value:#channel`'
     );
@@ -367,6 +369,38 @@ async function handlePrefixFeed(message: Message, args: string[]): Promise<void>
     }
     const list = feeds.map((f, i) => `${i + 1}. **${f.label}** - ${f.url}`).join('\n');
     await message.reply(`**Registered Feeds:**\n${list}`);
+    return;
+  }
+
+  if (sub === 'status') {
+    const feeds = getFeedSources(guildId);
+    if (feeds.length === 0) {
+      await message.reply('No feeds registered yet.');
+      return;
+    }
+
+    await message.reply('Checking feed status...');
+    const RssParser = (await import('rss-parser')).default;
+    const parser = new RssParser();
+
+    const results: string[] = [];
+    for (const feed of feeds) {
+      try {
+        const rssFeed = await parser.parseURL(feed.url);
+        const itemCount = rssFeed.items?.length || 0;
+        const latestItem = rssFeed.items?.[0];
+        const latestTitle = latestItem?.title?.slice(0, 50) || 'No title';
+        const latestDate = latestItem?.pubDate ? new Date(latestItem.pubDate).toLocaleString() : 'Unknown';
+        const hasLastId = feed.last_item_id ? '✓' : '✗';
+
+        results.push(`✅ **${feed.label}**\n   Items: ${itemCount} | Latest: ${latestDate}\n   Tracking: ${hasLastId} | "${latestTitle}..."`);
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : 'Unknown error';
+        results.push(`❌ **${feed.label}**\n   Error: ${errMsg.slice(0, 100)}`);
+      }
+    }
+
+    await message.reply(`**Feed Status:**\n\n${results.join('\n\n')}`);
     return;
   }
 
@@ -434,6 +468,15 @@ async function handlePrefixFeed(message: Message, args: string[]): Promise<void>
     }
     const removed = removeFeedSource(guildId, label);
     await message.reply(removed ? `Removed feed **${label}**.` : `Feed "${label}" not found.`);
+  } else if (sub === 'reset') {
+    const label = args.slice(1).join(' ');
+    if (!label) {
+      await message.reply('Usage: `!feed reset <label>` - Resets tracking so the next poll posts the latest item');
+      return;
+    }
+    const { resetFeedLastItem } = await import('../../db/queries.js');
+    const reset = resetFeedLastItem(guildId, label);
+    await message.reply(reset ? `Reset feed **${label}**. Next poll will post the latest item.` : `Feed "${label}" not found.`);
   } else {
     await message.reply('Unknown subcommand. Use `!feed help` for usage.');
   }
