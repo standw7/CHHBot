@@ -955,13 +955,15 @@ async function handlePrefixGifAdmin(message: Message, args: string[]): Promise<v
     const removed = removeGifUrl(guildId, key, url);
     await message.reply(removed ? `Removed from **${key}**.` : `URL not found for **${key}**.`);
   } else if (sub === 'delete') {
-    if (!key) {
-      await message.reply('Usage: `!gif delete key:<key>` - Deletes ALL URLs for a key');
+    // Take the rest of args as the key name (no key: prefix needed)
+    const deleteKey = args.slice(2).join(' ').trim().toLowerCase();
+    if (!deleteKey) {
+      await message.reply('Usage: `!gif delete <keyname>` - Deletes ALL URLs for a key\nExample: `!gif delete key:veggie`');
       return;
     }
     const { deleteGifKey } = await import('../../db/queries.js');
-    const count = deleteGifKey(guildId, key);
-    await message.reply(count > 0 ? `Deleted **${key}** (${count} URLs removed).` : `Key **${key}** not found.`);
+    const count = deleteGifKey(guildId, deleteKey);
+    await message.reply(count > 0 ? `Deleted **${deleteKey}** (${count} URLs removed).` : `Key **${deleteKey}** not found.`);
   } else if (sub === 'rename') {
     // Parse: !gif rename <oldkey> to <newkey>
     const renameArgs = args.slice(2).join(' '); // everything after "!gif rename"
