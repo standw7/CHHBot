@@ -27,11 +27,9 @@ function registerMessageHandler(client) {
             return;
         try {
             switch (command) {
-                case 'tusky': {
-                    // !tusky or !tusky help shows help
-                    await handlePrefixHelp(message);
+                case 'tusky':
+                    await message.reply('Tusky command received!');
                     break;
-                }
                 case 'next':
                     await handlePrefixNext(message);
                     break;
