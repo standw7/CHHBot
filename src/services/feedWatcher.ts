@@ -280,6 +280,11 @@ async function postTwitterItem(
     const tweetData = tweetUrl ? await fetchTweetData(tweetUrl) : null;
 
     if (tweetData) {
+      // Check if this is a retweet (tweet author doesn't match feed account)
+      const feedHandle = feedLabel.replace(/^@/, '').toLowerCase();
+      const tweetAuthor = tweetData.author.screen_name.toLowerCase();
+      const isRetweet = feedHandle !== tweetAuthor && feedHandle.length > 0;
+
       // We have rich tweet data - build a proper embed
       const embed = new EmbedBuilder()
         .setColor(0x000000) // Black like X/Twitter
@@ -288,8 +293,14 @@ async function postTwitterItem(
           iconURL: tweetData.author.avatar_url,
           url: `https://x.com/${tweetData.author.screen_name}`,
         })
-        .setDescription(tweetData.text)
         .setURL(tweetUrl);
+
+      // Add retweet indicator if applicable
+      let description = tweetData.text;
+      if (isRetweet) {
+        description = `🔁 **Retweeted by @${feedLabel.replace(/^@/, '')}**\n\n${tweetData.text}`;
+      }
+      embed.setDescription(description);
 
       // Add quoted tweet if present
       if (tweetData.quote) {
