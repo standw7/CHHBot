@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: project scaffolding with CI\n\n- Design document for Tusky Discord bot\n- Node.js/TypeScript CI workflow\n- .gitignore for Node.js project\n- Environment variable template\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nImplement complete Tusky Discord bot\n\nAll core features implemented:\n- Database layer \\(SQLite\\) with 5 tables for config, gifs, goals, finals, HoF\n- NHL API client with retries, backoff, and response caching\n- Game tracker state machine \\(IDLE/PRE_GAME/LIVE/FINAL\\) with goal detection\n- Goal cards and final summary embeds with spoiler mode support\n- Slash commands: /next, /watch, /replay, /gif, /config\n- Prefix commands: !next, !watch, !replay, !goal, !<gifkey>\n- Hall of fame: auto-repost messages with 5+ fire reactions\n- Spoiler system: off, wrap_scores, minimal_embed modes\n- Graceful shutdown, structured logging, restart resilience\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "WebFetch(domain:api-web.nhle.com)"
+    ]
+  }
+}

@@ -28,13 +28,14 @@ export function registerMessageHandler(client: Client): void {
 
     try {
       switch (command) {
-        case 'tusky':
+        case 'tusky': {
           // !tusky or !tusky help shows help
           const tuskySub = args[1]?.toLowerCase();
           if (!tuskySub || tuskySub === 'help') {
             await handlePrefixHelp(message);
           }
           break;
+        }
         case 'next':
           await handlePrefixNext(message);
           break;
