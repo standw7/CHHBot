@@ -29,7 +29,7 @@ export function registerMessageHandler(client: Client): void {
     try {
       switch (command) {
         case 'tusky':
-          await message.reply('Tusky command received!');
+          await handlePrefixHelp(message);
           break;
         case 'next':
           await handlePrefixNext(message);
@@ -107,36 +107,15 @@ async function handlePrefixHelp(message: Message): Promise<void> {
     .setTitle('Tusky Commands')
     .setColor(0x006847)
     .addFields(
-      { name: '!next', value: 'Show the next scheduled game', inline: false },
-      { name: '!watch', value: 'Where to watch the current/next game', inline: false },
-      { name: '!replay', value: 'Most recent goal replay/highlight', inline: false },
-      { name: '!stats [query]', value: 'Look up team stat leaders (e.g. `!stats goals`, `!stats hits on 02/02/26`)', inline: false },
-      { name: '!player <name>', value: 'Look up player stats (e.g. `!player Keller`)', inline: false },
-      { name: '!standings [filter]', value: 'Show standings (e.g. `!standings`, `!standings west`, `!standings league`)', inline: false },
-      { name: '!schedule [count]', value: 'Show upcoming games (e.g. `!schedule`, `!schedule 10`)', inline: false },
-      { name: '!gameday', value: 'Toggle gameday notifications (get pinged when games start)', inline: false },
-      { name: '!tusky help', value: 'Show this help message', inline: false },
-      { name: '\u200B', value: '**Media Commands**', inline: false },
-      { name: '!<key>', value: `Post a random gif/media for a key\nRegistered keys: ${gifKeysText}`, inline: false },
-      { name: '\u200B', value: '**Gif Management (Admin)**', inline: false },
-      { name: '!gif add key:<key> url:<url>', value: 'Add a media URL to a key', inline: false },
-      { name: '!gif remove key:<key> url:<url>', value: 'Remove a media URL from a key', inline: false },
-      { name: '!gif list key:<key>', value: 'List all URLs for a key', inline: false },
-      { name: '!gif keys', value: 'List all registered keys', inline: false },
-      { name: '\u200B', value: '**News Feeds (Admin)**', inline: false },
-      { name: '!feed add <url> [label]', value: 'Add a Twitter/X account or RSS feed', inline: false },
-      { name: '!feed remove <label>', value: 'Remove a feed', inline: false },
-      { name: '!feed list', value: 'List all registered feeds', inline: false },
-      { name: '!feed status', value: 'Check health of all feeds', inline: false },
-      { name: '!feed reset <label>', value: 'Reset feed tracking to re-post latest', inline: false },
-      { name: '\u200B', value: '**Auto Features**', inline: false },
-      { name: 'Link Fix', value: 'Automatically converts x.com/twitter and instagram links for proper embeds (toggle with `/config set setting:link_fix value:on/off`)', inline: false },
-      { name: '\u200B', value: '**Testing (Admin)**', inline: false },
-      { name: '!sim', value: 'Run a fake game simulation to test goal cards and final summary', inline: false },
-      { name: '!sim reset', value: 'Reset simulation data so you can run it again', inline: false },
-      { name: '\u200B', value: '**Slash Commands**', inline: false },
-      { name: '/config show', value: 'View current bot configuration', inline: false },
-      { name: '/config set', value: 'Change bot settings (Admin)', inline: false },
+      { name: 'Game Info', value: '`!next` - Next game\n`!watch` - Where to watch\n`!replay` - Latest goal replay\n`!schedule [n]` - Upcoming games', inline: false },
+      { name: 'Stats & Standings', value: '`!stats [category]` - Team stat leaders\n`!player <name>` - Player lookup\n`!standings [filter]` - Playoff picture', inline: false },
+      { name: 'Notifications', value: '`!gameday` - Toggle gameday role', inline: false },
+      { name: 'Media Commands', value: `\`!<key>\` - Post random gif\nRegistered keys: ${gifKeysText}`, inline: false },
+      { name: 'Gif Management (Admin)', value: '`!gif add key:<k> url:<u>` - Add gif\n`!gif remove key:<k> url:<u>` - Remove gif\n`!gif list key:<k>` - List URLs\n`!gif keys` - List all keys', inline: false },
+      { name: 'News Feeds (Admin)', value: '`!feed add <url> [label]` - Add feed\n`!feed remove <label>` - Remove feed\n`!feed list` - List feeds\n`!feed status` - Check feed health\n`!feed reset <label>` - Reset tracking', inline: false },
+      { name: 'Testing (Admin)', value: '`!sim` - Run game simulation\n`!sim reset` - Reset simulation', inline: false },
+      { name: 'Config (Admin)', value: '`/config show` - View settings\n`/config set` - Change settings', inline: false },
+      { name: 'Help', value: '`!tusky help` - Show this message', inline: false },
     )
     .setFooter({ text: 'Tusky - Utah Mammoth Hockey Bot' });
 
