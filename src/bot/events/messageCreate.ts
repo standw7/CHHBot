@@ -910,7 +910,51 @@ async function handlePrefixGifAdmin(message: Message, args: string[]): Promise<v
     return;
   }
 
-  // Parse key: and url: from remaining args
+  // Handle delete and rename BEFORE key:/url: parsing (they use different syntax)
+  if (sub === 'delete') {
+    const member = message.member;
+    if (!member?.permissions.has(PermissionFlagsBits.ManageGuild)) {
+      await message.reply('You need Manage Server permission.');
+      return;
+    }
+    // Everything after "!gif delete " is the key name
+    const deleteKey = args.slice(1).join(' ').trim().toLowerCase();
+    if (!deleteKey) {
+      await message.reply('Usage: `!gif delete <keyname>` - Deletes ALL URLs for a key\nExample: `!gif delete key:veggie`');
+      return;
+    }
+    const { deleteGifKey } = await import('../../db/queries.js');
+    const count = deleteGifKey(guildId, deleteKey);
+    await message.reply(count > 0 ? `Deleted **${deleteKey}** (${count} URLs removed).` : `Key **${deleteKey}** not found.`);
+    return;
+  }
+
+  if (sub === 'rename') {
+    const member = message.member;
+    if (!member?.permissions.has(PermissionFlagsBits.ManageGuild)) {
+      await message.reply('You need Manage Server permission.');
+      return;
+    }
+    // Parse: !gif rename <oldkey> to <newkey>
+    const renameArgs = args.slice(1).join(' '); // everything after "!gif rename"
+    const toIndex = renameArgs.toLowerCase().indexOf(' to ');
+    if (toIndex === -1) {
+      await message.reply('Usage: `!gif rename <oldkey> to <newkey>`\nExample: `!gif rename key:veggie to veggie`');
+      return;
+    }
+    const oldKey = renameArgs.slice(0, toIndex).trim().toLowerCase();
+    const newKey = renameArgs.slice(toIndex + 4).trim().toLowerCase();
+    if (!oldKey || !newKey) {
+      await message.reply('Usage: `!gif rename <oldkey> to <newkey>`\nExample: `!gif rename key:veggie to veggie`');
+      return;
+    }
+    const { renameGifKey } = await import('../../db/queries.js');
+    const count = renameGifKey(guildId, oldKey, newKey);
+    await message.reply(count > 0 ? `Renamed **${oldKey}** to **${newKey}** (${count} URLs).` : `Key **${oldKey}** not found.`);
+    return;
+  }
+
+  // Parse key: and url: from remaining args (for add, remove, list)
   const fullArgs = args.slice(1).join(' ');
   const keyMatch = fullArgs.match(/key:(\S+)/);
   const urlMatch = fullArgs.match(/url:(\S+)/);
@@ -954,32 +998,5 @@ async function handlePrefixGifAdmin(message: Message, args: string[]): Promise<v
     }
     const removed = removeGifUrl(guildId, key, url);
     await message.reply(removed ? `Removed from **${key}**.` : `URL not found for **${key}**.`);
-  } else if (sub === 'delete') {
-    // Take the rest of args as the key name (no key: prefix needed)
-    const deleteKey = args.slice(2).join(' ').trim().toLowerCase();
-    if (!deleteKey) {
-      await message.reply('Usage: `!gif delete <keyname>` - Deletes ALL URLs for a key\nExample: `!gif delete key:veggie`');
-      return;
-    }
-    const { deleteGifKey } = await import('../../db/queries.js');
-    const count = deleteGifKey(guildId, deleteKey);
-    await message.reply(count > 0 ? `Deleted **${deleteKey}** (${count} URLs removed).` : `Key **${deleteKey}** not found.`);
-  } else if (sub === 'rename') {
-    // Parse: !gif rename <oldkey> to <newkey>
-    const renameArgs = args.slice(2).join(' '); // everything after "!gif rename"
-    const toIndex = renameArgs.toLowerCase().indexOf(' to ');
-    if (toIndex === -1) {
-      await message.reply('Usage: `!gif rename <oldkey> to <newkey>`\nExample: `!gif rename key:veggie to veggie`');
-      return;
-    }
-    const oldKey = renameArgs.slice(0, toIndex).trim().toLowerCase();
-    const newKey = renameArgs.slice(toIndex + 4).trim().toLowerCase();
-    if (!oldKey || !newKey) {
-      await message.reply('Usage: `!gif rename <oldkey> to <newkey>`\nExample: `!gif rename key:veggie to veggie`');
-      return;
-    }
-    const { renameGifKey } = await import('../../db/queries.js');
-    const count = renameGifKey(guildId, oldKey, newKey);
-    await message.reply(count > 0 ? `Renamed **${oldKey}** to **${newKey}** (${count} URLs).` : `Key **${oldKey}** not found.`);
   }
 }
