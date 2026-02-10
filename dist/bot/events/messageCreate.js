@@ -322,7 +322,7 @@ async function handlePrefixFeed(message, args) {
                 results.push(`❌ ${safeLabel}\n   Error: ${errMsg.slice(0, 100)}`);
             }
         }
-        await message.reply({ content: `**Feed Status:**\n\n${results.join('\n\n')}`, allowedMentions: { parse: [] } });
+        await message.reply({ content: `**Feed Status:**\n\n${results.join('\n\n')}`, allowedMentions: { repliedUser: true, parse: [] } });
         return;
     }
     // Admin-only from here

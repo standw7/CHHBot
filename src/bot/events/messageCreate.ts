@@ -402,7 +402,7 @@ async function handlePrefixFeed(message: Message, args: string[]): Promise<void>
       }
     }
 
-    await message.reply({ content: `**Feed Status:**\n\n${results.join('\n\n')}`, allowedMentions: { parse: [] } });
+    await message.reply({ content: `**Feed Status:**\n\n${results.join('\n\n')}`, allowedMentions: { repliedUser: true, parse: [] } });
     return;
   }
 
