@@ -28,8 +28,12 @@ export function registerMessageHandler(client: Client): void {
 
     try {
       switch (command) {
-        case 'help':
-          await handlePrefixHelp(message);
+        case 'tusky':
+          // !tusky or !tusky help shows help
+          const tuskySub = args[1]?.toLowerCase();
+          if (!tuskySub || tuskySub === 'help') {
+            await handlePrefixHelp(message);
+          }
           break;
         case 'next':
           await handlePrefixNext(message);
@@ -115,7 +119,7 @@ async function handlePrefixHelp(message: Message): Promise<void> {
       { name: '!standings [filter]', value: 'Show standings (e.g. `!standings`, `!standings west`, `!standings league`)', inline: false },
       { name: '!schedule [count]', value: 'Show upcoming games (e.g. `!schedule`, `!schedule 10`)', inline: false },
       { name: '!gameday', value: 'Toggle gameday notifications (get pinged when games start)', inline: false },
-      { name: '!help', value: 'Show this help message', inline: false },
+      { name: '!tusky help', value: 'Show this help message', inline: false },
       { name: '\u200B', value: '**Media Commands**', inline: false },
       { name: '!<key>', value: `Post a random gif/media for a key\nRegistered keys: ${gifKeysText}`, inline: false },
       { name: '\u200B', value: '**Gif Management (Admin)**', inline: false },
@@ -124,9 +128,11 @@ async function handlePrefixHelp(message: Message): Promise<void> {
       { name: '!gif list key:<key>', value: 'List all URLs for a key', inline: false },
       { name: '!gif keys', value: 'List all registered keys', inline: false },
       { name: '\u200B', value: '**News Feeds (Admin)**', inline: false },
-      { name: '!feed add <url> <label>', value: 'Add an RSS feed to the news channel', inline: false },
+      { name: '!feed add <url> [label]', value: 'Add a Twitter/X account or RSS feed', inline: false },
       { name: '!feed remove <label>', value: 'Remove a feed', inline: false },
       { name: '!feed list', value: 'List all registered feeds', inline: false },
+      { name: '!feed status', value: 'Check health of all feeds', inline: false },
+      { name: '!feed reset <label>', value: 'Reset feed tracking to re-post latest', inline: false },
       { name: '\u200B', value: '**Auto Features**', inline: false },
       { name: 'Link Fix', value: 'Automatically converts x.com/twitter and instagram links for proper embeds (toggle with `/config set setting:link_fix value:on/off`)', inline: false },
       { name: '\u200B', value: '**Testing (Admin)**', inline: false },
