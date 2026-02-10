@@ -830,13 +830,17 @@ async function handlePrefixGifAdmin(message, args) {
         await message.reply(count > 0 ? `Deleted **${key}** (${count} URLs removed).` : `Key **${key}** not found.`);
     }
     else if (sub === 'rename') {
-        // Parse old:<oldkey> new:<newkey>
-        const oldMatch = fullArgs.match(/old:(\S+)/);
-        const newMatch = fullArgs.match(/new:(\S+)/);
-        const oldKey = oldMatch?.[1]?.toLowerCase();
-        const newKey = newMatch?.[1]?.toLowerCase();
+        // Parse: !gif rename <oldkey> to <newkey>
+        const renameArgs = args.slice(2).join(' '); // everything after "!gif rename"
+        const toIndex = renameArgs.toLowerCase().indexOf(' to ');
+        if (toIndex === -1) {
+            await message.reply('Usage: `!gif rename <oldkey> to <newkey>`\nExample: `!gif rename key:veggie to veggie`');
+            return;
+        }
+        const oldKey = renameArgs.slice(0, toIndex).trim().toLowerCase();
+        const newKey = renameArgs.slice(toIndex + 4).trim().toLowerCase();
         if (!oldKey || !newKey) {
-            await message.reply('Usage: `!gif rename old:<oldkey> new:<newkey>`');
+            await message.reply('Usage: `!gif rename <oldkey> to <newkey>`\nExample: `!gif rename key:veggie to veggie`');
             return;
         }
         const { renameGifKey } = await import('../../db/queries.js');
