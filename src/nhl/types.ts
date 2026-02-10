@@ -262,6 +262,7 @@ export interface PlayerLandingResponse {
   weightInPounds: number;
   birthDate: string;
   birthCity: { default: string };
+  birthStateProvince?: { default: string };
   birthCountry: string;
   shootsCatches: string;
   featuredStats?: {

@@ -271,6 +271,9 @@ export interface PlayerLandingResponse {
     birthCity: {
         default: string;
     };
+    birthStateProvince?: {
+        default: string;
+    };
     birthCountry: string;
     shootsCatches: string;
     featuredStats?: {

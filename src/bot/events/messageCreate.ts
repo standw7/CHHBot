@@ -582,7 +582,10 @@ async function handlePrefixPlayer(message: Message, args: string[]): Promise<voi
 
   let info = `**#${stats.sweaterNumber}** | **${position}** | **${stats.currentTeamAbbrev || 'FA'}**\n`;
   info += `${heightFt}'${heightIn}" | ${stats.weightInPounds} lbs | Shoots: ${stats.shootsCatches}\n`;
-  info += `Born: ${stats.birthCity.default}, ${stats.birthCountry}`;
+  const birthplace = stats.birthStateProvince?.default
+    ? `${stats.birthCity.default}, ${stats.birthStateProvince.default}, ${stats.birthCountry}`
+    : `${stats.birthCity.default}, ${stats.birthCountry}`;
+  info += `Born: ${birthplace}`;
 
   embed.setDescription(info);
 
