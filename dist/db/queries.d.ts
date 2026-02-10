@@ -5,6 +5,8 @@ export declare function getGifUrls(guildId: string, key: string): string[];
 export declare function addGifUrl(guildId: string, key: string, url: string, addedBy: string): void;
 export declare function removeGifUrl(guildId: string, key: string, url: string): boolean;
 export declare function listGifKeys(guildId: string): string[];
+export declare function deleteGifKey(guildId: string, key: string): number;
+export declare function renameGifKey(guildId: string, oldKey: string, newKey: string): number;
 export declare function listGifUrlsForKey(guildId: string, key: string): GifCommand[];
 export declare function hasGoalBeenPosted(guildId: string, gameId: number, eventId: number): boolean;
 export declare function markGoalPosted(guildId: string, gameId: number, eventId: number): void;

@@ -60,6 +60,16 @@ export function listGifKeys(guildId: string): string[] {
   return rows.map(r => r.key);
 }
 
+export function deleteGifKey(guildId: string, key: string): number {
+  const result = getDb().prepare('DELETE FROM gif_commands WHERE guild_id = ? AND key = ?').run(guildId, key);
+  return result.changes;
+}
+
+export function renameGifKey(guildId: string, oldKey: string, newKey: string): number {
+  const result = getDb().prepare('UPDATE gif_commands SET key = ? WHERE guild_id = ? AND key = ?').run(newKey, guildId, oldKey);
+  return result.changes;
+}
+
 export function listGifUrlsForKey(guildId: string, key: string): GifCommand[] {
   return getDb().prepare('SELECT * FROM gif_commands WHERE guild_id = ? AND key = ?').all(guildId, key) as GifCommand[];
 }

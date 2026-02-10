@@ -6,6 +6,8 @@ exports.getGifUrls = getGifUrls;
 exports.addGifUrl = addGifUrl;
 exports.removeGifUrl = removeGifUrl;
 exports.listGifKeys = listGifKeys;
+exports.deleteGifKey = deleteGifKey;
+exports.renameGifKey = renameGifKey;
 exports.listGifUrlsForKey = listGifUrlsForKey;
 exports.hasGoalBeenPosted = hasGoalBeenPosted;
 exports.markGoalPosted = markGoalPosted;
@@ -62,6 +64,14 @@ function removeGifUrl(guildId, key, url) {
 function listGifKeys(guildId) {
     const rows = (0, database_js_1.getDb)().prepare('SELECT DISTINCT key FROM gif_commands WHERE guild_id = ? ORDER BY key').all(guildId);
     return rows.map(r => r.key);
+}
+function deleteGifKey(guildId, key) {
+    const result = (0, database_js_1.getDb)().prepare('DELETE FROM gif_commands WHERE guild_id = ? AND key = ?').run(guildId, key);
+    return result.changes;
+}
+function renameGifKey(guildId, oldKey, newKey) {
+    const result = (0, database_js_1.getDb)().prepare('UPDATE gif_commands SET key = ? WHERE guild_id = ? AND key = ?').run(newKey, guildId, oldKey);
+    return result.changes;
 }
 function listGifUrlsForKey(guildId, key) {
     return (0, database_js_1.getDb)().prepare('SELECT * FROM gif_commands WHERE guild_id = ? AND key = ?').all(guildId, key);

@@ -954,5 +954,26 @@ async function handlePrefixGifAdmin(message: Message, args: string[]): Promise<v
     }
     const removed = removeGifUrl(guildId, key, url);
     await message.reply(removed ? `Removed from **${key}**.` : `URL not found for **${key}**.`);
+  } else if (sub === 'delete') {
+    if (!key) {
+      await message.reply('Usage: `!gif delete key:<key>` - Deletes ALL URLs for a key');
+      return;
+    }
+    const { deleteGifKey } = await import('../../db/queries.js');
+    const count = deleteGifKey(guildId, key);
+    await message.reply(count > 0 ? `Deleted **${key}** (${count} URLs removed).` : `Key **${key}** not found.`);
+  } else if (sub === 'rename') {
+    // Parse old:<oldkey> new:<newkey>
+    const oldMatch = fullArgs.match(/old:(\S+)/);
+    const newMatch = fullArgs.match(/new:(\S+)/);
+    const oldKey = oldMatch?.[1]?.toLowerCase();
+    const newKey = newMatch?.[1]?.toLowerCase();
+    if (!oldKey || !newKey) {
+      await message.reply('Usage: `!gif rename old:<oldkey> new:<newkey>`');
+      return;
+    }
+    const { renameGifKey } = await import('../../db/queries.js');
+    const count = renameGifKey(guildId, oldKey, newKey);
+    await message.reply(count > 0 ? `Renamed **${oldKey}** to **${newKey}** (${count} URLs).` : `Key **${oldKey}** not found.`);
   }
 }
