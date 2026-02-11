@@ -4,8 +4,9 @@ import pino from 'pino';
 
 const logger = pino({ name: 'hall-of-fame' });
 
-const FIRE_EMOJI = '🔥';
-const INDUCTION_THRESHOLD = 5;
+// Emojis that can trigger HoF induction
+const HOF_EMOJIS = ['🔥', '😂', '🤣'];
+const DEFAULT_THRESHOLD = 8;
 
 export function registerReactionHandler(client: Client): void {
   client.on('messageReactionAdd', async (reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser) => {
@@ -21,7 +22,10 @@ export function registerReactionHandler(client: Client): void {
       }
 
       if (!reaction.message.guild) return;
-      if (reaction.emoji.name !== FIRE_EMOJI) return;
+
+      // Check if this is a qualifying emoji
+      const emojiName = reaction.emoji.name;
+      if (!emojiName || !HOF_EMOJIS.includes(emojiName)) return;
 
       const guildId = reaction.message.guild.id;
       const config = getGuildConfig(guildId);
@@ -33,8 +37,9 @@ export function registerReactionHandler(client: Client): void {
       // Don't induct messages from the HoF channel itself
       if (channelId === config.hof_channel_id) return;
 
+      const threshold = config.hof_threshold ?? DEFAULT_THRESHOLD;
       const count = reaction.count ?? 0;
-      if (count < INDUCTION_THRESHOLD) return;
+      if (count < threshold) return;
 
       // Check dedup
       if (hasMessageBeenInducted(guildId, messageId)) return;
@@ -61,7 +66,7 @@ export function registerReactionHandler(client: Client): void {
         .addFields(
           { name: 'Channel', value: `<#${channelId}>`, inline: true },
           { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: true },
-          { name: `${FIRE_EMOJI} Reactions`, value: `${count}`, inline: true },
+          { name: `${emojiName} Reactions`, value: `${count}`, inline: true },
         )
         .setTimestamp(message.createdAt)
         .setColor(0xFF4500)
@@ -91,7 +96,7 @@ export function registerReactionHandler(client: Client): void {
 
       await hofChannel.send({ embeds: [embed] });
       markMessageInducted(guildId, messageId, channelId);
-      logger.info({ guildId, messageId, channelId, fireCount: count }, 'Message inducted to Hall of Fame');
+      logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
 
     } catch (error) {
       logger.error({ error }, 'Error in hall of fame reaction handler');

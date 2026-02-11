@@ -104,4 +104,7 @@ function runMigrations(db: Database.Database): void {
   if (!colNames.includes('gameday_role_id')) {
     db.exec('ALTER TABLE guild_config ADD COLUMN gameday_role_id TEXT');
   }
+  if (!colNames.includes('hof_threshold')) {
+    db.exec('ALTER TABLE guild_config ADD COLUMN hof_threshold INTEGER DEFAULT 8');
+  }
 }

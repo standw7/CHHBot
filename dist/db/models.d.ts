@@ -11,6 +11,7 @@ export interface GuildConfig {
     command_mode: 'slash_only' | 'slash_plus_prefix';
     link_fix_enabled: number;
     timezone: string;
+    hof_threshold: number;
 }
 export interface FeedSource {
     id: number;

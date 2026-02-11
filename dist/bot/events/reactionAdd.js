@@ -8,8 +8,9 @@ const discord_js_1 = require("discord.js");
 const queries_js_1 = require("../../db/queries.js");
 const pino_1 = __importDefault(require("pino"));
 const logger = (0, pino_1.default)({ name: 'hall-of-fame' });
-const FIRE_EMOJI = '🔥';
-const INDUCTION_THRESHOLD = 5;
+// Emojis that can trigger HoF induction
+const HOF_EMOJIS = ['🔥', '😂', '🤣'];
+const DEFAULT_THRESHOLD = 8;
 function registerReactionHandler(client) {
     client.on('messageReactionAdd', async (reaction, user) => {
         try {
@@ -25,7 +26,9 @@ function registerReactionHandler(client) {
             }
             if (!reaction.message.guild)
                 return;
-            if (reaction.emoji.name !== FIRE_EMOJI)
+            // Check if this is a qualifying emoji
+            const emojiName = reaction.emoji.name;
+            if (!emojiName || !HOF_EMOJIS.includes(emojiName))
                 return;
             const guildId = reaction.message.guild.id;
             const config = (0, queries_js_1.getGuildConfig)(guildId);
@@ -36,8 +39,9 @@ function registerReactionHandler(client) {
             // Don't induct messages from the HoF channel itself
             if (channelId === config.hof_channel_id)
                 return;
+            const threshold = config.hof_threshold ?? DEFAULT_THRESHOLD;
             const count = reaction.count ?? 0;
-            if (count < INDUCTION_THRESHOLD)
+            if (count < threshold)
                 return;
             // Check dedup
             if ((0, queries_js_1.hasMessageBeenInducted)(guildId, messageId))
@@ -58,7 +62,7 @@ function registerReactionHandler(client) {
                 iconURL: author?.displayAvatarURL(),
             })
                 .setDescription(truncatedContent || '*No text content*')
-                .addFields({ name: 'Channel', value: `<#${channelId}>`, inline: true }, { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: true }, { name: `${FIRE_EMOJI} Reactions`, value: `${count}`, inline: true })
+                .addFields({ name: 'Channel', value: `<#${channelId}>`, inline: true }, { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: true }, { name: `${emojiName} Reactions`, value: `${count}`, inline: true })
                 .setTimestamp(message.createdAt)
                 .setColor(0xFF4500)
                 .setFooter({ text: 'Hall of Fame Induction' });
@@ -84,7 +88,7 @@ function registerReactionHandler(client) {
             }
             await hofChannel.send({ embeds: [embed] });
             (0, queries_js_1.markMessageInducted)(guildId, messageId, channelId);
-            logger.info({ guildId, messageId, channelId, fireCount: count }, 'Message inducted to Hall of Fame');
+            logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
         }
         catch (error) {
             logger.error({ error }, 'Error in hall of fame reaction handler');

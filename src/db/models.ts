@@ -11,6 +11,7 @@ export interface GuildConfig {
   command_mode: 'slash_only' | 'slash_plus_prefix';
   link_fix_enabled: number; // 1 = on, 0 = off
   timezone: string;
+  hof_threshold: number; // minimum reactions needed for HoF induction
 }
 
 export interface FeedSource {

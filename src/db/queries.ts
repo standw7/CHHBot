@@ -11,8 +11,8 @@ export function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildCo
   const existing = getGuildConfig(guildId);
   if (!existing) {
     getDb().prepare(`
-      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, gameday_role_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, gameday_role_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone, hof_threshold)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       guildId,
       updates.primary_team ?? 'UTA',
@@ -25,7 +25,8 @@ export function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildCo
       updates.spoiler_mode ?? 'off',
       updates.command_mode ?? 'slash_plus_prefix',
       updates.link_fix_enabled ?? 1,
-      updates.timezone ?? 'America/Denver'
+      updates.timezone ?? 'America/Denver',
+      updates.hof_threshold ?? 8
     );
   } else {
     const fields = Object.keys(updates) as (keyof typeof updates)[];

@@ -33,9 +33,9 @@ function upsertGuildConfig(guildId, updates) {
     const existing = getGuildConfig(guildId);
     if (!existing) {
         (0, database_js_1.getDb)().prepare(`
-      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, gameday_role_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(guildId, updates.primary_team ?? 'UTA', updates.gameday_channel_id ?? null, updates.hof_channel_id ?? null, updates.bot_commands_channel_id ?? null, updates.news_channel_id ?? null, updates.gameday_role_id ?? null, updates.spoiler_delay_seconds ?? 30, updates.spoiler_mode ?? 'off', updates.command_mode ?? 'slash_plus_prefix', updates.link_fix_enabled ?? 1, updates.timezone ?? 'America/Denver');
+      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, gameday_role_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone, hof_threshold)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(guildId, updates.primary_team ?? 'UTA', updates.gameday_channel_id ?? null, updates.hof_channel_id ?? null, updates.bot_commands_channel_id ?? null, updates.news_channel_id ?? null, updates.gameday_role_id ?? null, updates.spoiler_delay_seconds ?? 30, updates.spoiler_mode ?? 'off', updates.command_mode ?? 'slash_plus_prefix', updates.link_fix_enabled ?? 1, updates.timezone ?? 'America/Denver', updates.hof_threshold ?? 8);
     }
     else {
         const fields = Object.keys(updates);

@@ -106,5 +106,8 @@ function runMigrations(db) {
     if (!colNames.includes('gameday_role_id')) {
         db.exec('ALTER TABLE guild_config ADD COLUMN gameday_role_id TEXT');
     }
+    if (!colNames.includes('hof_threshold')) {
+        db.exec('ALTER TABLE guild_config ADD COLUMN hof_threshold INTEGER DEFAULT 8');
+    }
 }
 //# sourceMappingURL=database.js.map

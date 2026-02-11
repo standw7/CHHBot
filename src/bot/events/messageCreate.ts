@@ -64,6 +64,9 @@ export function registerMessageHandler(client: Client): void {
         case 'schedule':
           await handlePrefixSchedule(message, args.slice(1));
           break;
+        case 'hof':
+          await handlePrefixHof(message, args.slice(1));
+          break;
         default:
           // Check if it's a registered gif key
           await handlePrefixGif(message, command);
@@ -113,8 +116,9 @@ async function handlePrefixHelp(message: Message): Promise<void> {
       { name: 'Media Commands', value: `\`!<key>\` - Post random gif\nRegistered keys: ${gifKeysText}`, inline: false },
       { name: 'Gif Management (Admin)', value: '`!gif add key:<k> url:<u>` - Add gif\n`!gif remove key:<k> url:<u>` - Remove gif\n`!gif list key:<k>` - List URLs\n`!gif keys` - List all keys', inline: false },
       { name: 'News Feeds (Admin)', value: '`!feed add <url> [label]` - Add feed\n`!feed remove <label>` - Remove feed\n`!feed list` - List feeds\n`!feed status` - Check feed health\n`!feed reset <label>` - Reset tracking', inline: false },
+      { name: 'Hall of Fame (Admin)', value: '`!hof` - Show HoF settings\n`!hof threshold <n>` - Set reaction threshold', inline: false },
       { name: 'Testing (Admin)', value: '`!sim` - Run game simulation\n`!sim reset` - Reset simulation', inline: false },
-      { name: 'Config (Admin)', value: '`/config show` - View settings\n`/config set` - Change settings', inline: false },
+      { name: 'Config', value: '`/config show` - View settings\n`/config set` - Change settings', inline: false },
       { name: 'Help', value: '`!tusky help` - Show this message', inline: false },
     )
     .setFooter({ text: 'Tusky - Utah Mammoth Hockey Bot' });
@@ -859,6 +863,47 @@ async function handlePrefixGameday(message: Message): Promise<void> {
     logger.error({ error }, 'Failed to toggle Gameday role');
     await message.reply('Failed to update your role. The bot may not have permission to manage roles.');
   }
+}
+
+async function handlePrefixHof(message: Message, args: string[]): Promise<void> {
+  const { PermissionFlagsBits } = await import('discord.js');
+  const { upsertGuildConfig } = await import('../../db/queries.js');
+
+  const guildId = message.guild!.id;
+  const config = getGuildConfig(guildId);
+  const sub = args[0]?.toLowerCase();
+
+  if (!sub || sub === 'help') {
+    const currentThreshold = config?.hof_threshold ?? 8;
+    await message.reply(
+      '**Hall of Fame Commands:**\n' +
+      `Current threshold: **${currentThreshold}** reactions\n` +
+      'Qualifying emojis: 🔥 😂 🤣\n\n' +
+      '`!hof threshold <number>` - Set minimum reactions needed (admin)\n\n' +
+      'A message is inducted once when ANY qualifying emoji reaches the threshold.'
+    );
+    return;
+  }
+
+  // Admin-only from here
+  const member = message.member;
+  if (!member?.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    await message.reply('You need Manage Server permission to change HoF settings.');
+    return;
+  }
+
+  if (sub === 'threshold') {
+    const value = parseInt(args[1], 10);
+    if (isNaN(value) || value < 1 || value > 100) {
+      await message.reply('Please provide a number between 1 and 100.');
+      return;
+    }
+    upsertGuildConfig(guildId, { hof_threshold: value });
+    await message.reply(`Hall of Fame threshold set to **${value}** reactions.`);
+    return;
+  }
+
+  await message.reply('Unknown subcommand. Use `!hof help` for usage.');
 }
 
 async function handlePrefixGif(message: Message, key: string): Promise<void> {
