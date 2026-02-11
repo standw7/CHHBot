@@ -1,5 +1,5 @@
 import { Client, EmbedBuilder, MessageReaction, PartialMessageReaction, User, PartialUser, TextChannel } from 'discord.js';
-import { getGuildConfig, hasMessageBeenInducted, markMessageInducted, getHofEntry } from '../../db/queries.js';
+import { getGuildConfig, hasMessageBeenInducted, markMessageInducted } from '../../db/queries.js';
 import pino from 'pino';
 
 const logger = pino({ name: 'hall-of-fame' });
@@ -40,17 +40,8 @@ export function registerReactionHandler(client: Client): void {
       const threshold = config.hof_threshold ?? DEFAULT_THRESHOLD;
       const count = reaction.count ?? 0;
 
-      // Check if already inducted
-      const isInducted = hasMessageBeenInducted(guildId, messageId);
-
-      if (isInducted) {
-        // Update existing HoF message if we have the message ID
-        const hofEntry = getHofEntry(guildId, messageId);
-        if (hofEntry?.hof_message_id && hofEntry?.hof_channel_id) {
-          await updateHofMessage(client, hofEntry.hof_channel_id, hofEntry.hof_message_id, reaction.message, emojiName, count);
-        }
-        return;
-      }
+      // Check if already inducted - skip if so (no duplicates)
+      if (hasMessageBeenInducted(guildId, messageId)) return;
 
       // Need to meet threshold for initial induction
       if (count < threshold) return;
@@ -59,7 +50,7 @@ export function registerReactionHandler(client: Client): void {
       const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
 
       // Build the HoF embed
-      const embed = buildHofEmbed(message, guildId, channelId, messageId, emojiName, count);
+      const embed = buildHofEmbed(message, guildId, channelId, messageId);
 
       // Post to HoF channel
       const hofChannel = await message.guild!.channels.fetch(config.hof_channel_id);
@@ -82,9 +73,7 @@ function buildHofEmbed(
   message: { author: { displayName?: string; username?: string; displayAvatarURL(): string } | null; content: string; createdAt: Date; attachments: Map<string, { contentType?: string | null; url: string; name: string | null }> },
   guildId: string,
   channelId: string,
-  messageId: string,
-  emojiName: string,
-  count: number
+  messageId: string
 ): EmbedBuilder {
   const author = message.author;
   const content = message.content || '';
@@ -101,9 +90,8 @@ function buildHofEmbed(
     })
     .setDescription(truncatedContent || '*No text content*')
     .addFields(
-      { name: 'Channel', value: `<#${channelId}>`, inline: true },
-      { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: true },
-      { name: `${emojiName} Reactions`, value: `${count}`, inline: true },
+      { name: 'Channel', value: `<#${channelId}>`, inline: false },
+      { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: false },
     )
     .setTimestamp(message.createdAt)
     .setColor(0xFF4500)
@@ -128,49 +116,3 @@ function buildHofEmbed(
   return embed;
 }
 
-async function updateHofMessage(
-  client: Client,
-  hofChannelId: string,
-  hofMessageId: string,
-  originalMessage: MessageReaction['message'],
-  emojiName: string,
-  count: number
-): Promise<void> {
-  try {
-    const hofChannel = await client.channels.fetch(hofChannelId);
-    if (!hofChannel || !hofChannel.isTextBased()) return;
-
-    const hofMessage = await (hofChannel as TextChannel).messages.fetch(hofMessageId);
-    if (!hofMessage) return;
-
-    // Get the existing embed
-    const existingEmbed = hofMessage.embeds[0];
-    if (!existingEmbed) return;
-
-    // Find and update the reactions field
-    const newEmbed = EmbedBuilder.from(existingEmbed);
-    const fields = existingEmbed.fields || [];
-
-    // Look for an existing field for this emoji
-    const emojiFieldIndex = fields.findIndex(f => f.name.startsWith(emojiName));
-
-    if (emojiFieldIndex >= 0) {
-      // Update existing field
-      const newFields = [...fields];
-      newFields[emojiFieldIndex] = { name: `${emojiName} Reactions`, value: `${count}`, inline: true };
-      newEmbed.setFields(newFields);
-    } else {
-      // Add new field for this emoji (if different emoji triggered the update)
-      // But keep it to max 2 reaction fields to avoid clutter
-      const reactionFields = fields.filter(f => HOF_EMOJIS.some(e => f.name.startsWith(e)));
-      if (reactionFields.length < 2) {
-        newEmbed.addFields({ name: `${emojiName} Reactions`, value: `${count}`, inline: true });
-      }
-    }
-
-    await hofMessage.edit({ embeds: [newEmbed] });
-    logger.debug({ hofMessageId, emoji: emojiName, newCount: count }, 'Updated HoF message reaction count');
-  } catch (error) {
-    logger.error({ error, hofMessageId }, 'Failed to update HoF message');
-  }
-}
