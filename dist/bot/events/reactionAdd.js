@@ -41,58 +41,108 @@ function registerReactionHandler(client) {
                 return;
             const threshold = config.hof_threshold ?? DEFAULT_THRESHOLD;
             const count = reaction.count ?? 0;
-            if (count < threshold)
+            // Check if already inducted
+            const isInducted = (0, queries_js_1.hasMessageBeenInducted)(guildId, messageId);
+            if (isInducted) {
+                // Update existing HoF message if we have the message ID
+                const hofEntry = (0, queries_js_1.getHofEntry)(guildId, messageId);
+                if (hofEntry?.hof_message_id && hofEntry?.hof_channel_id) {
+                    await updateHofMessage(client, hofEntry.hof_channel_id, hofEntry.hof_message_id, reaction.message, emojiName, count);
+                }
                 return;
-            // Check dedup
-            if ((0, queries_js_1.hasMessageBeenInducted)(guildId, messageId))
+            }
+            // Need to meet threshold for initial induction
+            if (count < threshold)
                 return;
             // Fetch the full message
             const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
             // Build the HoF embed
-            const author = message.author;
-            const content = message.content || '';
-            const truncatedContent = content.length > 1500
-                ? content.slice(0, 1500) + '... (truncated)'
-                : content;
-            const messageUrl = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
-            const channelName = 'name' in message.channel ? message.channel.name : 'unknown';
-            const embed = new discord_js_1.EmbedBuilder()
-                .setAuthor({
-                name: author?.displayName ?? author?.username ?? 'Unknown',
-                iconURL: author?.displayAvatarURL(),
-            })
-                .setDescription(truncatedContent || '*No text content*')
-                .addFields({ name: 'Channel', value: `<#${channelId}>`, inline: true }, { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: true }, { name: `${emojiName} Reactions`, value: `${count}`, inline: true })
-                .setTimestamp(message.createdAt)
-                .setColor(0xFF4500)
-                .setFooter({ text: 'Hall of Fame Induction' });
-            // Include first image attachment if present
-            const imageAttachment = message.attachments.find(a => a.contentType?.startsWith('image/') || a.contentType?.startsWith('video/'));
-            if (imageAttachment) {
-                if (imageAttachment.contentType?.startsWith('image/')) {
-                    embed.setImage(imageAttachment.url);
-                }
-                else {
-                    embed.addFields({ name: 'Attachment', value: `[${imageAttachment.name}](${imageAttachment.url})` });
-                }
-            }
-            else if (message.attachments.size > 0) {
-                const attachmentLinks = message.attachments.map(a => `[${a.name}](${a.url})`).join('\n');
-                embed.addFields({ name: 'Attachments', value: attachmentLinks });
-            }
+            const embed = buildHofEmbed(message, guildId, channelId, messageId, emojiName, count);
             // Post to HoF channel
             const hofChannel = await message.guild.channels.fetch(config.hof_channel_id);
             if (!hofChannel || !hofChannel.isTextBased()) {
                 logger.error({ hofChannelId: config.hof_channel_id }, 'Hall of Fame channel not found or not text-based');
                 return;
             }
-            await hofChannel.send({ embeds: [embed] });
-            (0, queries_js_1.markMessageInducted)(guildId, messageId, channelId);
+            const hofMessage = await hofChannel.send({ embeds: [embed] });
+            (0, queries_js_1.markMessageInducted)(guildId, messageId, channelId, hofMessage.id, config.hof_channel_id);
             logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
         }
         catch (error) {
             logger.error({ error }, 'Error in hall of fame reaction handler');
         }
     });
+}
+function buildHofEmbed(message, guildId, channelId, messageId, emojiName, count) {
+    const author = message.author;
+    const content = message.content || '';
+    const truncatedContent = content.length > 1500
+        ? content.slice(0, 1500) + '... (truncated)'
+        : content;
+    const messageUrl = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
+    const embed = new discord_js_1.EmbedBuilder()
+        .setAuthor({
+        name: author?.displayName ?? author?.username ?? 'Unknown',
+        iconURL: author?.displayAvatarURL(),
+    })
+        .setDescription(truncatedContent || '*No text content*')
+        .addFields({ name: 'Channel', value: `<#${channelId}>`, inline: true }, { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: true }, { name: `${emojiName} Reactions`, value: `${count}`, inline: true })
+        .setTimestamp(message.createdAt)
+        .setColor(0xFF4500)
+        .setFooter({ text: 'Hall of Fame Induction' });
+    // Include first image attachment if present
+    const attachments = Array.from(message.attachments.values());
+    const imageAttachment = attachments.find(a => a.contentType?.startsWith('image/') || a.contentType?.startsWith('video/'));
+    if (imageAttachment) {
+        if (imageAttachment.contentType?.startsWith('image/')) {
+            embed.setImage(imageAttachment.url);
+        }
+        else {
+            embed.addFields({ name: 'Attachment', value: `[${imageAttachment.name}](${imageAttachment.url})` });
+        }
+    }
+    else if (attachments.length > 0) {
+        const attachmentLinks = attachments.map(a => `[${a.name}](${a.url})`).join('\n');
+        embed.addFields({ name: 'Attachments', value: attachmentLinks });
+    }
+    return embed;
+}
+async function updateHofMessage(client, hofChannelId, hofMessageId, originalMessage, emojiName, count) {
+    try {
+        const hofChannel = await client.channels.fetch(hofChannelId);
+        if (!hofChannel || !hofChannel.isTextBased())
+            return;
+        const hofMessage = await hofChannel.messages.fetch(hofMessageId);
+        if (!hofMessage)
+            return;
+        // Get the existing embed
+        const existingEmbed = hofMessage.embeds[0];
+        if (!existingEmbed)
+            return;
+        // Find and update the reactions field
+        const newEmbed = discord_js_1.EmbedBuilder.from(existingEmbed);
+        const fields = existingEmbed.fields || [];
+        // Look for an existing field for this emoji
+        const emojiFieldIndex = fields.findIndex(f => f.name.startsWith(emojiName));
+        if (emojiFieldIndex >= 0) {
+            // Update existing field
+            const newFields = [...fields];
+            newFields[emojiFieldIndex] = { name: `${emojiName} Reactions`, value: `${count}`, inline: true };
+            newEmbed.setFields(newFields);
+        }
+        else {
+            // Add new field for this emoji (if different emoji triggered the update)
+            // But keep it to max 2 reaction fields to avoid clutter
+            const reactionFields = fields.filter(f => HOF_EMOJIS.some(e => f.name.startsWith(e)));
+            if (reactionFields.length < 2) {
+                newEmbed.addFields({ name: `${emojiName} Reactions`, value: `${count}`, inline: true });
+            }
+        }
+        await hofMessage.edit({ embeds: [newEmbed] });
+        logger.debug({ hofMessageId, emoji: emojiName, newCount: count }, 'Updated HoF message reaction count');
+    }
+    catch (error) {
+        logger.error({ error, hofMessageId }, 'Failed to update HoF message');
+    }
 }
 //# sourceMappingURL=reactionAdd.js.map

@@ -109,5 +109,14 @@ function runMigrations(db) {
     if (!colNames.includes('hof_threshold')) {
         db.exec('ALTER TABLE guild_config ADD COLUMN hof_threshold INTEGER DEFAULT 8');
     }
+    // Check hof_messages columns for HoF message tracking
+    const hofColumns = db.prepare("PRAGMA table_info(hof_messages)").all();
+    const hofColNames = hofColumns.map(c => c.name);
+    if (!hofColNames.includes('hof_message_id')) {
+        db.exec('ALTER TABLE hof_messages ADD COLUMN hof_message_id TEXT');
+    }
+    if (!hofColNames.includes('hof_channel_id')) {
+        db.exec('ALTER TABLE hof_messages ADD COLUMN hof_channel_id TEXT');
+    }
 }
 //# sourceMappingURL=database.js.map

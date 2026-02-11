@@ -16,6 +16,7 @@ exports.hasFinalBeenPosted = hasFinalBeenPosted;
 exports.markFinalPosted = markFinalPosted;
 exports.hasMessageBeenInducted = hasMessageBeenInducted;
 exports.markMessageInducted = markMessageInducted;
+exports.getHofEntry = getHofEntry;
 exports.getFeedSources = getFeedSources;
 exports.addFeedSource = addFeedSource;
 exports.removeFeedSource = removeFeedSource;
@@ -107,11 +108,14 @@ function hasMessageBeenInducted(guildId, messageId) {
     const row = (0, database_js_1.getDb)().prepare('SELECT 1 FROM hof_messages WHERE guild_id = ? AND original_message_id = ?').get(guildId, messageId);
     return !!row;
 }
-function markMessageInducted(guildId, messageId, channelId) {
+function markMessageInducted(guildId, messageId, channelId, hofMessageId, hofChannelId) {
     (0, database_js_1.getDb)().prepare(`
-    INSERT OR IGNORE INTO hof_messages (guild_id, original_message_id, original_channel_id, inducted_at)
-    VALUES (?, ?, ?, ?)
-  `).run(guildId, messageId, channelId, new Date().toISOString());
+    INSERT OR IGNORE INTO hof_messages (guild_id, original_message_id, original_channel_id, hof_message_id, hof_channel_id, inducted_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(guildId, messageId, channelId, hofMessageId ?? null, hofChannelId ?? null, new Date().toISOString());
+}
+function getHofEntry(guildId, messageId) {
+    return (0, database_js_1.getDb)().prepare('SELECT * FROM hof_messages WHERE guild_id = ? AND original_message_id = ?').get(guildId, messageId);
 }
 // --- Feed Sources ---
 function getFeedSources(guildId) {

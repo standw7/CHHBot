@@ -1,5 +1,5 @@
-import { Client, EmbedBuilder, MessageReaction, PartialMessageReaction, User, PartialUser } from 'discord.js';
-import { getGuildConfig, hasMessageBeenInducted, markMessageInducted } from '../../db/queries.js';
+import { Client, EmbedBuilder, MessageReaction, PartialMessageReaction, User, PartialUser, TextChannel } from 'discord.js';
+import { getGuildConfig, hasMessageBeenInducted, markMessageInducted, getHofEntry } from '../../db/queries.js';
 import pino from 'pino';
 
 const logger = pino({ name: 'hall-of-fame' });
@@ -39,53 +39,27 @@ export function registerReactionHandler(client: Client): void {
 
       const threshold = config.hof_threshold ?? DEFAULT_THRESHOLD;
       const count = reaction.count ?? 0;
-      if (count < threshold) return;
 
-      // Check dedup
-      if (hasMessageBeenInducted(guildId, messageId)) return;
+      // Check if already inducted
+      const isInducted = hasMessageBeenInducted(guildId, messageId);
+
+      if (isInducted) {
+        // Update existing HoF message if we have the message ID
+        const hofEntry = getHofEntry(guildId, messageId);
+        if (hofEntry?.hof_message_id && hofEntry?.hof_channel_id) {
+          await updateHofMessage(client, hofEntry.hof_channel_id, hofEntry.hof_message_id, reaction.message, emojiName, count);
+        }
+        return;
+      }
+
+      // Need to meet threshold for initial induction
+      if (count < threshold) return;
 
       // Fetch the full message
       const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
 
       // Build the HoF embed
-      const author = message.author;
-      const content = message.content || '';
-      const truncatedContent = content.length > 1500
-        ? content.slice(0, 1500) + '... (truncated)'
-        : content;
-
-      const messageUrl = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
-      const channelName = 'name' in message.channel ? message.channel.name : 'unknown';
-
-      const embed = new EmbedBuilder()
-        .setAuthor({
-          name: author?.displayName ?? author?.username ?? 'Unknown',
-          iconURL: author?.displayAvatarURL(),
-        })
-        .setDescription(truncatedContent || '*No text content*')
-        .addFields(
-          { name: 'Channel', value: `<#${channelId}>`, inline: true },
-          { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: true },
-          { name: `${emojiName} Reactions`, value: `${count}`, inline: true },
-        )
-        .setTimestamp(message.createdAt)
-        .setColor(0xFF4500)
-        .setFooter({ text: 'Hall of Fame Induction' });
-
-      // Include first image attachment if present
-      const imageAttachment = message.attachments.find(a =>
-        a.contentType?.startsWith('image/') || a.contentType?.startsWith('video/')
-      );
-      if (imageAttachment) {
-        if (imageAttachment.contentType?.startsWith('image/')) {
-          embed.setImage(imageAttachment.url);
-        } else {
-          embed.addFields({ name: 'Attachment', value: `[${imageAttachment.name}](${imageAttachment.url})` });
-        }
-      } else if (message.attachments.size > 0) {
-        const attachmentLinks = message.attachments.map(a => `[${a.name}](${a.url})`).join('\n');
-        embed.addFields({ name: 'Attachments', value: attachmentLinks });
-      }
+      const embed = buildHofEmbed(message, guildId, channelId, messageId, emojiName, count);
 
       // Post to HoF channel
       const hofChannel = await message.guild!.channels.fetch(config.hof_channel_id);
@@ -94,12 +68,109 @@ export function registerReactionHandler(client: Client): void {
         return;
       }
 
-      await hofChannel.send({ embeds: [embed] });
-      markMessageInducted(guildId, messageId, channelId);
+      const hofMessage = await (hofChannel as TextChannel).send({ embeds: [embed] });
+      markMessageInducted(guildId, messageId, channelId, hofMessage.id, config.hof_channel_id);
       logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
 
     } catch (error) {
       logger.error({ error }, 'Error in hall of fame reaction handler');
     }
   });
+}
+
+function buildHofEmbed(
+  message: { author: { displayName?: string; username?: string; displayAvatarURL(): string } | null; content: string; createdAt: Date; attachments: Map<string, { contentType?: string | null; url: string; name: string | null }> },
+  guildId: string,
+  channelId: string,
+  messageId: string,
+  emojiName: string,
+  count: number
+): EmbedBuilder {
+  const author = message.author;
+  const content = message.content || '';
+  const truncatedContent = content.length > 1500
+    ? content.slice(0, 1500) + '... (truncated)'
+    : content;
+
+  const messageUrl = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
+
+  const embed = new EmbedBuilder()
+    .setAuthor({
+      name: author?.displayName ?? author?.username ?? 'Unknown',
+      iconURL: author?.displayAvatarURL(),
+    })
+    .setDescription(truncatedContent || '*No text content*')
+    .addFields(
+      { name: 'Channel', value: `<#${channelId}>`, inline: true },
+      { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: true },
+      { name: `${emojiName} Reactions`, value: `${count}`, inline: true },
+    )
+    .setTimestamp(message.createdAt)
+    .setColor(0xFF4500)
+    .setFooter({ text: 'Hall of Fame Induction' });
+
+  // Include first image attachment if present
+  const attachments = Array.from(message.attachments.values());
+  const imageAttachment = attachments.find(a =>
+    a.contentType?.startsWith('image/') || a.contentType?.startsWith('video/')
+  );
+  if (imageAttachment) {
+    if (imageAttachment.contentType?.startsWith('image/')) {
+      embed.setImage(imageAttachment.url);
+    } else {
+      embed.addFields({ name: 'Attachment', value: `[${imageAttachment.name}](${imageAttachment.url})` });
+    }
+  } else if (attachments.length > 0) {
+    const attachmentLinks = attachments.map(a => `[${a.name}](${a.url})`).join('\n');
+    embed.addFields({ name: 'Attachments', value: attachmentLinks });
+  }
+
+  return embed;
+}
+
+async function updateHofMessage(
+  client: Client,
+  hofChannelId: string,
+  hofMessageId: string,
+  originalMessage: MessageReaction['message'],
+  emojiName: string,
+  count: number
+): Promise<void> {
+  try {
+    const hofChannel = await client.channels.fetch(hofChannelId);
+    if (!hofChannel || !hofChannel.isTextBased()) return;
+
+    const hofMessage = await (hofChannel as TextChannel).messages.fetch(hofMessageId);
+    if (!hofMessage) return;
+
+    // Get the existing embed
+    const existingEmbed = hofMessage.embeds[0];
+    if (!existingEmbed) return;
+
+    // Find and update the reactions field
+    const newEmbed = EmbedBuilder.from(existingEmbed);
+    const fields = existingEmbed.fields || [];
+
+    // Look for an existing field for this emoji
+    const emojiFieldIndex = fields.findIndex(f => f.name.startsWith(emojiName));
+
+    if (emojiFieldIndex >= 0) {
+      // Update existing field
+      const newFields = [...fields];
+      newFields[emojiFieldIndex] = { name: `${emojiName} Reactions`, value: `${count}`, inline: true };
+      newEmbed.setFields(newFields);
+    } else {
+      // Add new field for this emoji (if different emoji triggered the update)
+      // But keep it to max 2 reaction fields to avoid clutter
+      const reactionFields = fields.filter(f => HOF_EMOJIS.some(e => f.name.startsWith(e)));
+      if (reactionFields.length < 2) {
+        newEmbed.addFields({ name: `${emojiName} Reactions`, value: `${count}`, inline: true });
+      }
+    }
+
+    await hofMessage.edit({ embeds: [newEmbed] });
+    logger.debug({ hofMessageId, emoji: emojiName, newCount: count }, 'Updated HoF message reaction count');
+  } catch (error) {
+    logger.error({ error, hofMessageId }, 'Failed to update HoF message');
+  }
 }

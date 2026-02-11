@@ -1,4 +1,4 @@
-import type { GuildConfig, GifCommand, FeedSource } from './models.js';
+import type { GuildConfig, GifCommand, HofMessage, FeedSource } from './models.js';
 export declare function getGuildConfig(guildId: string): GuildConfig | undefined;
 export declare function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildConfig, 'guild_id'>>): void;
 export declare function getGifUrls(guildId: string, key: string): string[];
@@ -14,7 +14,8 @@ export declare function getPostedGoalIds(guildId: string, gameId: number): numbe
 export declare function hasFinalBeenPosted(guildId: string, gameId: number): boolean;
 export declare function markFinalPosted(guildId: string, gameId: number): void;
 export declare function hasMessageBeenInducted(guildId: string, messageId: string): boolean;
-export declare function markMessageInducted(guildId: string, messageId: string, channelId: string): void;
+export declare function markMessageInducted(guildId: string, messageId: string, channelId: string, hofMessageId?: string, hofChannelId?: string): void;
+export declare function getHofEntry(guildId: string, messageId: string): HofMessage | undefined;
 export declare function getFeedSources(guildId: string): FeedSource[];
 export declare function addFeedSource(guildId: string, url: string, label: string, addedBy: string): void;
 export declare function removeFeedSource(guildId: string, idOrLabel: string): boolean;

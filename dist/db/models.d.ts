@@ -47,6 +47,8 @@ export interface HofMessage {
     guild_id: string;
     original_message_id: string;
     original_channel_id: string;
+    hof_message_id: string | null;
+    hof_channel_id: string | null;
     inducted_at: string;
 }
 //# sourceMappingURL=models.d.ts.map

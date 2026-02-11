@@ -115,11 +115,15 @@ export function hasMessageBeenInducted(guildId: string, messageId: string): bool
   return !!row;
 }
 
-export function markMessageInducted(guildId: string, messageId: string, channelId: string): void {
+export function markMessageInducted(guildId: string, messageId: string, channelId: string, hofMessageId?: string, hofChannelId?: string): void {
   getDb().prepare(`
-    INSERT OR IGNORE INTO hof_messages (guild_id, original_message_id, original_channel_id, inducted_at)
-    VALUES (?, ?, ?, ?)
-  `).run(guildId, messageId, channelId, new Date().toISOString());
+    INSERT OR IGNORE INTO hof_messages (guild_id, original_message_id, original_channel_id, hof_message_id, hof_channel_id, inducted_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(guildId, messageId, channelId, hofMessageId ?? null, hofChannelId ?? null, new Date().toISOString());
+}
+
+export function getHofEntry(guildId: string, messageId: string): HofMessage | undefined {
+  return getDb().prepare('SELECT * FROM hof_messages WHERE guild_id = ? AND original_message_id = ?').get(guildId, messageId) as HofMessage | undefined;
 }
 
 // --- Feed Sources ---
