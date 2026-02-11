@@ -80,9 +80,8 @@ function buildHofEmbed(message, guildId, channelId, messageId) {
     })
         .setDescription(truncatedContent || '*No text content*')
         .addFields({ name: 'Channel', value: `<#${channelId}>`, inline: false }, { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: false })
-        .setTimestamp(message.createdAt)
         .setColor(0xFF4500)
-        .setFooter({ text: 'Hall of Fame Induction' });
+        .setTimestamp(message.createdAt);
     // Include first image attachment if present
     const attachments = Array.from(message.attachments.values());
     const imageAttachment = attachments.find(a => a.contentType?.startsWith('image/') || a.contentType?.startsWith('video/'));

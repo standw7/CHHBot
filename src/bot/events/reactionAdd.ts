@@ -93,9 +93,8 @@ function buildHofEmbed(
       { name: 'Channel', value: `<#${channelId}>`, inline: false },
       { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: false },
     )
-    .setTimestamp(message.createdAt)
     .setColor(0xFF4500)
-    .setFooter({ text: 'Hall of Fame Induction' });
+    .setTimestamp(message.createdAt);
 
   // Include first image attachment if present
   const attachments = Array.from(message.attachments.values());
