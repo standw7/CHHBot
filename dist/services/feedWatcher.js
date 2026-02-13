@@ -225,12 +225,10 @@ async function postTwitterItem(channel, item, rssFeed, feedLabel) {
             // Add quoted tweet if present
             if (tweetData.quote) {
                 const q = tweetData.quote;
-                let quoteText = `> **${q.author.name}** (@${q.author.screen_name})\n`;
-                // Add each line of the quoted tweet with > prefix
+                // Author line links to the quoted tweet, quote text in blockquote below
+                let quoteText = `[**${q.author.name}** (@${q.author.screen_name})](${q.url})\n`;
                 const quoteLines = q.text.split('\n').map(line => `> ${line}`).join('\n');
                 quoteText += quoteLines;
-                // Add link to quoted tweet
-                quoteText += `\n> [View quoted tweet](${q.url})`;
                 embed.addFields({
                     name: 'Quoting',
                     value: quoteText,
@@ -283,7 +281,7 @@ async function postTwitterItem(channel, item, rssFeed, feedLabel) {
                             {
                                 type: 2, // Button
                                 style: 5, // Link
-                                label: '🔗 View Original on 𝕏',
+                                label: 'View Original on 𝕏',
                                 url: tweetUrl,
                             },
                         ],
@@ -327,7 +325,7 @@ async function postTwitterItem(channel, item, rssFeed, feedLabel) {
                                 {
                                     type: 2,
                                     style: 5,
-                                    label: '🔗 View Original on 𝕏',
+                                    label: 'View Original on 𝕏',
                                     url: tweetUrl,
                                 },
                             ],
