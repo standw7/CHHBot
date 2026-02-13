@@ -357,8 +357,23 @@ async function postTwitterItem(
       const tweetTime = new Date(tweetData.created_timestamp * 1000);
       embed.setTimestamp(tweetTime);
 
-      // Post just the embed, no fxtwitter link (cleaner look)
-      await channel.send({ embeds: [embed] });
+      // Post embed with a link to the original tweet below it
+      await channel.send({
+        embeds: [embed],
+        components: [
+          {
+            type: 1, // ActionRow
+            components: [
+              {
+                type: 2, // Button
+                style: 5, // Link
+                label: '🔗 View Original on 𝕏',
+                url: tweetUrl,
+              },
+            ],
+          },
+        ],
+      });
     } else {
       // Fallback: use RSS data if API fails
       const handleMatch = tweetUrl.match(/(?:twitter\.com|x\.com)\/([^\/]+)\/status/i);
@@ -388,7 +403,24 @@ async function postTwitterItem(
         embed.setImage(imageUrl);
       }
 
-      await channel.send({ embeds: [embed] });
+      await channel.send({
+        embeds: [embed],
+        components: tweetUrl
+          ? [
+              {
+                type: 1,
+                components: [
+                  {
+                    type: 2,
+                    style: 5,
+                    label: '🔗 View Original on 𝕏',
+                    url: tweetUrl,
+                  },
+                ],
+              },
+            ]
+          : [],
+      });
     }
   } catch (error) {
     logger.error({ err: error, feedLabel }, 'Failed to post Twitter item');
