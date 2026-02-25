@@ -93,6 +93,17 @@ function runMigrations(db) {
     CREATE INDEX IF NOT EXISTS idx_gif_commands_guild_key ON gif_commands(guild_id, key);
     CREATE INDEX IF NOT EXISTS idx_posted_goals_game ON posted_goals(guild_id, game_id);
     CREATE INDEX IF NOT EXISTS idx_feed_sources_guild ON feed_sources(guild_id);
+
+    CREATE TABLE IF NOT EXISTS posted_feed_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      feed_id INTEGER NOT NULL,
+      item_id TEXT NOT NULL,
+      posted_at TEXT NOT NULL,
+      UNIQUE(guild_id, feed_id, item_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_posted_feed_items_lookup ON posted_feed_items(guild_id, feed_id, item_id);
+    CREATE INDEX IF NOT EXISTS idx_posted_feed_items_age ON posted_feed_items(posted_at);
   `);
     // Migrations for existing databases
     const columns = db.prepare("PRAGMA table_info(guild_config)").all();

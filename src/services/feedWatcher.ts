@@ -1,7 +1,7 @@
 import { Client, EmbedBuilder, TextChannel } from 'discord.js';
 import RssParser from 'rss-parser';
 import pino from 'pino';
-import { getFeedSources, updateFeedLastItem, getGuildConfig } from '../db/queries.js';
+import { getFeedSources, updateFeedLastItem, getGuildConfig, hasFeedItemBeenPosted, markFeedItemPosted, cleanupOldFeedItems } from '../db/queries.js';
 
 // fxtwitter API response types
 interface FxTwitterAuthor {
@@ -46,7 +46,22 @@ const logger = pino({ name: 'feed-watcher' });
 const parser = new RssParser();
 
 const POLL_INTERVAL = 5 * 60_000; // 5 minutes
+const CLEANUP_INTERVAL = 24 * 60 * 60_000; // 24 hours
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+// Normalize an RSS item into a stable, canonical ID for dedup.
+// For Twitter/X URLs, extract the numeric tweet ID (immune to domain/path changes).
+// Falls back to guid → link → title.
+function normalizeItemId(item: RssParser.Item): string {
+  const link = item.link || '';
+  // Extract numeric tweet ID from twitter.com/x.com URLs
+  const tweetMatch = link.match(/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/i);
+  if (tweetMatch) return `tweet:${tweetMatch[1]}`;
+
+  // For non-Twitter items, prefer guid, then link, then title
+  return item.guid || item.link || item.title || '';
+}
 
 // Fetch tweet data from fxtwitter API
 async function fetchTweetData(tweetUrl: string): Promise<FxTwitterResponse['tweet'] | null> {
@@ -135,12 +150,22 @@ export function startFeedWatcher(client: Client): void {
   // Initial poll after 30s to let bot fully start
   setTimeout(() => pollAllFeeds(client), 30_000);
   pollTimer = setInterval(() => pollAllFeeds(client), POLL_INTERVAL);
+
+  // Periodic cleanup of old posted_feed_items entries (every 24h)
+  cleanupTimer = setInterval(() => {
+    const removed = cleanupOldFeedItems(30);
+    if (removed > 0) logger.info({ removed }, 'Cleaned up old posted feed items');
+  }, CLEANUP_INTERVAL);
 }
 
 export function stopFeedWatcher(): void {
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
+  }
+  if (cleanupTimer) {
+    clearInterval(cleanupTimer);
+    cleanupTimer = null;
   }
   logger.info('Stopped feed watcher');
 }
@@ -190,8 +215,13 @@ async function pollFeed(
   let newItems: typeof items = [];
 
   if (!lastItemId) {
-    // First poll - just post the most recent item and save the marker
-    logger.info({ feedLabel }, 'First poll for feed, posting most recent item');
+    // First poll - post the most recent item, but seed ALL current items
+    // into the dedup table so they're never reposted if the marker is lost
+    logger.info({ feedLabel, totalItems: items.length }, 'First poll for feed, seeding dedup table');
+    for (const item of items) {
+      const nid = normalizeItemId(item);
+      if (nid) markFeedItemPosted(guildId, feedId, nid);
+    }
     newItems = items.slice(0, 1);
   } else {
     // Find items newer than our last seen
@@ -228,7 +258,26 @@ async function pollFeed(
     newItems = newItems.slice(0, 3);
   }
 
+  // Hard dedup: filter out any items we've already posted (by normalized ID)
+  const beforeDedup = newItems.length;
+  newItems = newItems.filter(item => {
+    const nid = normalizeItemId(item);
+    if (!nid) return false;
+    return !hasFeedItemBeenPosted(guildId, feedId, nid);
+  });
+
+  if (beforeDedup > 0 && newItems.length < beforeDedup) {
+    logger.info(
+      { feedLabel, before: beforeDedup, after: newItems.length },
+      'Dedup filtered out already-posted items'
+    );
+  }
+
   if (newItems.length === 0) {
+    // Even with no new items to post, still update the marker if feed has items
+    const latestItem = items[0];
+    const latestId = latestItem.guid || latestItem.link || latestItem.title || '';
+    if (latestId) updateFeedLastItem(feedId, latestId);
     logger.debug({ feedLabel }, 'No new items to post');
     return;
   }
@@ -245,6 +294,8 @@ async function pollFeed(
   const textChannel = channel as TextChannel;
 
   for (const item of newItems) {
+    const nid = normalizeItemId(item);
+
     // Check if this is a Twitter/X feed
     const isTwitterFeed = feedUrl.includes('twitter') ||
       feedUrl.includes('/x.com') ||
@@ -255,6 +306,9 @@ async function pollFeed(
     } else {
       await postGenericItem(textChannel, item, rssFeed, feedLabel);
     }
+
+    // Mark as posted in dedup table
+    if (nid) markFeedItemPosted(guildId, feedId, nid);
   }
 
   // Update last seen item ID

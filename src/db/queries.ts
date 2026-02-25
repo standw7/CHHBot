@@ -174,3 +174,23 @@ export function markGameStartPosted(guildId: string, gameId: number): void {
 export function resetGameStart(guildId: string, gameId: number): void {
   getDb().prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, gameId);
 }
+
+// --- Posted Feed Items (dedup) ---
+
+export function hasFeedItemBeenPosted(guildId: string, feedId: number, itemId: string): boolean {
+  const row = getDb().prepare('SELECT 1 FROM posted_feed_items WHERE guild_id = ? AND feed_id = ? AND item_id = ?').get(guildId, feedId, itemId);
+  return !!row;
+}
+
+export function markFeedItemPosted(guildId: string, feedId: number, itemId: string): void {
+  getDb().prepare(`
+    INSERT OR IGNORE INTO posted_feed_items (guild_id, feed_id, item_id, posted_at)
+    VALUES (?, ?, ?, ?)
+  `).run(guildId, feedId, itemId, new Date().toISOString());
+}
+
+export function cleanupOldFeedItems(daysOld: number = 30): number {
+  const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000).toISOString();
+  const result = getDb().prepare('DELETE FROM posted_feed_items WHERE posted_at < ?').run(cutoff);
+  return result.changes;
+}

@@ -25,6 +25,9 @@ exports.resetFeedLastItem = resetFeedLastItem;
 exports.hasGameStartBeenPosted = hasGameStartBeenPosted;
 exports.markGameStartPosted = markGameStartPosted;
 exports.resetGameStart = resetGameStart;
+exports.hasFeedItemBeenPosted = hasFeedItemBeenPosted;
+exports.markFeedItemPosted = markFeedItemPosted;
+exports.cleanupOldFeedItems = cleanupOldFeedItems;
 const database_js_1 = require("./database.js");
 // --- Guild Config ---
 function getGuildConfig(guildId) {
@@ -155,5 +158,21 @@ function markGameStartPosted(guildId, gameId) {
 }
 function resetGameStart(guildId, gameId) {
     (0, database_js_1.getDb)().prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, gameId);
+}
+// --- Posted Feed Items (dedup) ---
+function hasFeedItemBeenPosted(guildId, feedId, itemId) {
+    const row = (0, database_js_1.getDb)().prepare('SELECT 1 FROM posted_feed_items WHERE guild_id = ? AND feed_id = ? AND item_id = ?').get(guildId, feedId, itemId);
+    return !!row;
+}
+function markFeedItemPosted(guildId, feedId, itemId) {
+    (0, database_js_1.getDb)().prepare(`
+    INSERT OR IGNORE INTO posted_feed_items (guild_id, feed_id, item_id, posted_at)
+    VALUES (?, ?, ?, ?)
+  `).run(guildId, feedId, itemId, new Date().toISOString());
+}
+function cleanupOldFeedItems(daysOld = 30) {
+    const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000).toISOString();
+    const result = (0, database_js_1.getDb)().prepare('DELETE FROM posted_feed_items WHERE posted_at < ?').run(cutoff);
+    return result.changes;
 }
 //# sourceMappingURL=queries.js.map

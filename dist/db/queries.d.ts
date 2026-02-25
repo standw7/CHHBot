@@ -24,4 +24,7 @@ export declare function resetFeedLastItem(guildId: string, label: string): boole
 export declare function hasGameStartBeenPosted(guildId: string, gameId: number): boolean;
 export declare function markGameStartPosted(guildId: string, gameId: number): void;
 export declare function resetGameStart(guildId: string, gameId: number): void;
+export declare function hasFeedItemBeenPosted(guildId: string, feedId: number, itemId: string): boolean;
+export declare function markFeedItemPosted(guildId: string, feedId: number, itemId: string): void;
+export declare function cleanupOldFeedItems(daysOld?: number): number;
 //# sourceMappingURL=queries.d.ts.map
