@@ -14,7 +14,7 @@ exports.data = new discord_js_1.SlashCommandBuilder()
     .setName('setting')
     .setDescription('The setting to change')
     .setRequired(true)
-    .addChoices({ name: 'team', value: 'primary_team' }, { name: 'gameday_channel', value: 'gameday_channel_id' }, { name: 'hof_channel', value: 'hof_channel_id' }, { name: 'bot_channel', value: 'bot_commands_channel_id' }, { name: 'news_channel', value: 'news_channel_id' }, { name: 'delay', value: 'spoiler_delay_seconds' }, { name: 'spoiler_mode', value: 'spoiler_mode' }, { name: 'command_mode', value: 'command_mode' }, { name: 'link_fix', value: 'link_fix_enabled' }, { name: 'timezone', value: 'timezone' }))
+    .addChoices({ name: 'team', value: 'primary_team' }, { name: 'gameday_channel', value: 'gameday_channel_id' }, { name: 'hof_channel', value: 'hof_channel_id' }, { name: 'bot_channel', value: 'bot_commands_channel_id' }, { name: 'news_channel', value: 'news_channel_id' }, { name: 'delay', value: 'spoiler_delay_seconds' }, { name: 'spoiler_mode', value: 'spoiler_mode' }, { name: 'command_mode', value: 'command_mode' }, { name: 'link_fix', value: 'link_fix_enabled' }, { name: 'hof_threshold', value: 'hof_threshold' }, { name: 'timezone', value: 'timezone' }))
     .addStringOption(opt => opt.setName('value').setDescription('The new value').setRequired(true)))
     .addSubcommand(sub => sub.setName('show').setDescription('Show current configuration'));
 const VALID_SPOILER_MODES = ['off', 'wrap_scores', 'minimal_embed'];
@@ -53,6 +53,7 @@ async function handleShow(interaction, guildId) {
         `**Spoiler Mode:** ${config.spoiler_mode}`,
         `**Command Mode:** ${config.command_mode}`,
         `**Link Fix (auto-embed):** ${config.link_fix_enabled ? 'on' : 'off'}`,
+        `**HOF Threshold:** ${config.hof_threshold ?? 8} reactions`,
         `**Timezone:** ${config.timezone}`,
     ];
     await interaction.reply({ content: `**Tusky Configuration**\n${lines.join('\n')}`, ephemeral: true });
@@ -118,6 +119,15 @@ async function handleSet(interaction, guildId) {
             }
             updates.command_mode = value;
             break;
+        case 'hof_threshold': {
+            const num = parseInt(value, 10);
+            if (isNaN(num) || num < 1 || num > 100) {
+                await interaction.reply({ content: 'HOF threshold must be a number between 1 and 100.', ephemeral: true });
+                return;
+            }
+            updates.hof_threshold = num;
+            break;
+        }
         case 'timezone':
             updates.timezone = value;
             break;

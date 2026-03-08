@@ -28,6 +28,7 @@ export const data = new SlashCommandBuilder()
             { name: 'spoiler_mode', value: 'spoiler_mode' },
             { name: 'command_mode', value: 'command_mode' },
             { name: 'link_fix', value: 'link_fix_enabled' },
+            { name: 'hof_threshold', value: 'hof_threshold' },
             { name: 'timezone', value: 'timezone' },
           )
       )
@@ -80,6 +81,7 @@ async function handleShow(interaction: ChatInputCommandInteraction, guildId: str
     `**Spoiler Mode:** ${config.spoiler_mode}`,
     `**Command Mode:** ${config.command_mode}`,
     `**Link Fix (auto-embed):** ${config.link_fix_enabled ? 'on' : 'off'}`,
+    `**HOF Threshold:** ${config.hof_threshold ?? 8} reactions`,
     `**Timezone:** ${config.timezone}`,
   ];
 
@@ -149,6 +151,15 @@ async function handleSet(interaction: ChatInputCommandInteraction, guildId: stri
       }
       updates.command_mode = value as GuildConfig['command_mode'];
       break;
+    case 'hof_threshold': {
+      const num = parseInt(value, 10);
+      if (isNaN(num) || num < 1 || num > 100) {
+        await interaction.reply({ content: 'HOF threshold must be a number between 1 and 100.', ephemeral: true });
+        return;
+      }
+      updates.hof_threshold = num;
+      break;
+    }
     case 'timezone':
       updates.timezone = value;
       break;
