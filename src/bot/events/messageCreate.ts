@@ -1042,7 +1042,6 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
         await hofMsg.edit({
           content: '',
           embeds: [embed],
-          files,
         });
 
         // Delete old follow-up message if it exists
@@ -1054,9 +1053,12 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
           updateHofFollowup(guildId, entry.original_message_id, null);
         }
 
-        // Send new follow-up with fxtwitter links if needed
-        if (fxLinks.length > 0) {
-          const followup = await tc.send({ content: fxLinks.join('\n') });
+        // Send new follow-up with fxtwitter links and/or videos
+        if (fxLinks.length > 0 || files.length > 0) {
+          const followup = await tc.send({
+            content: fxLinks.length > 0 ? fxLinks.join('\n') : undefined,
+            files,
+          });
           updateHofFollowup(guildId, entry.original_message_id, followup.id);
         }
 

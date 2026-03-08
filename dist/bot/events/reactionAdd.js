@@ -142,12 +142,15 @@ function registerReactionHandler(client) {
                 return;
             }
             const tc = hofChannel;
-            // Send the main HOF embed
-            const hofMessage = await tc.send({ embeds: [embed], files });
+            // Send the main HOF embed (no files — videos go in follow-up so they render below)
+            const hofMessage = await tc.send({ embeds: [embed] });
             (0, queries_js_1.markMessageInducted)(guildId, messageId, channelId, hofMessage.id, config.hof_channel_id);
-            // Send fxtwitter links as a follow-up message (so Discord auto-embeds them)
-            if (fxLinks.length > 0) {
-                const followup = await tc.send({ content: fxLinks.join('\n') });
+            // Send follow-up with fxtwitter links and/or video files (renders below the card)
+            if (fxLinks.length > 0 || files.length > 0) {
+                const followup = await tc.send({
+                    content: fxLinks.length > 0 ? fxLinks.join('\n') : undefined,
+                    files,
+                });
                 (0, queries_js_1.updateHofFollowup)(guildId, messageId, followup.id);
             }
             logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
