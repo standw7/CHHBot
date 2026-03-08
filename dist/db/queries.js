@@ -18,6 +18,7 @@ exports.hasMessageBeenInducted = hasMessageBeenInducted;
 exports.markMessageInducted = markMessageInducted;
 exports.getHofEntry = getHofEntry;
 exports.getAllHofMessages = getAllHofMessages;
+exports.updateHofFollowup = updateHofFollowup;
 exports.getFeedSources = getFeedSources;
 exports.addFeedSource = addFeedSource;
 exports.removeFeedSource = removeFeedSource;
@@ -123,6 +124,9 @@ function getHofEntry(guildId, messageId) {
 }
 function getAllHofMessages(guildId) {
     return (0, database_js_1.getDb)().prepare('SELECT * FROM hof_messages WHERE guild_id = ? AND hof_message_id IS NOT NULL').all(guildId);
+}
+function updateHofFollowup(guildId, originalMessageId, followupId) {
+    (0, database_js_1.getDb)().prepare('UPDATE hof_messages SET hof_followup_id = ? WHERE guild_id = ? AND original_message_id = ?').run(followupId, guildId, originalMessageId);
 }
 // --- Feed Sources ---
 function getFeedSources(guildId) {

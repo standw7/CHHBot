@@ -54,5 +54,6 @@ export interface HofMessage {
   original_channel_id: string;
   hof_message_id: string | null;
   hof_channel_id: string | null;
+  hof_followup_id: string | null;
   inducted_at: string;
 }

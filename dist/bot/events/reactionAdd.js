@@ -16,6 +16,7 @@ const DEFAULT_THRESHOLD = 8;
 const TWITTER_LINK_RE = /https?:\/\/(www\.)?(x\.com|twitter\.com)\/([\w/]+\/status\/\d+\S*)/gi;
 /**
  * Build a full HOF post from a Discord message.
+ * Returns the embed, any fxtwitter links (to send as a separate follow-up), and file attachments.
  * Exported so the backfill command can reuse it.
  */
 async function buildHofPost(message, guildId, channelId, messageId) {
@@ -84,19 +85,15 @@ async function buildHofPost(message, guildId, channelId, messageId) {
         const links = otherAttachments.map(a => `[${a.name ?? 'File'}](${a.url})`).join('\n');
         embed.addFields({ name: 'Attachments', value: links, inline: false });
     }
-    // --- Twitter/X link rendering ---
-    let contentText;
+    // --- Twitter/X link extraction ---
+    const fxLinks = [];
     TWITTER_LINK_RE.lastIndex = 0;
-    const twitterMatches = [];
     let match;
     while ((match = TWITTER_LINK_RE.exec(msgContent)) !== null) {
         const fxUrl = `https://fxtwitter.com/${match[3]}`;
-        twitterMatches.push(fxUrl);
+        fxLinks.push(fxUrl);
     }
-    if (twitterMatches.length > 0) {
-        contentText = twitterMatches.join('\n');
-    }
-    return { embed, content: contentText, files };
+    return { embed, fxLinks, files };
 }
 function registerReactionHandler(client) {
     client.on('messageReactionAdd', async (reaction, user) => {
@@ -137,19 +134,22 @@ function registerReactionHandler(client) {
             // Fetch the full message
             const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
             // Build the HoF post
-            const { embed, content, files } = await buildHofPost(message, guildId, channelId, messageId);
+            const { embed, fxLinks, files } = await buildHofPost(message, guildId, channelId, messageId);
             // Post to HoF channel
             const hofChannel = await message.guild.channels.fetch(config.hof_channel_id);
             if (!hofChannel || !hofChannel.isTextBased()) {
                 logger.error({ hofChannelId: config.hof_channel_id }, 'Hall of Fame channel not found or not text-based');
                 return;
             }
-            const hofMessage = await hofChannel.send({
-                content,
-                embeds: [embed],
-                files,
-            });
+            const tc = hofChannel;
+            // Send the main HOF embed
+            const hofMessage = await tc.send({ embeds: [embed], files });
             (0, queries_js_1.markMessageInducted)(guildId, messageId, channelId, hofMessage.id, config.hof_channel_id);
+            // Send fxtwitter links as a follow-up message (so Discord auto-embeds them)
+            if (fxLinks.length > 0) {
+                const followup = await tc.send({ content: fxLinks.join('\n') });
+                (0, queries_js_1.updateHofFollowup)(guildId, messageId, followup.id);
+            }
             logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
         }
         catch (error) {

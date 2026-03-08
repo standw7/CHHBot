@@ -1,5 +1,5 @@
 import { Client, EmbedBuilder, Message, MessageReaction, PartialMessageReaction, User, PartialUser, TextChannel, AttachmentBuilder } from 'discord.js';
-import { getGuildConfig, hasMessageBeenInducted, markMessageInducted } from '../../db/queries.js';
+import { getGuildConfig, hasMessageBeenInducted, markMessageInducted, updateHofFollowup } from '../../db/queries.js';
 import pino from 'pino';
 
 const logger = pino({ name: 'hall-of-fame' });
@@ -13,12 +13,13 @@ const TWITTER_LINK_RE = /https?:\/\/(www\.)?(x\.com|twitter\.com)\/([\w/]+\/stat
 
 export interface HofPostData {
   embed: EmbedBuilder;
-  content: string | undefined;
+  fxLinks: string[];
   files: AttachmentBuilder[];
 }
 
 /**
  * Build a full HOF post from a Discord message.
+ * Returns the embed, any fxtwitter links (to send as a separate follow-up), and file attachments.
  * Exported so the backfill command can reuse it.
  */
 export async function buildHofPost(
@@ -107,20 +108,16 @@ export async function buildHofPost(
     embed.addFields({ name: 'Attachments', value: links, inline: false });
   }
 
-  // --- Twitter/X link rendering ---
-  let contentText: string | undefined;
+  // --- Twitter/X link extraction ---
+  const fxLinks: string[] = [];
   TWITTER_LINK_RE.lastIndex = 0;
-  const twitterMatches: string[] = [];
   let match;
   while ((match = TWITTER_LINK_RE.exec(msgContent)) !== null) {
     const fxUrl = `https://fxtwitter.com/${match[3]}`;
-    twitterMatches.push(fxUrl);
-  }
-  if (twitterMatches.length > 0) {
-    contentText = twitterMatches.join('\n');
+    fxLinks.push(fxUrl);
   }
 
-  return { embed, content: contentText, files };
+  return { embed, fxLinks, files };
 }
 
 export function registerReactionHandler(client: Client): void {
@@ -165,7 +162,7 @@ export function registerReactionHandler(client: Client): void {
       const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
 
       // Build the HoF post
-      const { embed, content, files } = await buildHofPost(message, guildId, channelId, messageId);
+      const { embed, fxLinks, files } = await buildHofPost(message, guildId, channelId, messageId);
 
       // Post to HoF channel
       const hofChannel = await message.guild!.channels.fetch(config.hof_channel_id);
@@ -174,12 +171,18 @@ export function registerReactionHandler(client: Client): void {
         return;
       }
 
-      const hofMessage = await (hofChannel as TextChannel).send({
-        content,
-        embeds: [embed],
-        files,
-      });
+      const tc = hofChannel as TextChannel;
+
+      // Send the main HOF embed
+      const hofMessage = await tc.send({ embeds: [embed], files });
       markMessageInducted(guildId, messageId, channelId, hofMessage.id, config.hof_channel_id);
+
+      // Send fxtwitter links as a follow-up message (so Discord auto-embeds them)
+      if (fxLinks.length > 0) {
+        const followup = await tc.send({ content: fxLinks.join('\n') });
+        updateHofFollowup(guildId, messageId, followup.id);
+      }
+
       logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
 
     } catch (error) {

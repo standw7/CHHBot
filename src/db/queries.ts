@@ -132,6 +132,12 @@ export function getAllHofMessages(guildId: string): HofMessage[] {
   ).all(guildId) as HofMessage[];
 }
 
+export function updateHofFollowup(guildId: string, originalMessageId: string, followupId: string | null): void {
+  getDb().prepare(
+    'UPDATE hof_messages SET hof_followup_id = ? WHERE guild_id = ? AND original_message_id = ?'
+  ).run(followupId, guildId, originalMessageId);
+}
+
 // --- Feed Sources ---
 
 export function getFeedSources(guildId: string): FeedSource[] {

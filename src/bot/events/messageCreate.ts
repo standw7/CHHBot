@@ -986,7 +986,7 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
   }
 
   if (sub === 'update') {
-    const { getAllHofMessages } = await import('../../db/queries.js');
+    const { getAllHofMessages, updateHofFollowup } = await import('../../db/queries.js');
     const { buildHofPost } = await import('./reactionAdd.js');
 
     const entries = getAllHofMessages(guildId);
@@ -1018,30 +1018,47 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
         }
 
         // Rebuild the HOF post
-        const { embed, content, files } = await buildHofPost(
+        const { embed, fxLinks, files } = await buildHofPost(
           origMessage, guildId, entry.original_channel_id, entry.original_message_id
         );
 
-        // Fetch and edit the HOF message
+        // Fetch the HOF channel
         const hofChannel = await message.guild!.channels.fetch(entry.hof_channel_id!);
         if (!hofChannel || !hofChannel.isTextBased()) {
           skipped++;
           continue;
         }
+        const tc = hofChannel as TextChannel;
 
+        // Edit the main HOF embed
         let hofMsg: Message;
         try {
-          hofMsg = await (hofChannel as TextChannel).messages.fetch(entry.hof_message_id!);
+          hofMsg = await tc.messages.fetch(entry.hof_message_id!);
         } catch {
           skipped++;
           continue;
         }
 
         await hofMsg.edit({
-          content: content ?? '',
+          content: '',
           embeds: [embed],
           files,
         });
+
+        // Delete old follow-up message if it exists
+        if (entry.hof_followup_id) {
+          try {
+            const oldFollowup = await tc.messages.fetch(entry.hof_followup_id);
+            await oldFollowup.delete();
+          } catch { /* already deleted, that's fine */ }
+          updateHofFollowup(guildId, entry.original_message_id, null);
+        }
+
+        // Send new follow-up with fxtwitter links if needed
+        if (fxLinks.length > 0) {
+          const followup = await tc.send({ content: fxLinks.join('\n') });
+          updateHofFollowup(guildId, entry.original_message_id, followup.id);
+        }
 
         updated++;
       } catch (error) {

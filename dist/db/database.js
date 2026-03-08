@@ -129,5 +129,8 @@ function runMigrations(db) {
     if (!hofColNames.includes('hof_channel_id')) {
         db.exec('ALTER TABLE hof_messages ADD COLUMN hof_channel_id TEXT');
     }
+    if (!hofColNames.includes('hof_followup_id')) {
+        db.exec('ALTER TABLE hof_messages ADD COLUMN hof_followup_id TEXT');
+    }
 }
 //# sourceMappingURL=database.js.map
