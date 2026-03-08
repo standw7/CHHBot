@@ -17,6 +17,7 @@ exports.markFinalPosted = markFinalPosted;
 exports.hasMessageBeenInducted = hasMessageBeenInducted;
 exports.markMessageInducted = markMessageInducted;
 exports.getHofEntry = getHofEntry;
+exports.getAllHofMessages = getAllHofMessages;
 exports.getFeedSources = getFeedSources;
 exports.addFeedSource = addFeedSource;
 exports.removeFeedSource = removeFeedSource;
@@ -119,6 +120,9 @@ function markMessageInducted(guildId, messageId, channelId, hofMessageId, hofCha
 }
 function getHofEntry(guildId, messageId) {
     return (0, database_js_1.getDb)().prepare('SELECT * FROM hof_messages WHERE guild_id = ? AND original_message_id = ?').get(guildId, messageId);
+}
+function getAllHofMessages(guildId) {
+    return (0, database_js_1.getDb)().prepare('SELECT * FROM hof_messages WHERE guild_id = ? AND hof_message_id IS NOT NULL').all(guildId);
 }
 // --- Feed Sources ---
 function getFeedSources(guildId) {

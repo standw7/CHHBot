@@ -67,8 +67,11 @@ function buildGoalCard(data, spoilerMode) {
     // --- Title ---
     const isHomeScoringTeam = scoringTeamAbbrev === homeTeam.abbrev;
     const skaterSituation = parseSkaterSituation(landingGoal?.situationCode, isHomeScoringTeam);
-    // Use skater situation (e.g., "6v5") for pulled goalie, otherwise use strength label
-    const strengthLabel = skaterSituation ?? (STRENGTH_LABELS[strength] ?? strength);
+    // Use skater situation (e.g., "6v5") only for even-strength pulled-goalie goals.
+    // For PP/SH goals, always use the strength label so they aren't misreported as "1v6" etc.
+    const strengthLabel = (strength === 'ev' && skaterSituation)
+        ? skaterSituation
+        : (STRENGTH_LABELS[strength] ?? strength);
     const numberStr = scorerNumber ? ` #${scorerNumber}` : '';
     const scoringEmoji = getTeamEmoji(scoringTeamAbbrev, guild);
     const goalEmoji = getGoalEmoji(scoringTeamAbbrev, primaryTeam, guild);
