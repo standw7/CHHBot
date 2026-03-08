@@ -126,6 +126,12 @@ export function getHofEntry(guildId: string, messageId: string): HofMessage | un
   return getDb().prepare('SELECT * FROM hof_messages WHERE guild_id = ? AND original_message_id = ?').get(guildId, messageId) as HofMessage | undefined;
 }
 
+export function getAllHofMessages(guildId: string): HofMessage[] {
+  return getDb().prepare(
+    'SELECT * FROM hof_messages WHERE guild_id = ? AND hof_message_id IS NOT NULL'
+  ).all(guildId) as HofMessage[];
+}
+
 // --- Feed Sources ---
 
 export function getFeedSources(guildId: string): FeedSource[] {

@@ -1,4 +1,4 @@
-import { Client, EmbedBuilder, MessageReaction, PartialMessageReaction, User, PartialUser, TextChannel } from 'discord.js';
+import { Client, EmbedBuilder, Message, MessageReaction, PartialMessageReaction, User, PartialUser, TextChannel, AttachmentBuilder } from 'discord.js';
 import { getGuildConfig, hasMessageBeenInducted, markMessageInducted } from '../../db/queries.js';
 import pino from 'pino';
 
@@ -7,6 +7,121 @@ const logger = pino({ name: 'hall-of-fame' });
 // Emojis that can trigger HoF induction
 const HOF_EMOJIS = ['🔥', '😂', '🤣'];
 const DEFAULT_THRESHOLD = 8;
+
+// Regex to match Twitter/X links
+const TWITTER_LINK_RE = /https?:\/\/(www\.)?(x\.com|twitter\.com)\/([\w/]+\/status\/\d+\S*)/gi;
+
+export interface HofPostData {
+  embed: EmbedBuilder;
+  content: string | undefined;
+  files: AttachmentBuilder[];
+}
+
+/**
+ * Build a full HOF post from a Discord message.
+ * Exported so the backfill command can reuse it.
+ */
+export async function buildHofPost(
+  message: Message,
+  guildId: string,
+  channelId: string,
+  messageId: string
+): Promise<HofPostData> {
+  const author = message.author;
+  const msgContent = message.content || '';
+  const truncatedContent = msgContent.length > 1500
+    ? msgContent.slice(0, 1500) + '... (truncated)'
+    : msgContent;
+
+  const messageUrl = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
+
+  const embed = new EmbedBuilder()
+    .setAuthor({
+      name: author?.displayName ?? author?.username ?? 'Unknown',
+      iconURL: author?.displayAvatarURL(),
+    })
+    .setDescription(truncatedContent || '*No text content*')
+    .setColor(0xFF4500)
+    .setTimestamp(message.createdAt);
+
+  // --- Reply context ---
+  if (message.reference) {
+    try {
+      const repliedTo = await message.fetchReference();
+      const replyAuthor = repliedTo.author?.displayName ?? repliedTo.author?.username ?? 'Unknown';
+      let replyContent = repliedTo.content || '*No text content*';
+      if (replyContent.length > 300) {
+        replyContent = replyContent.slice(0, 300) + '... (truncated)';
+      }
+      embed.addFields({
+        name: `↩ Reply to ${replyAuthor}`,
+        value: replyContent,
+        inline: false,
+      });
+    } catch {
+      logger.warn({ messageId }, 'Failed to fetch replied-to message for HOF post');
+    }
+  }
+
+  // --- Channel and Link (always at bottom) ---
+  embed.addFields(
+    { name: 'Channel', value: `<#${channelId}>`, inline: false },
+    { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: false },
+  );
+
+  // --- Media attachments ---
+  const attachments = Array.from(message.attachments.values());
+  const imageAttachment = attachments.find(a => a.contentType?.startsWith('image/'));
+  const videoAttachments = attachments.filter(a => a.contentType?.startsWith('video/'));
+  const otherAttachments = attachments.filter(a =>
+    !a.contentType?.startsWith('image/') && !a.contentType?.startsWith('video/')
+  );
+
+  // Embed first image
+  if (imageAttachment) {
+    embed.setImage(imageAttachment.url);
+  }
+
+  // List all remaining image attachments (after the first) as links
+  const remainingImages = attachments.filter(a =>
+    a.contentType?.startsWith('image/') && a.id !== imageAttachment?.id
+  );
+  if (remainingImages.length > 0) {
+    const links = remainingImages.map(a => `[${a.name ?? 'Image'}](${a.url})`).join('\n');
+    embed.addFields({ name: 'Images', value: links, inline: false });
+  }
+
+  // Attach videos as files so they play inline
+  const files: AttachmentBuilder[] = [];
+  for (const vid of videoAttachments) {
+    try {
+      files.push(new AttachmentBuilder(vid.url, { name: vid.name ?? 'video.mp4' }));
+    } catch {
+      logger.warn({ url: vid.url }, 'Failed to attach video for HOF post');
+    }
+  }
+
+  // Link any other attachments
+  if (otherAttachments.length > 0) {
+    const links = otherAttachments.map(a => `[${a.name ?? 'File'}](${a.url})`).join('\n');
+    embed.addFields({ name: 'Attachments', value: links, inline: false });
+  }
+
+  // --- Twitter/X link rendering ---
+  let contentText: string | undefined;
+  TWITTER_LINK_RE.lastIndex = 0;
+  const twitterMatches: string[] = [];
+  let match;
+  while ((match = TWITTER_LINK_RE.exec(msgContent)) !== null) {
+    const fxUrl = `https://fxtwitter.com/${match[3]}`;
+    twitterMatches.push(fxUrl);
+  }
+  if (twitterMatches.length > 0) {
+    contentText = twitterMatches.join('\n');
+  }
+
+  return { embed, content: contentText, files };
+}
 
 export function registerReactionHandler(client: Client): void {
   client.on('messageReactionAdd', async (reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser) => {
@@ -49,8 +164,8 @@ export function registerReactionHandler(client: Client): void {
       // Fetch the full message
       const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
 
-      // Build the HoF embed
-      const embed = buildHofEmbed(message, guildId, channelId, messageId);
+      // Build the HoF post
+      const { embed, content, files } = await buildHofPost(message, guildId, channelId, messageId);
 
       // Post to HoF channel
       const hofChannel = await message.guild!.channels.fetch(config.hof_channel_id);
@@ -59,7 +174,11 @@ export function registerReactionHandler(client: Client): void {
         return;
       }
 
-      const hofMessage = await (hofChannel as TextChannel).send({ embeds: [embed] });
+      const hofMessage = await (hofChannel as TextChannel).send({
+        content,
+        embeds: [embed],
+        files,
+      });
       markMessageInducted(guildId, messageId, channelId, hofMessage.id, config.hof_channel_id);
       logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
 
@@ -68,50 +187,3 @@ export function registerReactionHandler(client: Client): void {
     }
   });
 }
-
-function buildHofEmbed(
-  message: { author: { displayName?: string; username?: string; displayAvatarURL(): string } | null; content: string; createdAt: Date; attachments: Map<string, { contentType?: string | null; url: string; name: string | null }> },
-  guildId: string,
-  channelId: string,
-  messageId: string
-): EmbedBuilder {
-  const author = message.author;
-  const content = message.content || '';
-  const truncatedContent = content.length > 1500
-    ? content.slice(0, 1500) + '... (truncated)'
-    : content;
-
-  const messageUrl = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
-
-  const embed = new EmbedBuilder()
-    .setAuthor({
-      name: author?.displayName ?? author?.username ?? 'Unknown',
-      iconURL: author?.displayAvatarURL(),
-    })
-    .setDescription(truncatedContent || '*No text content*')
-    .addFields(
-      { name: 'Channel', value: `<#${channelId}>`, inline: false },
-      { name: 'Link', value: `[Jump to message](${messageUrl})`, inline: false },
-    )
-    .setColor(0xFF4500)
-    .setTimestamp(message.createdAt);
-
-  // Include first image attachment if present
-  const attachments = Array.from(message.attachments.values());
-  const imageAttachment = attachments.find(a =>
-    a.contentType?.startsWith('image/') || a.contentType?.startsWith('video/')
-  );
-  if (imageAttachment) {
-    if (imageAttachment.contentType?.startsWith('image/')) {
-      embed.setImage(imageAttachment.url);
-    } else {
-      embed.addFields({ name: 'Attachment', value: `[${imageAttachment.name}](${imageAttachment.url})` });
-    }
-  } else if (attachments.length > 0) {
-    const attachmentLinks = attachments.map(a => `[${a.name}](${a.url})`).join('\n');
-    embed.addFields({ name: 'Attachments', value: attachmentLinks });
-  }
-
-  return embed;
-}
-

@@ -1,4 +1,4 @@
-import { Message } from 'discord.js';
+import { Message, TextChannel } from 'discord.js';
 import type { Client } from 'discord.js';
 import { getGuildConfig, getGifUrls } from '../../db/queries.js';
 import * as nextCmd from '../commands/next.js';
@@ -116,7 +116,7 @@ async function handlePrefixHelp(message: Message): Promise<void> {
       { name: 'Media Commands', value: `\`!<key>\` - Post random gif\nRegistered keys: ${gifKeysText}`, inline: false },
       { name: 'Gif Management (Admin)', value: '`!gif add key:<k> url:<u>` - Add gif\n`!gif remove key:<k> url:<u>` - Remove gif\n`!gif list key:<k>` - List URLs\n`!gif keys` - List all keys', inline: false },
       { name: 'News Feeds (Admin)', value: '`!feed add <url> [label]` - Add feed\n`!feed remove <label>` - Remove feed\n`!feed list` - List feeds\n`!feed status` - Check feed health\n`!feed reset <label>` - Reset tracking', inline: false },
-      { name: 'Hall of Fame (Admin)', value: '`!hof` - Show HoF settings\n`!hof threshold <n>` - Set reaction threshold', inline: false },
+      { name: 'Hall of Fame (Admin)', value: '`!hof` - Show HoF settings\n`!hof threshold <n>` - Set reaction threshold\n`!hof update` - Rebuild all HOF posts', inline: false },
       { name: 'Testing (Admin)', value: '`!sim` - Run game simulation\n`!sim reset` - Reset simulation', inline: false },
       { name: 'Config', value: '`/config show` - View settings\n`/config set` - Change settings', inline: false },
       { name: 'Help', value: '`!tusky help` - Show this message', inline: false },
@@ -879,7 +879,8 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
       '**Hall of Fame Commands:**\n' +
       `Current threshold: **${currentThreshold}** reactions\n` +
       'Qualifying emojis: 🔥 😂 🤣\n\n' +
-      '`!hof threshold <number>` - Set minimum reactions needed (admin)\n\n' +
+      '`!hof threshold <number>` - Set minimum reactions needed (admin)\n' +
+      '`!hof update` - Rebuild all HOF posts with reply context, media, and twitter rendering (admin)\n\n' +
       'A message is inducted once when ANY qualifying emoji reaches the threshold.'
     );
     return;
@@ -900,6 +901,87 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
     }
     upsertGuildConfig(guildId, { hof_threshold: value });
     await message.reply(`Hall of Fame threshold set to **${value}** reactions.`);
+    return;
+  }
+
+  if (sub === 'update') {
+    const { getAllHofMessages } = await import('../../db/queries.js');
+    const { buildHofPost } = await import('./reactionAdd.js');
+
+    const entries = getAllHofMessages(guildId);
+    if (entries.length === 0) {
+      await message.reply('No HOF posts found to update.');
+      return;
+    }
+
+    const statusMsg = await message.reply(`Updating HOF posts... (0/${entries.length})`);
+    let updated = 0;
+    let skipped = 0;
+
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      try {
+        // Fetch the original message
+        const origChannel = await message.guild!.channels.fetch(entry.original_channel_id);
+        if (!origChannel || !origChannel.isTextBased()) {
+          skipped++;
+          continue;
+        }
+
+        let origMessage: Message;
+        try {
+          origMessage = await (origChannel as TextChannel).messages.fetch(entry.original_message_id);
+        } catch {
+          skipped++;
+          continue;
+        }
+
+        // Rebuild the HOF post
+        const { embed, content, files } = await buildHofPost(
+          origMessage, guildId, entry.original_channel_id, entry.original_message_id
+        );
+
+        // Fetch and edit the HOF message
+        const hofChannel = await message.guild!.channels.fetch(entry.hof_channel_id!);
+        if (!hofChannel || !hofChannel.isTextBased()) {
+          skipped++;
+          continue;
+        }
+
+        let hofMsg: Message;
+        try {
+          hofMsg = await (hofChannel as TextChannel).messages.fetch(entry.hof_message_id!);
+        } catch {
+          skipped++;
+          continue;
+        }
+
+        await hofMsg.edit({
+          content: content ?? '',
+          embeds: [embed],
+          files,
+        });
+
+        updated++;
+      } catch (error) {
+        logger.error({ error, entryId: entry.id }, 'Failed to update HOF post');
+        skipped++;
+      }
+
+      // Update progress every 5 posts
+      if ((i + 1) % 5 === 0 || i === entries.length - 1) {
+        try {
+          await statusMsg.edit(`Updating HOF posts... (${i + 1}/${entries.length})`);
+        } catch { /* ignore edit failures on status msg */ }
+      }
+
+      // Rate limit: wait 2 seconds between edits
+      if (i < entries.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    await statusMsg.edit(`Done! Updated **${updated}** posts, **${skipped}** skipped (deleted/missing).`);
     return;
   }
 
