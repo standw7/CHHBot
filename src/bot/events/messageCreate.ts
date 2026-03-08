@@ -1,4 +1,4 @@
-import { Message, TextChannel } from 'discord.js';
+import { Message, TextChannel, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from 'discord.js';
 import type { Client } from 'discord.js';
 import { getGuildConfig, getGifUrls } from '../../db/queries.js';
 import * as nextCmd from '../commands/next.js';
@@ -29,6 +29,7 @@ export function registerMessageHandler(client: Client): void {
     try {
       switch (command) {
         case 'tusky':
+        case 'help':
           await handlePrefixHelp(message);
           break;
         case 'next':
@@ -96,8 +97,56 @@ async function handlePrefixStats(message: Message, args: string[]): Promise<void
   await message.reply({ embeds: [embed] });
 }
 
+function buildHelpPages(gifKeysText: string): EmbedBuilder[] {
+  const pages: EmbedBuilder[] = [];
+
+  // Page 1: Game Info & Stats
+  pages.push(
+    new EmbedBuilder()
+      .setTitle('Tusky Commands — Game Info & Stats')
+      .setColor(0x006847)
+      .addFields(
+        { name: 'Game Info', value: '`!next` - Next game\n`!watch` - Where to watch\n`!replay` - Latest goal replay\n`!schedule [n]` - Upcoming games (default 7, max 15)', inline: false },
+        { name: 'Stats', value: '`!stats [category]` - Team stat leaders (top 5)\n`!stats [category] on [date]` - Game-specific leaders\n`!stats help` - List all stat categories', inline: false },
+        { name: 'Player Lookup', value: '`!player <name>` - Player stats, bio, and last 5 games', inline: false },
+        { name: 'Standings', value: '`!standings` - Your conference playoff picture\n`!standings league` - Top 16 NHL teams\n`!standings west` / `!standings east` - By conference', inline: false },
+        { name: 'Notifications', value: '`!gameday` - Toggle gameday ping role', inline: false },
+      )
+      .setFooter({ text: 'Page 1/3 — Use buttons to navigate' })
+  );
+
+  // Page 2: Media & Fun
+  pages.push(
+    new EmbedBuilder()
+      .setTitle('Tusky Commands — Media & Fun')
+      .setColor(0x006847)
+      .addFields(
+        { name: 'Media Commands', value: `\`!<key>\` - Post a random gif from a collection\nRegistered keys: ${gifKeysText}`, inline: false },
+        { name: 'Hall of Fame', value: 'Messages that get enough 🔥 😂 or 🤣 reactions are automatically posted to the Hall of Fame channel.\nHOF posts include reply context, media, and rendered Twitter links.', inline: false },
+        { name: 'Auto Link Fix', value: 'Twitter/X links are automatically replied to with embeddable versions so you can see the content without clicking.', inline: false },
+      )
+      .setFooter({ text: 'Page 2/3 — Use buttons to navigate' })
+  );
+
+  // Page 3: Admin
+  pages.push(
+    new EmbedBuilder()
+      .setTitle('Tusky Commands — Admin')
+      .setColor(0x006847)
+      .addFields(
+        { name: 'Gif Management', value: '`!gif add key:<k> url:<u>` - Add gif to a key\n`!gif remove key:<k> url:<u>` - Remove gif\n`!gif list key:<k>` - List URLs for a key\n`!gif keys` - List all registered keys', inline: false },
+        { name: 'News Feeds', value: '`!feed add <url> [label]` - Add RSS or Twitter feed\n`!feed remove <label>` - Remove a feed\n`!feed list` - List all feeds\n`!feed status` - Check feed health\n`!feed reset <label>` - Reset feed tracking', inline: false },
+        { name: 'Hall of Fame', value: '`!hof` - Show HOF settings\n`!hof threshold <n>` - Set reaction threshold (1-100)\n`!hof update` - Rebuild all existing HOF posts', inline: false },
+        { name: 'Config', value: '`/config show` - View all settings\n`/config set setting:<name> value:<value>` - Change a setting', inline: false },
+        { name: 'Testing', value: '`!sim` - Run game simulation\n`!sim reset` - Reset simulation data', inline: false },
+      )
+      .setFooter({ text: 'Page 3/3 — Use buttons to navigate' })
+  );
+
+  return pages;
+}
+
 async function handlePrefixHelp(message: Message): Promise<void> {
-  const { EmbedBuilder } = await import('discord.js');
   const { listGifKeys } = await import('../../db/queries.js');
   const guildId = message.guild!.id;
 
@@ -106,24 +155,56 @@ async function handlePrefixHelp(message: Message): Promise<void> {
     ? gifKeys.map(k => `\`!${k}\``).join(', ')
     : 'None registered yet';
 
-  const embed = new EmbedBuilder()
-    .setTitle('Tusky Commands')
-    .setColor(0x006847)
-    .addFields(
-      { name: 'Game Info', value: '`!next` - Next game\n`!watch` - Where to watch\n`!replay` - Latest goal replay\n`!schedule [n]` - Upcoming games', inline: false },
-      { name: 'Stats & Standings', value: '`!stats [category]` - Team stat leaders\n`!player <name>` - Player lookup\n`!standings [filter]` - Playoff picture', inline: false },
-      { name: 'Notifications', value: '`!gameday` - Toggle gameday role', inline: false },
-      { name: 'Media Commands', value: `\`!<key>\` - Post random gif\nRegistered keys: ${gifKeysText}`, inline: false },
-      { name: 'Gif Management (Admin)', value: '`!gif add key:<k> url:<u>` - Add gif\n`!gif remove key:<k> url:<u>` - Remove gif\n`!gif list key:<k>` - List URLs\n`!gif keys` - List all keys', inline: false },
-      { name: 'News Feeds (Admin)', value: '`!feed add <url> [label]` - Add feed\n`!feed remove <label>` - Remove feed\n`!feed list` - List feeds\n`!feed status` - Check feed health\n`!feed reset <label>` - Reset tracking', inline: false },
-      { name: 'Hall of Fame (Admin)', value: '`!hof` - Show HoF settings\n`!hof threshold <n>` - Set reaction threshold\n`!hof update` - Rebuild all HOF posts', inline: false },
-      { name: 'Testing (Admin)', value: '`!sim` - Run game simulation\n`!sim reset` - Reset simulation', inline: false },
-      { name: 'Config', value: '`/config show` - View settings\n`/config set` - Change settings', inline: false },
-      { name: 'Help', value: '`!tusky help` - Show this message', inline: false },
-    )
-    .setFooter({ text: 'Tusky - Utah Mammoth Hockey Bot' });
+  const pages = buildHelpPages(gifKeysText);
+  let currentPage = 0;
 
-  await message.reply({ embeds: [embed] });
+  const buildButtons = (page: number) => new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('help_prev')
+      .setLabel('◀ Previous')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page === 0),
+    new ButtonBuilder()
+      .setCustomId('help_next')
+      .setLabel('Next ▶')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page === pages.length - 1),
+  );
+
+  const reply = await message.reply({
+    embeds: [pages[currentPage]],
+    components: [buildButtons(currentPage)],
+  });
+
+  const collector = reply.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    time: 120_000, // 2 minutes
+  });
+
+  collector.on('collect', async (interaction) => {
+    // Only the person who ran !help can use the buttons
+    if (interaction.user.id !== message.author.id) {
+      await interaction.reply({ content: 'Use `!help` to get your own help menu.', ephemeral: true });
+      return;
+    }
+
+    if (interaction.customId === 'help_prev' && currentPage > 0) {
+      currentPage--;
+    } else if (interaction.customId === 'help_next' && currentPage < pages.length - 1) {
+      currentPage++;
+    }
+
+    await interaction.update({
+      embeds: [pages[currentPage]],
+      components: [buildButtons(currentPage)],
+    });
+  });
+
+  collector.on('end', async () => {
+    try {
+      await reply.edit({ components: [] });
+    } catch { /* message may be deleted */ }
+  });
 }
 
 async function handlePrefixNext(message: Message): Promise<void> {
