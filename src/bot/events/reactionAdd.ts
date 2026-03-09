@@ -36,12 +36,25 @@ export async function buildHofPost(
 
   const messageUrl = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
 
+  // Build a description — if there's no text, describe what's attached
+  const attachments = Array.from(message.attachments.values());
+  let description = truncatedContent;
+  if (!description) {
+    const hasVideo = attachments.some(a => a.contentType?.startsWith('video/'));
+    const hasImage = attachments.some(a => a.contentType?.startsWith('image/'));
+    if (hasVideo && hasImage) description = '📎 Media attached';
+    else if (hasVideo) description = '🎬 Video attached';
+    else if (hasImage) description = '🖼 Image attached';
+    else if (attachments.length > 0) description = '📎 Attachment';
+    else description = '*No text content*';
+  }
+
   const embed = new EmbedBuilder()
     .setAuthor({
       name: author?.displayName ?? author?.username ?? 'Unknown',
       iconURL: author?.displayAvatarURL(),
     })
-    .setDescription(truncatedContent || '*No text content*')
+    .setDescription(description)
     .setColor(0xFF4500)
     .setTimestamp(message.createdAt);
 
@@ -71,7 +84,6 @@ export async function buildHofPost(
   );
 
   // --- Media attachments ---
-  const attachments = Array.from(message.attachments.values());
   const imageAttachment = attachments.find(a => a.contentType?.startsWith('image/'));
   const videoAttachments = attachments.filter(a => a.contentType?.startsWith('video/'));
   const otherAttachments = attachments.filter(a =>

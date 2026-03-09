@@ -881,21 +881,35 @@ async function handlePrefixHof(message, args) {
                     content: '',
                     embeds: [embed],
                 });
-                // Delete old follow-up message if it exists
+                // Handle follow-up message (fxtwitter links and/or videos)
+                const needsFollowup = fxLinks.length > 0 || files.length > 0;
+                const followupContent = fxLinks.length > 0 ? fxLinks.join('\n') : undefined;
                 if (entry.hof_followup_id) {
+                    // Existing follow-up — edit it in place (preserves position) or delete if no longer needed
                     try {
-                        const oldFollowup = await tc.messages.fetch(entry.hof_followup_id);
-                        await oldFollowup.delete();
+                        const existingFollowup = await tc.messages.fetch(entry.hof_followup_id);
+                        if (needsFollowup) {
+                            await existingFollowup.edit({ content: followupContent ?? '', files });
+                        }
+                        else {
+                            await existingFollowup.delete();
+                            updateHofFollowup(guildId, entry.original_message_id, null);
+                        }
                     }
-                    catch { /* already deleted, that's fine */ }
-                    updateHofFollowup(guildId, entry.original_message_id, null);
+                    catch {
+                        // Follow-up was deleted — send new one if needed
+                        if (needsFollowup) {
+                            const followup = await tc.send({ content: followupContent, files });
+                            updateHofFollowup(guildId, entry.original_message_id, followup.id);
+                        }
+                        else {
+                            updateHofFollowup(guildId, entry.original_message_id, null);
+                        }
+                    }
                 }
-                // Send new follow-up with fxtwitter links and/or videos
-                if (fxLinks.length > 0 || files.length > 0) {
-                    const followup = await tc.send({
-                        content: fxLinks.length > 0 ? fxLinks.join('\n') : undefined,
-                        files,
-                    });
+                else if (needsFollowup) {
+                    // No existing follow-up — send a new one
+                    const followup = await tc.send({ content: followupContent, files });
                     updateHofFollowup(guildId, entry.original_message_id, followup.id);
                 }
                 updated++;
