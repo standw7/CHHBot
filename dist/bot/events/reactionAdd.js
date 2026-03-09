@@ -12,8 +12,8 @@ const logger = (0, pino_1.default)({ name: 'hall-of-fame' });
 // Emojis that can trigger HoF induction
 const HOF_EMOJIS = ['🔥', '😂', '🤣'];
 const DEFAULT_THRESHOLD = 8;
-// Regex to match Twitter/X links
-const TWITTER_LINK_RE = /https?:\/\/(www\.)?(x\.com|twitter\.com)\/([\w/]+\/status\/\d+\S*)/gi;
+// Regex to match all Twitter/X link variants (original + embed-fix domains)
+const TWITTER_LINK_RE = /https?:\/\/(www\.)?(x\.com|twitter\.com|fxtwitter\.com|vxtwitter\.com|xcancel\.com|fixupx\.com|twittpr\.com)\/([\w/]+\/status\/\d+\S*)/gi;
 /**
  * Build a full HOF post from a Discord message.
  * Returns the embed, any fxtwitter links (to send as a separate follow-up), and file attachments.
@@ -101,13 +101,17 @@ async function buildHofPost(message, guildId, channelId, messageId) {
         const links = otherAttachments.map(a => `[${a.name ?? 'File'}](${a.url})`).join('\n');
         embed.addFields({ name: 'Attachments', value: links, inline: false });
     }
-    // --- Twitter/X link extraction ---
+    // --- Twitter/X link extraction (deduplicate by status path) ---
     const fxLinks = [];
+    const seenPaths = new Set();
     TWITTER_LINK_RE.lastIndex = 0;
     let match;
     while ((match = TWITTER_LINK_RE.exec(msgContent)) !== null) {
-        const fxUrl = `https://fxtwitter.com/${match[3]}`;
-        fxLinks.push(fxUrl);
+        const path = match[3];
+        if (!seenPaths.has(path)) {
+            seenPaths.add(path);
+            fxLinks.push(`https://fxtwitter.com/${path}`);
+        }
     }
     return { embed, fxLinks, files };
 }

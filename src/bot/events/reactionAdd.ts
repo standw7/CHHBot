@@ -8,8 +8,8 @@ const logger = pino({ name: 'hall-of-fame' });
 const HOF_EMOJIS = ['🔥', '😂', '🤣'];
 const DEFAULT_THRESHOLD = 8;
 
-// Regex to match Twitter/X links
-const TWITTER_LINK_RE = /https?:\/\/(www\.)?(x\.com|twitter\.com)\/([\w/]+\/status\/\d+\S*)/gi;
+// Regex to match all Twitter/X link variants (original + embed-fix domains)
+const TWITTER_LINK_RE = /https?:\/\/(www\.)?(x\.com|twitter\.com|fxtwitter\.com|vxtwitter\.com|xcancel\.com|fixupx\.com|twittpr\.com)\/([\w/]+\/status\/\d+\S*)/gi;
 
 export interface HofPostData {
   embed: EmbedBuilder;
@@ -120,13 +120,17 @@ export async function buildHofPost(
     embed.addFields({ name: 'Attachments', value: links, inline: false });
   }
 
-  // --- Twitter/X link extraction ---
+  // --- Twitter/X link extraction (deduplicate by status path) ---
   const fxLinks: string[] = [];
+  const seenPaths = new Set<string>();
   TWITTER_LINK_RE.lastIndex = 0;
   let match;
   while ((match = TWITTER_LINK_RE.exec(msgContent)) !== null) {
-    const fxUrl = `https://fxtwitter.com/${match[3]}`;
-    fxLinks.push(fxUrl);
+    const path = match[3];
+    if (!seenPaths.has(path)) {
+      seenPaths.add(path);
+      fxLinks.push(`https://fxtwitter.com/${path}`);
+    }
   }
 
   return { embed, fxLinks, files };
