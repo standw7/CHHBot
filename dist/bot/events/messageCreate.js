@@ -832,20 +832,55 @@ async function handlePrefixHof(message, args) {
         return;
     }
     if (sub === 'update') {
-        const { getAllHofMessages, updateHofFollowup } = await import('../../db/queries.js');
+        const { getAllHofMessages, updateHofMessageIds } = await import('../../db/queries.js');
         const { buildHofPost } = await import('./reactionAdd.js');
         const entries = getAllHofMessages(guildId);
         if (entries.length === 0) {
             await message.reply('No HOF posts found to update.');
             return;
         }
-        const statusMsg = await message.reply(`Updating HOF posts... (0/${entries.length})`);
+        // Phase 1: Delete all existing HOF posts
+        const statusMsg = await message.reply(`Deleting old HOF posts... (0/${entries.length})`);
+        let deleted = 0;
+        for (const entry of entries) {
+            try {
+                const hofChannel = await message.guild.channels.fetch(entry.hof_channel_id);
+                if (!hofChannel || !hofChannel.isTextBased())
+                    continue;
+                const tc = hofChannel;
+                // Delete main HOF message
+                try {
+                    const msg = await tc.messages.fetch(entry.hof_message_id);
+                    await msg.delete();
+                }
+                catch { /* already gone */ }
+                // Delete follow-up if exists
+                if (entry.hof_followup_id) {
+                    try {
+                        const followup = await tc.messages.fetch(entry.hof_followup_id);
+                        await followup.delete();
+                    }
+                    catch { /* already gone */ }
+                }
+                deleted++;
+            }
+            catch { /* channel gone, skip */ }
+            if (deleted % 5 === 0) {
+                try {
+                    await statusMsg.edit(`Deleting old HOF posts... (${deleted}/${entries.length})`);
+                }
+                catch { }
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        // Phase 2: Resend all HOF posts in induction order
+        await statusMsg.edit(`Resending HOF posts... (0/${entries.length})`);
         let updated = 0;
         let skipped = 0;
         for (let i = 0; i < entries.length; i++) {
             const entry = entries[i];
             try {
-                // Fetch the original message
+                // Fetch original message
                 const origChannel = await message.guild.channels.fetch(entry.original_channel_id);
                 if (!origChannel || !origChannel.isTextBased()) {
                     skipped++;
@@ -861,76 +896,44 @@ async function handlePrefixHof(message, args) {
                 }
                 // Rebuild the HOF post
                 const { embed, fxLinks, files } = await buildHofPost(origMessage, guildId, entry.original_channel_id, entry.original_message_id);
-                // Fetch the HOF channel
+                // Get the HOF channel
                 const hofChannel = await message.guild.channels.fetch(entry.hof_channel_id);
                 if (!hofChannel || !hofChannel.isTextBased()) {
                     skipped++;
                     continue;
                 }
                 const tc = hofChannel;
-                // Edit the main HOF embed
-                let hofMsg;
-                try {
-                    hofMsg = await tc.messages.fetch(entry.hof_message_id);
+                // Send new HOF embed
+                const newHofMsg = await tc.send({ embeds: [embed] });
+                // Send follow-up with fxtwitter links and/or videos
+                let followupId = null;
+                if (fxLinks.length > 0 || files.length > 0) {
+                    const followup = await tc.send({
+                        content: fxLinks.length > 0 ? fxLinks.join('\n') : undefined,
+                        files,
+                    });
+                    followupId = followup.id;
                 }
-                catch {
-                    skipped++;
-                    continue;
-                }
-                await hofMsg.edit({
-                    content: '',
-                    embeds: [embed],
-                });
-                // Handle follow-up message (fxtwitter links and/or videos)
-                const needsFollowup = fxLinks.length > 0 || files.length > 0;
-                const followupContent = fxLinks.length > 0 ? fxLinks.join('\n') : undefined;
-                if (entry.hof_followup_id) {
-                    // Existing follow-up — edit it in place (preserves position) or delete if no longer needed
-                    try {
-                        const existingFollowup = await tc.messages.fetch(entry.hof_followup_id);
-                        if (needsFollowup) {
-                            await existingFollowup.edit({ content: followupContent ?? '', files });
-                        }
-                        else {
-                            await existingFollowup.delete();
-                            updateHofFollowup(guildId, entry.original_message_id, null);
-                        }
-                    }
-                    catch {
-                        // Follow-up was deleted — send new one if needed
-                        if (needsFollowup) {
-                            const followup = await tc.send({ content: followupContent, files });
-                            updateHofFollowup(guildId, entry.original_message_id, followup.id);
-                        }
-                        else {
-                            updateHofFollowup(guildId, entry.original_message_id, null);
-                        }
-                    }
-                }
-                else if (needsFollowup) {
-                    // No existing follow-up — send a new one
-                    const followup = await tc.send({ content: followupContent, files });
-                    updateHofFollowup(guildId, entry.original_message_id, followup.id);
-                }
+                // Update DB with new message IDs
+                updateHofMessageIds(guildId, entry.original_message_id, newHofMsg.id, followupId);
                 updated++;
             }
             catch (error) {
-                logger.error({ error, entryId: entry.id }, 'Failed to update HOF post');
+                logger.error({ error, entryId: entry.id }, 'Failed to resend HOF post');
                 skipped++;
             }
-            // Update progress every 5 posts
             if ((i + 1) % 5 === 0 || i === entries.length - 1) {
                 try {
-                    await statusMsg.edit(`Updating HOF posts... (${i + 1}/${entries.length})`);
+                    await statusMsg.edit(`Resending HOF posts... (${i + 1}/${entries.length})`);
                 }
-                catch { /* ignore edit failures on status msg */ }
+                catch { }
             }
-            // Rate limit: wait 2 seconds between edits
+            // Rate limit: 2 seconds between posts
             if (i < entries.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
         }
-        await statusMsg.edit(`Done! Updated **${updated}** posts, **${skipped}** skipped (deleted/missing).`);
+        await statusMsg.edit(`Done! Resent **${updated}** posts in order, **${skipped}** skipped (original message deleted/missing).`);
         return;
     }
     await message.reply('Unknown subcommand. Use `!hof help` for usage.');

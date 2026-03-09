@@ -128,8 +128,14 @@ export function getHofEntry(guildId: string, messageId: string): HofMessage | un
 
 export function getAllHofMessages(guildId: string): HofMessage[] {
   return getDb().prepare(
-    'SELECT * FROM hof_messages WHERE guild_id = ? AND hof_message_id IS NOT NULL'
+    'SELECT * FROM hof_messages WHERE guild_id = ? AND hof_message_id IS NOT NULL ORDER BY inducted_at ASC'
   ).all(guildId) as HofMessage[];
+}
+
+export function updateHofMessageIds(guildId: string, originalMessageId: string, hofMessageId: string, hofFollowupId: string | null): void {
+  getDb().prepare(
+    'UPDATE hof_messages SET hof_message_id = ?, hof_followup_id = ? WHERE guild_id = ? AND original_message_id = ?'
+  ).run(hofMessageId, hofFollowupId, guildId, originalMessageId);
 }
 
 export function updateHofFollowup(guildId: string, originalMessageId: string, followupId: string | null): void {

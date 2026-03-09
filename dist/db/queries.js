@@ -18,6 +18,7 @@ exports.hasMessageBeenInducted = hasMessageBeenInducted;
 exports.markMessageInducted = markMessageInducted;
 exports.getHofEntry = getHofEntry;
 exports.getAllHofMessages = getAllHofMessages;
+exports.updateHofMessageIds = updateHofMessageIds;
 exports.updateHofFollowup = updateHofFollowup;
 exports.getFeedSources = getFeedSources;
 exports.addFeedSource = addFeedSource;
@@ -123,7 +124,10 @@ function getHofEntry(guildId, messageId) {
     return (0, database_js_1.getDb)().prepare('SELECT * FROM hof_messages WHERE guild_id = ? AND original_message_id = ?').get(guildId, messageId);
 }
 function getAllHofMessages(guildId) {
-    return (0, database_js_1.getDb)().prepare('SELECT * FROM hof_messages WHERE guild_id = ? AND hof_message_id IS NOT NULL').all(guildId);
+    return (0, database_js_1.getDb)().prepare('SELECT * FROM hof_messages WHERE guild_id = ? AND hof_message_id IS NOT NULL ORDER BY inducted_at ASC').all(guildId);
+}
+function updateHofMessageIds(guildId, originalMessageId, hofMessageId, hofFollowupId) {
+    (0, database_js_1.getDb)().prepare('UPDATE hof_messages SET hof_message_id = ?, hof_followup_id = ? WHERE guild_id = ? AND original_message_id = ?').run(hofMessageId, hofFollowupId, guildId, originalMessageId);
 }
 function updateHofFollowup(guildId, originalMessageId, followupId) {
     (0, database_js_1.getDb)().prepare('UPDATE hof_messages SET hof_followup_id = ? WHERE guild_id = ? AND original_message_id = ?').run(followupId, guildId, originalMessageId);

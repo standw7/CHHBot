@@ -17,6 +17,7 @@ export declare function hasMessageBeenInducted(guildId: string, messageId: strin
 export declare function markMessageInducted(guildId: string, messageId: string, channelId: string, hofMessageId?: string, hofChannelId?: string): void;
 export declare function getHofEntry(guildId: string, messageId: string): HofMessage | undefined;
 export declare function getAllHofMessages(guildId: string): HofMessage[];
+export declare function updateHofMessageIds(guildId: string, originalMessageId: string, hofMessageId: string, hofFollowupId: string | null): void;
 export declare function updateHofFollowup(guildId: string, originalMessageId: string, followupId: string | null): void;
 export declare function getFeedSources(guildId: string): FeedSource[];
 export declare function addFeedSource(guildId: string, url: string, label: string, addedBy: string): void;
