@@ -5,11 +5,22 @@ import pino from 'pino';
 const logger = pino({ name: 'link-fixer' });
 
 // Patterns and their replacements for better Discord embeds
+// Only matches original domains (not already-fixed ones)
 const LINK_REPLACEMENTS: { pattern: RegExp; replace: string; label: string }[] = [
   {
     pattern: /https?:\/\/(www\.)?(x\.com|twitter\.com)\/([\w/]+\/status\/\d+\S*)/gi,
     replace: 'https://fxtwitter.com/$3',
     label: 'Twitter/X',
+  },
+  {
+    pattern: /https?:\/\/(www\.)?instagram\.com\/(p|reel|reels)\/([\w-]+\S*)/gi,
+    replace: 'https://ddinstagram.com/$2/$3',
+    label: 'Instagram',
+  },
+  {
+    pattern: /https?:\/\/(www\.|vm\.)?tiktok\.com\/(\S+)/gi,
+    replace: 'https://vxtiktok.com/$2',
+    label: 'TikTok',
   },
 ];
 

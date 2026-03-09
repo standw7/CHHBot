@@ -1053,7 +1053,7 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
         }
 
         // Rebuild the HOF post
-        const { embed, fxLinks, files } = await buildHofPost(
+        const { embed, embedLinks, files } = await buildHofPost(
           origMessage, guildId, entry.original_channel_id, entry.original_message_id
         );
 
@@ -1070,9 +1070,9 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
 
         // Send follow-up with fxtwitter links and/or videos
         let followupId: string | null = null;
-        if (fxLinks.length > 0 || files.length > 0) {
+        if (embedLinks.length > 0 || files.length > 0) {
           const followup = await tc.send({
-            content: fxLinks.length > 0 ? fxLinks.join('\n') : undefined,
+            content: embedLinks.length > 0 ? embedLinks.join('\n') : undefined,
             files,
           });
           followupId = followup.id;

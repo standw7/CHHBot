@@ -8,11 +8,22 @@ const queries_js_1 = require("../../db/queries.js");
 const pino_1 = __importDefault(require("pino"));
 const logger = (0, pino_1.default)({ name: 'link-fixer' });
 // Patterns and their replacements for better Discord embeds
+// Only matches original domains (not already-fixed ones)
 const LINK_REPLACEMENTS = [
     {
         pattern: /https?:\/\/(www\.)?(x\.com|twitter\.com)\/([\w/]+\/status\/\d+\S*)/gi,
         replace: 'https://fxtwitter.com/$3',
         label: 'Twitter/X',
+    },
+    {
+        pattern: /https?:\/\/(www\.)?instagram\.com\/(p|reel|reels)\/([\w-]+\S*)/gi,
+        replace: 'https://ddinstagram.com/$2/$3',
+        label: 'Instagram',
+    },
+    {
+        pattern: /https?:\/\/(www\.|vm\.)?tiktok\.com\/(\S+)/gi,
+        replace: 'https://vxtiktok.com/$2',
+        label: 'TikTok',
     },
 ];
 function registerLinkFixer(client) {

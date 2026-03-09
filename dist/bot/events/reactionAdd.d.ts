@@ -1,7 +1,7 @@
 import { Client, EmbedBuilder, Message, AttachmentBuilder } from 'discord.js';
 export interface HofPostData {
     embed: EmbedBuilder;
-    fxLinks: string[];
+    embedLinks: string[];
     files: AttachmentBuilder[];
 }
 /**

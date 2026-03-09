@@ -8,12 +8,28 @@ const logger = pino({ name: 'hall-of-fame' });
 const HOF_EMOJIS = ['🔥', '😂', '🤣'];
 const DEFAULT_THRESHOLD = 8;
 
-// Regex to match all Twitter/X link variants (original + embed-fix domains)
-const TWITTER_LINK_RE = /https?:\/\/(www\.)?(x\.com|twitter\.com|fxtwitter\.com|vxtwitter\.com|xcancel\.com|fixupx\.com|twittpr\.com)\/([\w/]+\/status\/\d+\S*)/gi;
+// Social link patterns: match all variants (original + embed-fix domains), normalize to embed-fix URL
+const SOCIAL_LINK_PATTERNS: { re: RegExp; toEmbedUrl: (match: RegExpExecArray) => string }[] = [
+  {
+    // Twitter/X (all variants) — group 3 = user/status/id path
+    re: /https?:\/\/(www\.)?(x\.com|twitter\.com|fxtwitter\.com|vxtwitter\.com|xcancel\.com|fixupx\.com|twittpr\.com)\/([\w/]+\/status\/\d+\S*)/gi,
+    toEmbedUrl: (m) => `https://fxtwitter.com/${m[3]}`,
+  },
+  {
+    // Instagram (all variants) — group 3 = p|reel|reels, group 4 = post id
+    re: /https?:\/\/(www\.)?(instagram\.com|ddinstagram\.com)\/(p|reel|reels)\/([\w-]+\S*)/gi,
+    toEmbedUrl: (m) => `https://ddinstagram.com/${m[3]}/${m[4]}`,
+  },
+  {
+    // TikTok (all variants) — group 3 = path after domain
+    re: /https?:\/\/(www\.|vm\.)?(tiktok\.com|vxtiktok\.com|tiktxk\.com)\/(\S+)/gi,
+    toEmbedUrl: (m) => `https://vxtiktok.com/${m[3]}`,
+  },
+];
 
 export interface HofPostData {
   embed: EmbedBuilder;
-  fxLinks: string[];
+  embedLinks: string[];
   files: AttachmentBuilder[];
 }
 
@@ -120,20 +136,22 @@ export async function buildHofPost(
     embed.addFields({ name: 'Attachments', value: links, inline: false });
   }
 
-  // --- Twitter/X link extraction (deduplicate by status path) ---
-  const fxLinks: string[] = [];
-  const seenPaths = new Set<string>();
-  TWITTER_LINK_RE.lastIndex = 0;
-  let match;
-  while ((match = TWITTER_LINK_RE.exec(msgContent)) !== null) {
-    const path = match[3];
-    if (!seenPaths.has(path)) {
-      seenPaths.add(path);
-      fxLinks.push(`https://fxtwitter.com/${path}`);
+  // --- Social link extraction (deduplicate by resolved URL) ---
+  const embedLinks: string[] = [];
+  const seenUrls = new Set<string>();
+  for (const { re, toEmbedUrl } of SOCIAL_LINK_PATTERNS) {
+    re.lastIndex = 0;
+    let match;
+    while ((match = re.exec(msgContent)) !== null) {
+      const embedUrl = toEmbedUrl(match);
+      if (!seenUrls.has(embedUrl)) {
+        seenUrls.add(embedUrl);
+        embedLinks.push(embedUrl);
+      }
     }
   }
 
-  return { embed, fxLinks, files };
+  return { embed, embedLinks, files };
 }
 
 export function registerReactionHandler(client: Client): void {
@@ -178,7 +196,7 @@ export function registerReactionHandler(client: Client): void {
       const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
 
       // Build the HoF post
-      const { embed, fxLinks, files } = await buildHofPost(message, guildId, channelId, messageId);
+      const { embed, embedLinks, files } = await buildHofPost(message, guildId, channelId, messageId);
 
       // Post to HoF channel
       const hofChannel = await message.guild!.channels.fetch(config.hof_channel_id);
@@ -194,9 +212,9 @@ export function registerReactionHandler(client: Client): void {
       markMessageInducted(guildId, messageId, channelId, hofMessage.id, config.hof_channel_id);
 
       // Send follow-up with fxtwitter links and/or video files (renders below the card)
-      if (fxLinks.length > 0 || files.length > 0) {
+      if (embedLinks.length > 0 || files.length > 0) {
         const followup = await tc.send({
-          content: fxLinks.length > 0 ? fxLinks.join('\n') : undefined,
+          content: embedLinks.length > 0 ? embedLinks.join('\n') : undefined,
           files,
         });
         updateHofFollowup(guildId, messageId, followup.id);

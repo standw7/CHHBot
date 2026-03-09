@@ -895,7 +895,7 @@ async function handlePrefixHof(message, args) {
                     continue;
                 }
                 // Rebuild the HOF post
-                const { embed, fxLinks, files } = await buildHofPost(origMessage, guildId, entry.original_channel_id, entry.original_message_id);
+                const { embed, embedLinks, files } = await buildHofPost(origMessage, guildId, entry.original_channel_id, entry.original_message_id);
                 // Get the HOF channel
                 const hofChannel = await message.guild.channels.fetch(entry.hof_channel_id);
                 if (!hofChannel || !hofChannel.isTextBased()) {
@@ -907,9 +907,9 @@ async function handlePrefixHof(message, args) {
                 const newHofMsg = await tc.send({ embeds: [embed] });
                 // Send follow-up with fxtwitter links and/or videos
                 let followupId = null;
-                if (fxLinks.length > 0 || files.length > 0) {
+                if (embedLinks.length > 0 || files.length > 0) {
                     const followup = await tc.send({
-                        content: fxLinks.length > 0 ? fxLinks.join('\n') : undefined,
+                        content: embedLinks.length > 0 ? embedLinks.join('\n') : undefined,
                         files,
                     });
                     followupId = followup.id;
