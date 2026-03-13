@@ -14,7 +14,7 @@ export interface GoalCardData {
 }
 
 const STRENGTH_LABELS: Record<string, string> = {
-  ev: 'Even Strength',
+  ev: '5v5',
   pp: 'Power Play',
   sh: 'Short Handed',
 };
@@ -24,25 +24,14 @@ const STRENGTH_LABELS: Record<string, string> = {
 function parseSkaterSituation(situationCode: string | undefined, isHomeScoringTeam: boolean): string | null {
   if (!situationCode || situationCode.length !== 4) return null;
 
-  const awayGoalie = situationCode[0] === '1';
   const awaySkaters = parseInt(situationCode[1], 10);
   const homeSkaters = parseInt(situationCode[2], 10);
-  const homeGoalie = situationCode[3] === '1';
 
-  // Check for pulled goalie situations (empty net)
-  const homeGoaliePulled = !homeGoalie;
-  const awayGoaliePulled = !awayGoalie;
-
-  if (homeGoaliePulled || awayGoaliePulled) {
-    // Format as skaters vs skaters using hockey convention (e.g., "6v5" or "5v6")
-    if (isHomeScoringTeam) {
-      return `${homeSkaters}v${awaySkaters}`;
-    } else {
-      return `${awaySkaters}v${homeSkaters}`;
-    }
+  if (isHomeScoringTeam) {
+    return `${homeSkaters}v${awaySkaters}`;
+  } else {
+    return `${awaySkaters}v${homeSkaters}`;
   }
-
-  return null; // Regular situation, use strength label
 }
 
 export function getTeamEmoji(abbrev: string, guild?: Guild): string {
@@ -80,11 +69,7 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
   // --- Title ---
   const isHomeScoringTeam = scoringTeamAbbrev === homeTeam.abbrev;
   const skaterSituation = parseSkaterSituation(landingGoal?.situationCode, isHomeScoringTeam);
-  // Use skater situation (e.g., "6v5") only for even-strength pulled-goalie goals.
-  // For PP/SH goals, always use the strength label so they aren't misreported as "1v6" etc.
-  const strengthLabel = (strength === 'ev' && skaterSituation)
-    ? skaterSituation
-    : (STRENGTH_LABELS[strength] ?? strength);
+  const strengthLabel = skaterSituation ?? (STRENGTH_LABELS[strength] ?? strength);
   const scoringEmoji = getTeamEmoji(scoringTeamAbbrev, guild);
   const goalEmoji = getGoalEmoji(scoringTeamAbbrev, primaryTeam, guild);
   const title = `${scoringEmoji} ${goalEmoji} ${scoringTeamName} ${strengthLabel} Goal ${goalEmoji} ${scoringEmoji}`;
