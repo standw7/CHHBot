@@ -85,10 +85,9 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
   const strengthLabel = (strength === 'ev' && skaterSituation)
     ? skaterSituation
     : (STRENGTH_LABELS[strength] ?? strength);
-  const numberStr = scorerNumber ? ` #${scorerNumber}` : '';
   const scoringEmoji = getTeamEmoji(scoringTeamAbbrev, guild);
   const goalEmoji = getGoalEmoji(scoringTeamAbbrev, primaryTeam, guild);
-  const title = `${scoringEmoji} ${goalEmoji} ${scoringTeamName}${numberStr} ${strengthLabel} Goal ${goalEmoji} ${scoringEmoji}`;
+  const title = `${scoringEmoji} ${goalEmoji} ${scoringTeamName} ${strengthLabel} Goal ${goalEmoji} ${scoringEmoji}`;
 
   // --- Description ---
   let description = '';

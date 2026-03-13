@@ -69,10 +69,9 @@ function buildGoalCard(data, spoilerMode) {
     const strengthLabel = (strength === 'ev' && skaterSituation)
         ? skaterSituation
         : (STRENGTH_LABELS[strength] ?? strength);
-    const numberStr = scorerNumber ? ` #${scorerNumber}` : '';
     const scoringEmoji = getTeamEmoji(scoringTeamAbbrev, guild);
     const goalEmoji = getGoalEmoji(scoringTeamAbbrev, primaryTeam, guild);
-    const title = `${scoringEmoji} ${goalEmoji} ${scoringTeamName}${numberStr} ${strengthLabel} Goal ${goalEmoji} ${scoringEmoji}`;
+    const title = `${scoringEmoji} ${goalEmoji} ${scoringTeamName} ${strengthLabel} Goal ${goalEmoji} ${scoringEmoji}`;
     // --- Description ---
     let description = '';
     // Scorer line: #10 Matty Beniers (13) wrist assists: #19 Jared McCann (12), #62 Brandon Montour (14)
