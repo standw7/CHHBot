@@ -11,7 +11,10 @@ const STRENGTH_LABELS = {
 };
 // Parse situationCode to get skater counts
 // Format: XYZW where X=away goalie (1=in,0=pulled), Y=away skaters, Z=home skaters, W=home goalie (1=in,0=pulled)
-function parseSkaterSituation(situationCode, isHomeScoringTeam) {
+function parseSkaterSituation(situationCode, isHomeScoringTeam, periodType) {
+    // Shootout goals use 1v0 situationCode - label them as "Shootout" instead
+    if (periodType === 'SO')
+        return 'Shootout';
     if (!situationCode || situationCode.length !== 4)
         return null;
     const awaySkaters = parseInt(situationCode[1], 10);
@@ -54,7 +57,7 @@ function buildGoalCard(data, spoilerMode) {
     const scoringTeamName = getTeamFullName(scoringTeamAbbrev, homeTeam, awayTeam);
     // --- Title ---
     const isHomeScoringTeam = scoringTeamAbbrev === homeTeam.abbrev;
-    const skaterSituation = parseSkaterSituation(landingGoal?.situationCode, isHomeScoringTeam);
+    const skaterSituation = parseSkaterSituation(landingGoal?.situationCode, isHomeScoringTeam, play.periodDescriptor?.periodType);
     const strengthLabel = skaterSituation ?? (STRENGTH_LABELS[strength] ?? strength);
     const scoringEmoji = getTeamEmoji(scoringTeamAbbrev, guild);
     const goalEmoji = getGoalEmoji(scoringTeamAbbrev, primaryTeam, guild);
