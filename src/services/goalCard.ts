@@ -20,29 +20,25 @@ const STRENGTH_LABELS: Record<string, string> = {
 };
 
 // Parse situationCode to get skater counts
-// Format: XYZW where X=away goalie (1=in,0=pulled), Y=away skaters, Z=home goalie, W=home skaters
+// Format: XYZW where X=away goalie (1=in,0=pulled), Y=away skaters, Z=home skaters, W=home goalie (1=in,0=pulled)
 function parseSkaterSituation(situationCode: string | undefined, isHomeScoringTeam: boolean): string | null {
   if (!situationCode || situationCode.length !== 4) return null;
 
   const awayGoalie = situationCode[0] === '1';
   const awaySkaters = parseInt(situationCode[1], 10);
-  const homeGoalie = situationCode[2] === '1';
-  const homeSkaters = parseInt(situationCode[3], 10);
-
-  // Calculate effective players (skaters + goalie if in net)
-  const homeTotal = homeSkaters + (homeGoalie ? 1 : 0);
-  const awayTotal = awaySkaters + (awayGoalie ? 1 : 0);
+  const homeSkaters = parseInt(situationCode[2], 10);
+  const homeGoalie = situationCode[3] === '1';
 
   // Check for pulled goalie situations (empty net)
   const homeGoaliePulled = !homeGoalie;
   const awayGoaliePulled = !awayGoalie;
 
   if (homeGoaliePulled || awayGoaliePulled) {
-    // Format as skaters vs skaters (e.g., "6v5" or "5v6")
+    // Format as skaters vs skaters using hockey convention (e.g., "6v5" or "5v6")
     if (isHomeScoringTeam) {
-      return `${homeTotal}v${awayTotal}`;
+      return `${homeSkaters}v${awaySkaters}`;
     } else {
-      return `${awayTotal}v${homeTotal}`;
+      return `${awaySkaters}v${homeSkaters}`;
     }
   }
 

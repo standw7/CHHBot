@@ -41,6 +41,7 @@ const simGoals = [
         goalsToDate: 22,
         shotType: 'wrist',
         strength: 'ev',
+        situationCode: '1551',
         assists: [
             { first: 'Barrett', last: 'Hayton', number: 29, assistsToDate: 18 },
             { first: 'Mikhail', last: 'Sergachev', number: 98, assistsToDate: 25 },
@@ -57,6 +58,7 @@ const simGoals = [
         goalsToDate: 15,
         shotType: 'snap',
         strength: 'pp',
+        situationCode: '1451',
         assists: [
             { first: 'Clayton', last: 'Keller', number: 9, assistsToDate: 35 },
         ],
@@ -72,9 +74,27 @@ const simGoals = [
         goalsToDate: 19,
         shotType: 'wrist',
         strength: 'ev',
+        situationCode: '1551',
         assists: [],
         period: 3, periodType: 'REG', timeInPeriod: '14:22', timeRemaining: '05:38',
         isHome: true, homeScore: 3, awayScore: 1, homeSog: 28, awaySog: 22,
+    },
+    {
+        // Empty net goal - away team pulls goalie, home team scores
+        eventId: 1004,
+        scorerName: 'Barrett Hayton',
+        scorerFirst: 'Barrett',
+        scorerLast: 'Hayton',
+        scorerNumber: 29,
+        goalsToDate: 12,
+        shotType: 'wrist',
+        strength: 'ev',
+        situationCode: '0651', // away goalie pulled, 6 away skaters, 5 home skaters, home goalie in
+        assists: [
+            { first: 'Mikhail', last: 'Sergachev', number: 98, assistsToDate: 26 },
+        ],
+        period: 3, periodType: 'REG', timeInPeriod: '19:05', timeRemaining: '00:55',
+        isHome: true, homeScore: 4, awayScore: 1, homeSog: 32, awaySog: 25,
     },
 ];
 function buildLandingGoal(goal) {
@@ -89,6 +109,7 @@ function buildLandingGoal(goal) {
     return {
         eventId: goal.eventId,
         strength: goal.strength,
+        situationCode: goal.situationCode,
         playerId: Math.floor(Math.random() * 9000000) + 1000000,
         firstName: { default: goal.scorerFirst },
         lastName: { default: goal.scorerLast },
@@ -219,8 +240,8 @@ async function runSimulation(client, guildId) {
         const fakeBoxscore = {
             id: FAKE_GAME_ID,
             gameState: 'FINAL',
-            homeTeam: { id: 59, abbrev: 'UTA', logo: fakeHomeTeam.logo, score: 3, sog: 32 },
-            awayTeam: { id: 53, abbrev: 'ARI', logo: fakeAwayTeam.logo, score: 1, sog: 24 },
+            homeTeam: { id: 59, abbrev: 'UTA', logo: fakeHomeTeam.logo, score: 4, sog: 34 },
+            awayTeam: { id: 53, abbrev: 'ARI', logo: fakeAwayTeam.logo, score: 1, sog: 25 },
             summary: {
                 threeStars: [
                     { star: 1, id: 1, firstName: { default: 'Clayton' }, lastName: { default: 'Keller' }, sweaterNumber: 9, teamAbbrev: 'UTA' },
