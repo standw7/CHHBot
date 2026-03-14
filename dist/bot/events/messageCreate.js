@@ -1157,7 +1157,10 @@ async function handlePrefixRemind(message, args) {
     }
     (0, queries_js_1.createReminder)(guildId, message.channel.id, message.author.id, reminderMsg, parsed.date.toUTC().toISO(), dm);
     const localTime = parsed.date.toFormat('h:mm a ZZZZ');
-    await message.reply(`Got it! I'll remind you ${parsed.relative} (at ${localTime}).${dm ? ' (via DM)' : ''}`);
+    await message.reply({
+        content: `Got it! I'll remind you ${parsed.relative} (at ${localTime}).${dm ? ' (via DM)' : ''}`,
+        allowedMentions: { parse: [] },
+    });
 }
 async function handlePrefixReminders(message) {
     const guildId = message.guild.id;

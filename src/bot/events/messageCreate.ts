@@ -1350,7 +1350,10 @@ async function handlePrefixRemind(message: Message, args: string[]): Promise<voi
   );
 
   const localTime = parsed.date.toFormat('h:mm a ZZZZ');
-  await message.reply(`Got it! I'll remind you ${parsed.relative} (at ${localTime}).${dm ? ' (via DM)' : ''}`);
+  await message.reply({
+    content: `Got it! I'll remind you ${parsed.relative} (at ${localTime}).${dm ? ' (via DM)' : ''}`,
+    allowedMentions: { parse: [] },
+  });
 }
 
 async function handlePrefixReminders(message: Message): Promise<void> {
