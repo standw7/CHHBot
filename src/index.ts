@@ -6,6 +6,7 @@ import { registerReactionHandler } from './bot/events/reactionAdd.js';
 import { startTracker, stopAllTrackers } from './services/gameTracker.js';
 import { registerLinkFixer } from './bot/events/linkFixer.js';
 import { startFeedWatcher, stopFeedWatcher } from './services/feedWatcher.js';
+import { startReminderService, stopReminderService } from './services/reminderService.js';
 import { getGuildConfig, upsertGuildConfig } from './db/queries.js';
 import pino from 'pino';
 
@@ -43,6 +44,9 @@ async function main(): Promise<void> {
     // Start feed watcher
     startFeedWatcher(client);
 
+    // Start reminder service
+    startReminderService(client);
+
     // Ensure config exists for all guilds the bot is in, then start trackers
     for (const [guildId] of client.guilds.cache) {
       let guildConfig = getGuildConfig(guildId);
@@ -74,6 +78,7 @@ async function main(): Promise<void> {
     logger.info('Shutting down...');
     stopAllTrackers();
     stopFeedWatcher();
+    stopReminderService();
     client.destroy();
     closeDb();
     logger.info('Goodbye!');

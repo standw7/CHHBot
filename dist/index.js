@@ -11,6 +11,7 @@ const reactionAdd_js_1 = require("./bot/events/reactionAdd.js");
 const gameTracker_js_1 = require("./services/gameTracker.js");
 const linkFixer_js_1 = require("./bot/events/linkFixer.js");
 const feedWatcher_js_1 = require("./services/feedWatcher.js");
+const reminderService_js_1 = require("./services/reminderService.js");
 const queries_js_1 = require("./db/queries.js");
 const pino_1 = __importDefault(require("pino"));
 const logger = (0, pino_1.default)({
@@ -38,6 +39,8 @@ async function main() {
         logger.info({ user: client.user?.tag }, 'Tusky is online!');
         // Start feed watcher
         (0, feedWatcher_js_1.startFeedWatcher)(client);
+        // Start reminder service
+        (0, reminderService_js_1.startReminderService)(client);
         // Ensure config exists for all guilds the bot is in, then start trackers
         for (const [guildId] of client.guilds.cache) {
             let guildConfig = (0, queries_js_1.getGuildConfig)(guildId);
@@ -68,6 +71,7 @@ async function main() {
         logger.info('Shutting down...');
         (0, gameTracker_js_1.stopAllTrackers)();
         (0, feedWatcher_js_1.stopFeedWatcher)();
+        (0, reminderService_js_1.stopReminderService)();
         client.destroy();
         (0, database_js_1.closeDb)();
         logger.info('Goodbye!');

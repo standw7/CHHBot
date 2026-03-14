@@ -68,6 +68,12 @@ function registerMessageHandler(client) {
                 case 'hof':
                     await handlePrefixHof(message, args.slice(1));
                     break;
+                case 'remind':
+                    await handlePrefixRemind(message, args.slice(1));
+                    break;
+                case 'reminders':
+                    await handlePrefixReminders(message);
+                    break;
                 default:
                     // Check if it's a registered gif key
                     await handlePrefixGif(message, command);
@@ -99,7 +105,7 @@ function buildHelpPages(gifKeysText) {
     pages.push(new discord_js_1.EmbedBuilder()
         .setTitle('Tusky Commands — Game Info & Stats')
         .setColor(0x006847)
-        .addFields({ name: 'Game Info', value: '`!next` - Next game\n`!watch` - Where to watch\n`!replay` - Latest goal replay\n`!schedule [n]` - Upcoming games (default 7, max 15)', inline: false }, { name: 'Stats', value: '`!stats [category]` - Team stat leaders (top 5)\n`!stats [category] on [date]` - Game-specific leaders\n`!stats help` - List all stat categories', inline: false }, { name: 'Player Lookup', value: '`!player <name>` - Player stats, bio, and last 5 games', inline: false }, { name: 'Standings', value: '`!standings` - Your conference playoff picture\n`!standings league` - Top 16 NHL teams\n`!standings west` / `!standings east` - By conference', inline: false }, { name: 'Notifications', value: '`!gameday` - Toggle gameday ping role', inline: false })
+        .addFields({ name: 'Game Info', value: '`!next` - Next game\n`!watch` - Where to watch\n`!replay` - Latest goal replay\n`!schedule [n]` - Upcoming games (default 7, max 15)', inline: false }, { name: 'Stats', value: '`!stats [category]` - Team stat leaders (top 5)\n`!stats [category] on [date]` - Game-specific leaders\n`!stats help` - List all stat categories', inline: false }, { name: 'Player Lookup', value: '`!player <name>` - Player stats, bio, and last 5 games', inline: false }, { name: 'Standings', value: '`!standings` - Your conference playoff picture\n`!standings league` - Top 16 NHL teams\n`!standings west` / `!standings east` - By conference', inline: false }, { name: 'Notifications', value: '`!gameday` - Toggle gameday ping role', inline: false }, { name: 'Reminders', value: '`!remind <time> <message>` — Set a reminder\n`!remind <time> <message> --dm` — Remind via DM\n`!reminders` — List your reminders\n`!remind cancel <id>` — Cancel a reminder', inline: false })
         .setFooter({ text: 'Page 1/3 — Use buttons to navigate' }));
     // Page 2: Media & Fun
     pages.push(new discord_js_1.EmbedBuilder()
@@ -1063,5 +1069,112 @@ async function handlePrefixGifAdmin(message, args) {
         const removed = removeGifUrl(guildId, key, url);
         await message.reply(removed ? `Removed from **${key}**.` : `URL not found for **${key}**.`);
     }
+}
+async function handlePrefixRemind(message, args) {
+    const { createReminder, cancelReminder, countUserReminders } = await import('../../db/queries.js');
+    const { parseTime } = await import('../../services/parseTime.js');
+    const guildId = message.guild.id;
+    const config = (0, queries_js_1.getGuildConfig)(guildId);
+    const timezone = config?.timezone ?? 'America/Denver';
+    // !remind cancel <id>
+    if (args[0]?.toLowerCase() === 'cancel') {
+        const id = parseInt(args[1], 10);
+        if (isNaN(id)) {
+            await message.reply('Usage: `!remind cancel <id>` — use `!reminders` to see your reminder IDs.');
+            return;
+        }
+        const deleted = cancelReminder(id, message.author.id);
+        if (deleted) {
+            await message.reply(`Reminder #${id} cancelled.`);
+        }
+        else {
+            await message.reply(`Couldn't find reminder #${id} (or it's not yours).`);
+        }
+        return;
+    }
+    // !remind help
+    if (args.length === 0 || args[0]?.toLowerCase() === 'help') {
+        const embed = new discord_js_1.EmbedBuilder()
+            .setTitle('Remind Me')
+            .setDescription([
+            '**Set a reminder:**',
+            '`!remind <time> <message>`',
+            '`!remind <time> <message> --dm`',
+            '',
+            '**Time formats:**',
+            '`30s`, `5m`, `2h`, `1d`, `1h30m`',
+            '`tomorrow`, `tomorrow 3pm`',
+            '`3/18 8pm`, `Mar 18 8pm`',
+            '',
+            '**Manage:**',
+            '`!reminders` — list your reminders',
+            '`!remind cancel <id>` — cancel one',
+            '',
+            '**Examples:**',
+            '`!remind 2h check the game`',
+            '`!remind tomorrow 7pm game starts --dm`',
+            '`!remind 3/18 8pm UTA vs EDM`',
+        ].join('\n'))
+            .setColor(0x006847);
+        await message.reply({ embeds: [embed] });
+        return;
+    }
+    // Parse: find where time ends and message begins
+    const dm = args[args.length - 1] === '--dm';
+    const msgArgs = dm ? args.slice(0, -1) : args;
+    let parsed = null;
+    let timeWordCount = 0;
+    for (let i = 1; i <= Math.min(3, msgArgs.length); i++) {
+        const timeStr = msgArgs.slice(0, i).join(' ');
+        const attempt = parseTime(timeStr, timezone);
+        if (attempt) {
+            parsed = attempt;
+            timeWordCount = i;
+        }
+    }
+    if (!parsed) {
+        await message.reply('I couldn\'t understand that time. Try `!remind help` for formats.');
+        return;
+    }
+    const reminderMsg = msgArgs.slice(timeWordCount).join(' ');
+    if (!reminderMsg) {
+        await message.reply('What should I remind you about? `!remind <time> <message>`');
+        return;
+    }
+    if (parsed.date.toMillis() <= Date.now()) {
+        await message.reply('That time is in the past! Try a future time.');
+        return;
+    }
+    const count = countUserReminders(guildId, message.author.id);
+    if (count >= 25) {
+        await message.reply('You have 25 active reminders (max). Cancel some with `!remind cancel <id>` first.');
+        return;
+    }
+    const id = createReminder(guildId, message.channel.id, message.author.id, reminderMsg, parsed.date.toUTC().toISO(), dm);
+    const localTime = parsed.date.toFormat('h:mm a ZZZZ');
+    await message.reply(`Got it! I'll remind you ${parsed.relative} (at ${localTime}).${dm ? ' (via DM)' : ''} [#${id}]`);
+}
+async function handlePrefixReminders(message) {
+    const { getUserReminders } = await import('../../db/queries.js');
+    const { DateTime } = await import('luxon');
+    const guildId = message.guild.id;
+    const config = (0, queries_js_1.getGuildConfig)(guildId);
+    const timezone = config?.timezone ?? 'America/Denver';
+    const reminders = getUserReminders(guildId, message.author.id);
+    if (reminders.length === 0) {
+        await message.reply('You have no active reminders.');
+        return;
+    }
+    const lines = reminders.map(r => {
+        const fireAt = DateTime.fromISO(r.fire_at, { zone: 'utc' }).setZone(timezone);
+        const dmTag = r.dm ? ' (DM)' : '';
+        return `**#${r.id}** — ${fireAt.toFormat('MMM d, h:mm a')}${dmTag}\n${r.message}`;
+    });
+    const embed = new discord_js_1.EmbedBuilder()
+        .setTitle(`Your Reminders (${reminders.length})`)
+        .setDescription(lines.join('\n\n'))
+        .setColor(0x006847)
+        .setFooter({ text: 'Cancel with: !remind cancel <id>' });
+    await message.reply({ embeds: [embed] });
 }
 //# sourceMappingURL=messageCreate.js.map
