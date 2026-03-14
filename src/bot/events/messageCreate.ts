@@ -1336,11 +1336,11 @@ async function handlePrefixRemind(message: Message, args: string[]): Promise<voi
 
   const count = countUserReminders(guildId, message.author.id);
   if (count >= 25) {
-    await message.reply('You have 25 active reminders (max). Cancel some with `!remind cancel <id>` first.');
+    await message.reply('You\'ve hit the max number of reminders (25). Use `!reminders` to see your active reminders and `!remind cancel <id>` to cancel ones you no longer need.');
     return;
   }
 
-  const id = createReminder(
+  createReminder(
     guildId,
     message.channel.id,
     message.author.id,
@@ -1350,7 +1350,7 @@ async function handlePrefixRemind(message: Message, args: string[]): Promise<voi
   );
 
   const localTime = parsed.date.toFormat('h:mm a ZZZZ');
-  await message.reply(`Got it! I'll remind you ${parsed.relative} (at ${localTime}).${dm ? ' (via DM)' : ''} [#${id}]`);
+  await message.reply(`Got it! I'll remind you ${parsed.relative} (at ${localTime}).${dm ? ' (via DM)' : ''}`);
 }
 
 async function handlePrefixReminders(message: Message): Promise<void> {

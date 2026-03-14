@@ -1152,12 +1152,12 @@ async function handlePrefixRemind(message, args) {
     }
     const count = (0, queries_js_1.countUserReminders)(guildId, message.author.id);
     if (count >= 25) {
-        await message.reply('You have 25 active reminders (max). Cancel some with `!remind cancel <id>` first.');
+        await message.reply('You\'ve hit the max number of reminders (25). Use `!reminders` to see your active reminders and `!remind cancel <id>` to cancel ones you no longer need.');
         return;
     }
-    const id = (0, queries_js_1.createReminder)(guildId, message.channel.id, message.author.id, reminderMsg, parsed.date.toUTC().toISO(), dm);
+    (0, queries_js_1.createReminder)(guildId, message.channel.id, message.author.id, reminderMsg, parsed.date.toUTC().toISO(), dm);
     const localTime = parsed.date.toFormat('h:mm a ZZZZ');
-    await message.reply(`Got it! I'll remind you ${parsed.relative} (at ${localTime}).${dm ? ' (via DM)' : ''} [#${id}]`);
+    await message.reply(`Got it! I'll remind you ${parsed.relative} (at ${localTime}).${dm ? ' (via DM)' : ''}`);
 }
 async function handlePrefixReminders(message) {
     const guildId = message.guild.id;
