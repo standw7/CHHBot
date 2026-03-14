@@ -1141,9 +1141,26 @@ async function handlePrefixRemind(message, args) {
         await message.reply('I couldn\'t understand that time. Try `!remind help` for formats.');
         return;
     }
-    const reminderMsg = msgArgs.slice(timeWordCount).join(' ');
+    let reminderMsg = msgArgs.slice(timeWordCount).join(' ');
+    // If replying to a message, include quoted content and link
+    if (message.reference?.messageId) {
+        try {
+            const refMsg = await message.channel.messages.fetch(message.reference.messageId);
+            const messageLink = `https://discord.com/channels/${guildId}/${message.channel.id}/${refMsg.id}`;
+            const quoted = refMsg.content ? `> ${refMsg.content.split('\n').join('\n> ')}` : '';
+            if (reminderMsg) {
+                reminderMsg = `${reminderMsg}\n\n${quoted}\n${messageLink}`;
+            }
+            else {
+                reminderMsg = `${quoted}\n${messageLink}`;
+            }
+        }
+        catch {
+            // Referenced message may have been deleted
+        }
+    }
     if (!reminderMsg) {
-        await message.reply('What should I remind you about? `!remind <time> <message>`');
+        await message.reply('What should I remind you about? `!remind <time> <message>` or reply to a message.');
         return;
     }
     if (parsed.date.toMillis() <= Date.now()) {
