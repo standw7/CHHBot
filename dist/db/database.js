@@ -104,6 +104,19 @@ function runMigrations(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_posted_feed_items_lookup ON posted_feed_items(guild_id, feed_id, item_id);
     CREATE INDEX IF NOT EXISTS idx_posted_feed_items_age ON posted_feed_items(posted_at);
+
+    CREATE TABLE IF NOT EXISTS reminders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      message TEXT NOT NULL,
+      fire_at TEXT NOT NULL,
+      dm INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_reminders_fire_at ON reminders(fire_at);
+    CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders(guild_id, user_id);
   `);
     // Migrations for existing databases
     const columns = db.prepare("PRAGMA table_info(guild_config)").all();

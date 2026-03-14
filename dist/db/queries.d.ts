@@ -1,4 +1,4 @@
-import type { GuildConfig, GifCommand, HofMessage, FeedSource } from './models.js';
+import type { GuildConfig, GifCommand, HofMessage, FeedSource, Reminder } from './models.js';
 export declare function getGuildConfig(guildId: string): GuildConfig | undefined;
 export declare function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildConfig, 'guild_id'>>): void;
 export declare function getGifUrls(guildId: string, key: string): string[];
@@ -30,4 +30,10 @@ export declare function resetGameStart(guildId: string, gameId: number): void;
 export declare function hasFeedItemBeenPosted(guildId: string, feedId: number, itemId: string): boolean;
 export declare function markFeedItemPosted(guildId: string, feedId: number, itemId: string): void;
 export declare function cleanupOldFeedItems(daysOld?: number): number;
+export declare function createReminder(guildId: string, channelId: string, userId: string, message: string, fireAt: string, dm: boolean): number;
+export declare function getDueReminders(): Reminder[];
+export declare function getUserReminders(guildId: string, userId: string): Reminder[];
+export declare function cancelReminder(id: number, userId: string): boolean;
+export declare function deleteReminder(id: number): void;
+export declare function countUserReminders(guildId: string, userId: string): number;
 //# sourceMappingURL=queries.d.ts.map

@@ -1,5 +1,5 @@
 import { getDb } from './database.js';
-import type { GuildConfig, GifCommand, PostedGoal, HofMessage, FeedSource } from './models.js';
+import type { GuildConfig, GifCommand, PostedGoal, HofMessage, FeedSource, Reminder } from './models.js';
 
 // --- Guild Config ---
 
@@ -211,4 +211,44 @@ export function cleanupOldFeedItems(daysOld: number = 30): number {
   const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000).toISOString();
   const result = getDb().prepare('DELETE FROM posted_feed_items WHERE posted_at < ?').run(cutoff);
   return result.changes;
+}
+
+// --- Reminders ---
+
+export function createReminder(guildId: string, channelId: string, userId: string, message: string, fireAt: string, dm: boolean): number {
+  const result = getDb().prepare(`
+    INSERT INTO reminders (guild_id, channel_id, user_id, message, fire_at, dm, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(guildId, channelId, userId, message, fireAt, dm ? 1 : 0, new Date().toISOString());
+  return result.lastInsertRowid as number;
+}
+
+export function getDueReminders(): Reminder[] {
+  return getDb().prepare(
+    'SELECT * FROM reminders WHERE fire_at <= ?'
+  ).all(new Date().toISOString()) as Reminder[];
+}
+
+export function getUserReminders(guildId: string, userId: string): Reminder[] {
+  return getDb().prepare(
+    'SELECT * FROM reminders WHERE guild_id = ? AND user_id = ? ORDER BY fire_at ASC'
+  ).all(guildId, userId) as Reminder[];
+}
+
+export function cancelReminder(id: number, userId: string): boolean {
+  const result = getDb().prepare(
+    'DELETE FROM reminders WHERE id = ? AND user_id = ?'
+  ).run(id, userId);
+  return result.changes > 0;
+}
+
+export function deleteReminder(id: number): void {
+  getDb().prepare('DELETE FROM reminders WHERE id = ?').run(id);
+}
+
+export function countUserReminders(guildId: string, userId: string): number {
+  const row = getDb().prepare(
+    'SELECT COUNT(*) as count FROM reminders WHERE guild_id = ? AND user_id = ?'
+  ).get(guildId, userId) as { count: number };
+  return row.count;
 }

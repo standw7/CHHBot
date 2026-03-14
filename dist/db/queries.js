@@ -31,6 +31,12 @@ exports.resetGameStart = resetGameStart;
 exports.hasFeedItemBeenPosted = hasFeedItemBeenPosted;
 exports.markFeedItemPosted = markFeedItemPosted;
 exports.cleanupOldFeedItems = cleanupOldFeedItems;
+exports.createReminder = createReminder;
+exports.getDueReminders = getDueReminders;
+exports.getUserReminders = getUserReminders;
+exports.cancelReminder = cancelReminder;
+exports.deleteReminder = deleteReminder;
+exports.countUserReminders = countUserReminders;
 const database_js_1 = require("./database.js");
 // --- Guild Config ---
 function getGuildConfig(guildId) {
@@ -186,5 +192,30 @@ function cleanupOldFeedItems(daysOld = 30) {
     const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000).toISOString();
     const result = (0, database_js_1.getDb)().prepare('DELETE FROM posted_feed_items WHERE posted_at < ?').run(cutoff);
     return result.changes;
+}
+// --- Reminders ---
+function createReminder(guildId, channelId, userId, message, fireAt, dm) {
+    const result = (0, database_js_1.getDb)().prepare(`
+    INSERT INTO reminders (guild_id, channel_id, user_id, message, fire_at, dm, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(guildId, channelId, userId, message, fireAt, dm ? 1 : 0, new Date().toISOString());
+    return result.lastInsertRowid;
+}
+function getDueReminders() {
+    return (0, database_js_1.getDb)().prepare('SELECT * FROM reminders WHERE fire_at <= ?').all(new Date().toISOString());
+}
+function getUserReminders(guildId, userId) {
+    return (0, database_js_1.getDb)().prepare('SELECT * FROM reminders WHERE guild_id = ? AND user_id = ? ORDER BY fire_at ASC').all(guildId, userId);
+}
+function cancelReminder(id, userId) {
+    const result = (0, database_js_1.getDb)().prepare('DELETE FROM reminders WHERE id = ? AND user_id = ?').run(id, userId);
+    return result.changes > 0;
+}
+function deleteReminder(id) {
+    (0, database_js_1.getDb)().prepare('DELETE FROM reminders WHERE id = ?').run(id);
+}
+function countUserReminders(guildId, userId) {
+    const row = (0, database_js_1.getDb)().prepare('SELECT COUNT(*) as count FROM reminders WHERE guild_id = ? AND user_id = ?').get(guildId, userId);
+    return row.count;
 }
 //# sourceMappingURL=queries.js.map

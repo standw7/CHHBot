@@ -52,4 +52,14 @@ export interface HofMessage {
     hof_followup_id: string | null;
     inducted_at: string;
 }
+export interface Reminder {
+    id: number;
+    guild_id: string;
+    channel_id: string;
+    user_id: string;
+    message: string;
+    fire_at: string;
+    dm: number;
+    created_at: string;
+}
 //# sourceMappingURL=models.d.ts.map
