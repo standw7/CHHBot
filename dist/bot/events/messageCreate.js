@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerMessageHandler = registerMessageHandler;
 const discord_js_1 = require("discord.js");
 const queries_js_1 = require("../../db/queries.js");
+const parseTime_js_1 = require("../../services/parseTime.js");
+const luxon_1 = require("luxon");
 const pino_1 = __importDefault(require("pino"));
 const logger = (0, pino_1.default)({ name: 'prefix-commands' });
 // Cooldown tracking for prefix gif commands
@@ -1071,8 +1073,6 @@ async function handlePrefixGifAdmin(message, args) {
     }
 }
 async function handlePrefixRemind(message, args) {
-    const { createReminder, cancelReminder, countUserReminders } = await import('../../db/queries.js');
-    const { parseTime } = await import('../../services/parseTime.js');
     const guildId = message.guild.id;
     const config = (0, queries_js_1.getGuildConfig)(guildId);
     const timezone = config?.timezone ?? 'America/Denver';
@@ -1083,7 +1083,7 @@ async function handlePrefixRemind(message, args) {
             await message.reply('Usage: `!remind cancel <id>` — use `!reminders` to see your reminder IDs.');
             return;
         }
-        const deleted = cancelReminder(id, message.author.id);
+        const deleted = (0, queries_js_1.cancelReminder)(id, message.author.id);
         if (deleted) {
             await message.reply(`Reminder #${id} cancelled.`);
         }
@@ -1126,7 +1126,7 @@ async function handlePrefixRemind(message, args) {
     let timeWordCount = 0;
     for (let i = 1; i <= Math.min(3, msgArgs.length); i++) {
         const timeStr = msgArgs.slice(0, i).join(' ');
-        const attempt = parseTime(timeStr, timezone);
+        const attempt = (0, parseTime_js_1.parseTime)(timeStr, timezone);
         if (attempt) {
             parsed = attempt;
             timeWordCount = i;
@@ -1145,28 +1145,26 @@ async function handlePrefixRemind(message, args) {
         await message.reply('That time is in the past! Try a future time.');
         return;
     }
-    const count = countUserReminders(guildId, message.author.id);
+    const count = (0, queries_js_1.countUserReminders)(guildId, message.author.id);
     if (count >= 25) {
         await message.reply('You have 25 active reminders (max). Cancel some with `!remind cancel <id>` first.');
         return;
     }
-    const id = createReminder(guildId, message.channel.id, message.author.id, reminderMsg, parsed.date.toUTC().toISO(), dm);
+    const id = (0, queries_js_1.createReminder)(guildId, message.channel.id, message.author.id, reminderMsg, parsed.date.toUTC().toISO(), dm);
     const localTime = parsed.date.toFormat('h:mm a ZZZZ');
     await message.reply(`Got it! I'll remind you ${parsed.relative} (at ${localTime}).${dm ? ' (via DM)' : ''} [#${id}]`);
 }
 async function handlePrefixReminders(message) {
-    const { getUserReminders } = await import('../../db/queries.js');
-    const { DateTime } = await import('luxon');
     const guildId = message.guild.id;
     const config = (0, queries_js_1.getGuildConfig)(guildId);
     const timezone = config?.timezone ?? 'America/Denver';
-    const reminders = getUserReminders(guildId, message.author.id);
+    const reminders = (0, queries_js_1.getUserReminders)(guildId, message.author.id);
     if (reminders.length === 0) {
         await message.reply('You have no active reminders.');
         return;
     }
     const lines = reminders.map(r => {
-        const fireAt = DateTime.fromISO(r.fire_at, { zone: 'utc' }).setZone(timezone);
+        const fireAt = luxon_1.DateTime.fromISO(r.fire_at, { zone: 'utc' }).setZone(timezone);
         const dmTag = r.dm ? ' (DM)' : '';
         return `**#${r.id}** — ${fireAt.toFormat('MMM d, h:mm a')}${dmTag}\n${r.message}`;
     });

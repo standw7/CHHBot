@@ -1,6 +1,8 @@
 import { Message, TextChannel, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from 'discord.js';
 import type { Client } from 'discord.js';
-import { getGuildConfig, getGifUrls } from '../../db/queries.js';
+import { getGuildConfig, getGifUrls, createReminder, cancelReminder, countUserReminders, getUserReminders } from '../../db/queries.js';
+import { parseTime } from '../../services/parseTime.js';
+import { DateTime } from 'luxon';
 import * as nextCmd from '../commands/next.js';
 import * as watchCmd from '../commands/watch.js';
 import * as replayCmd from '../commands/replay.js';
@@ -1252,9 +1254,6 @@ async function handlePrefixGifAdmin(message: Message, args: string[]): Promise<v
 }
 
 async function handlePrefixRemind(message: Message, args: string[]): Promise<void> {
-  const { createReminder, cancelReminder, countUserReminders } = await import('../../db/queries.js');
-  const { parseTime } = await import('../../services/parseTime.js');
-
   const guildId = message.guild!.id;
   const config = getGuildConfig(guildId);
   const timezone = config?.timezone ?? 'America/Denver';
@@ -1354,9 +1353,6 @@ async function handlePrefixRemind(message: Message, args: string[]): Promise<voi
 }
 
 async function handlePrefixReminders(message: Message): Promise<void> {
-  const { getUserReminders } = await import('../../db/queries.js');
-  const { DateTime } = await import('luxon');
-
   const guildId = message.guild!.id;
   const config = getGuildConfig(guildId);
   const timezone = config?.timezone ?? 'America/Denver';
