@@ -83,6 +83,7 @@ export function registerMessageHandler(client: Client): void {
       }
     } catch (error) {
       logger.error({ error, command }, 'Prefix command error');
+      try { await message.reply(`Something went wrong with \`!${command}\`. Check bot logs.`); } catch {};
     }
   });
 }
