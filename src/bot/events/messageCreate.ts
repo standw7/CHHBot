@@ -1330,11 +1330,13 @@ async function handlePrefixRemind(message: Message, args: string[]): Promise<voi
     try {
       const refMsg = await message.channel.messages.fetch(message.reference.messageId);
       const messageLink = `https://discord.com/channels/${guildId}/${message.channel.id}/${refMsg.id}`;
+      const author = refMsg.author?.displayName ?? refMsg.author?.username ?? 'Unknown';
       const quoted = refMsg.content ? `> ${refMsg.content.split('\n').join('\n> ')}` : '';
+      const attribution = `— ${author}`;
       if (reminderMsg) {
-        reminderMsg = `${reminderMsg}\n\n${quoted}\n${messageLink}`;
+        reminderMsg = quoted ? `${reminderMsg}\n\n${quoted}\n${attribution}\n${messageLink}` : `${reminderMsg}\n${messageLink}`;
       } else {
-        reminderMsg = `${quoted}\n${messageLink}`;
+        reminderMsg = quoted ? `${quoted}\n${attribution}\n${messageLink}` : `${attribution}\n${messageLink}`;
       }
     } catch {
       // Referenced message may have been deleted
