@@ -45,15 +45,23 @@ export async function buildHofPost(
   messageId: string
 ): Promise<HofPostData> {
   const author = message.author;
-  const msgContent = message.content || '';
+
+  // For forwarded messages, content and attachments live in messageSnapshots
+  const snapshot = message.messageSnapshots?.first();
+  const rawContent = message.content || snapshot?.content || '';
+  const msgContent = rawContent;
   const truncatedContent = msgContent.length > 1500
     ? msgContent.slice(0, 1500) + '... (truncated)'
     : msgContent;
 
   const messageUrl = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
 
+  // Merge attachments from message and snapshot (forwarded messages store them in snapshot)
+  const msgAttachments = Array.from(message.attachments.values());
+  const snapshotAttachments = snapshot ? Array.from(snapshot.attachments.values()) : [];
+  const attachments = msgAttachments.length > 0 ? msgAttachments : snapshotAttachments;
+
   // Build a description — if there's no text, describe what's attached
-  const attachments = Array.from(message.attachments.values());
   let description = truncatedContent;
   if (!description) {
     const hasVideo = attachments.some(a => a.contentType?.startsWith('video/'));
@@ -106,9 +114,16 @@ export async function buildHofPost(
     !a.contentType?.startsWith('image/') && !a.contentType?.startsWith('video/')
   );
 
-  // Embed first image
+  // Embed first image (check attachments first, then snapshot embeds for image URLs)
   if (imageAttachment) {
     embed.setImage(imageAttachment.url);
+  } else if (snapshot) {
+    // Forwarded messages may have images in their embeds rather than attachments
+    const snapshotImageUrl = snapshot.embeds?.find(e => e.image?.url)?.image?.url
+      ?? snapshot.embeds?.find(e => e.thumbnail?.url)?.thumbnail?.url;
+    if (snapshotImageUrl) {
+      embed.setImage(snapshotImageUrl);
+    }
   }
 
   // List all remaining image attachments (after the first) as links
