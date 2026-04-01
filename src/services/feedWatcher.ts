@@ -158,6 +158,57 @@ export function startFeedWatcher(client: Client): void {
   }, CLEANUP_INTERVAL);
 }
 
+/** Force-poll all feeds for a specific guild. Returns a summary of what happened. */
+export async function forceCheckFeeds(
+  client: Client,
+  guildId: string,
+  targetLabel?: string,
+): Promise<string[]> {
+  const config = getGuildConfig(guildId);
+  if (!config?.news_channel_id) return ['No news channel configured.'];
+
+  const feeds = getFeedSources(guildId);
+  if (feeds.length === 0) return ['No feeds registered.'];
+
+  const results: string[] = [];
+
+  for (const feed of feeds) {
+    if (targetLabel && feed.label !== targetLabel) continue;
+
+    try {
+      let rssFeed;
+      try {
+        rssFeed = await parser.parseURL(feed.url);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        results.push(`❌ **${feed.label}** — RSS parse failed: ${msg.slice(0, 100)}`);
+        continue;
+      }
+
+      const itemCount = rssFeed.items?.length || 0;
+      if (itemCount === 0) {
+        results.push(`⚠️ **${feed.label}** — Feed returned 0 items`);
+        continue;
+      }
+
+      // Run the normal poll logic
+      await pollFeed(client, guildId, config.news_channel_id, feed.id, feed.url, feed.label, feed.last_item_id);
+      const latest = rssFeed.items![0];
+      const latestTitle = latest?.title?.slice(0, 60) || latest?.link || 'No title';
+      results.push(`✅ **${feed.label}** — ${itemCount} items, latest: "${latestTitle}"`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      results.push(`❌ **${feed.label}** — Error: ${msg.slice(0, 100)}`);
+    }
+  }
+
+  if (targetLabel && results.length === 0) {
+    results.push(`Feed "${targetLabel}" not found.`);
+  }
+
+  return results;
+}
+
 export function stopFeedWatcher(): void {
   if (pollTimer) {
     clearInterval(pollTimer);

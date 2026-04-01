@@ -124,7 +124,7 @@ function buildHelpPages(gifKeysText) {
     pages.push(new discord_js_1.EmbedBuilder()
         .setTitle('Tusky Commands — Admin')
         .setColor(0x006847)
-        .addFields({ name: 'Gif Management', value: '`!gif add key:<k> url:<u>` - Add gif to a key\n`!gif remove key:<k> url:<u>` - Remove gif\n`!gif list key:<k>` - List URLs for a key\n`!gif keys` - List all registered keys', inline: false }, { name: 'News Feeds', value: '`!feed add <url> [label]` - Add RSS or Twitter feed\n`!feed remove <label>` - Remove a feed\n`!feed list` - List all feeds\n`!feed status` - Check feed health\n`!feed reset <label>` - Reset feed tracking', inline: false }, { name: 'Hall of Fame', value: '`!hof` - Show HOF settings\n`!hof threshold <n>` - Set reaction threshold (1-100)\n`!hof update` - Rebuild all existing HOF posts', inline: false }, { name: 'Config', value: '`/config show` - View all settings\n`/config set setting:<name> value:<value>` - Change a setting', inline: false }, { name: 'Testing', value: '`!sim` - Run game simulation\n`!sim reset` - Reset simulation data', inline: false })
+        .addFields({ name: 'Gif Management', value: '`!gif add key:<k> url:<u>` - Add gif to a key\n`!gif remove key:<k> url:<u>` - Remove gif\n`!gif list key:<k>` - List URLs for a key\n`!gif keys` - List all registered keys', inline: false }, { name: 'News Feeds', value: '`!feed add <url> [label]` - Add RSS or Twitter feed\n`!feed remove <label>` - Remove a feed\n`!feed list` - List all feeds\n`!feed status` - Check feed health\n`!feed check [label]` - Force-check feeds now\n`!feed reset <label>` - Reset feed tracking', inline: false }, { name: 'Hall of Fame', value: '`!hof` - Show HOF settings\n`!hof threshold <n>` - Set reaction threshold (1-100)\n`!hof update` - Rebuild all existing HOF posts', inline: false }, { name: 'Config', value: '`/config show` - View all settings\n`/config set setting:<name> value:<value>` - Change a setting', inline: false }, { name: 'Testing', value: '`!sim` - Run game simulation\n`!sim reset` - Reset simulation data', inline: false })
         .setFooter({ text: 'Page 3/3 — Use buttons to navigate' }));
     return pages;
 }
@@ -355,6 +355,7 @@ async function handlePrefixFeed(message, args) {
             '`!feed remove <label>` - Remove a feed (admin)\n' +
             '`!feed list` - List all registered feeds\n' +
             '`!feed status` - Check health of all feeds (admin)\n' +
+            '`!feed check [label]` - Force-check feeds now and post new items (admin)\n' +
             '`!feed reset <label>` - Reset a feed to re-post latest item (admin)\n\n' +
             'Feeds post to the configured news channel. Set it with:\n' +
             '`/config set setting:news_channel value:#channel`');
@@ -455,6 +456,13 @@ async function handlePrefixFeed(message, args) {
         }
         const removed = removeFeedSource(guildId, label);
         await message.reply(removed ? `Removed feed **${label}**.` : `Feed "${label}" not found.`);
+    }
+    else if (sub === 'check') {
+        const { forceCheckFeeds } = await import('../../services/feedWatcher.js');
+        const label = args.slice(1).join(' ') || undefined;
+        const checking = await message.reply(label ? `Force-checking feed **${label}**...` : 'Force-checking all feeds...');
+        const results = await forceCheckFeeds(message.client, guildId, label);
+        await checking.edit(`**Feed Check Results:**\n${results.join('\n')}`);
     }
     else if (sub === 'reset') {
         const label = args.slice(1).join(' ');

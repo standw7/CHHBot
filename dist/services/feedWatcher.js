@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.startFeedWatcher = startFeedWatcher;
+exports.forceCheckFeeds = forceCheckFeeds;
 exports.stopFeedWatcher = stopFeedWatcher;
 const discord_js_1 = require("discord.js");
 const rss_parser_1 = __importDefault(require("rss-parser"));
@@ -109,6 +110,49 @@ function startFeedWatcher(client) {
         if (removed > 0)
             logger.info({ removed }, 'Cleaned up old posted feed items');
     }, CLEANUP_INTERVAL);
+}
+/** Force-poll all feeds for a specific guild. Returns a summary of what happened. */
+async function forceCheckFeeds(client, guildId, targetLabel) {
+    const config = (0, queries_js_1.getGuildConfig)(guildId);
+    if (!config?.news_channel_id)
+        return ['No news channel configured.'];
+    const feeds = (0, queries_js_1.getFeedSources)(guildId);
+    if (feeds.length === 0)
+        return ['No feeds registered.'];
+    const results = [];
+    for (const feed of feeds) {
+        if (targetLabel && feed.label !== targetLabel)
+            continue;
+        try {
+            let rssFeed;
+            try {
+                rssFeed = await parser.parseURL(feed.url);
+            }
+            catch (error) {
+                const msg = error instanceof Error ? error.message : 'Unknown error';
+                results.push(`❌ **${feed.label}** — RSS parse failed: ${msg.slice(0, 100)}`);
+                continue;
+            }
+            const itemCount = rssFeed.items?.length || 0;
+            if (itemCount === 0) {
+                results.push(`⚠️ **${feed.label}** — Feed returned 0 items`);
+                continue;
+            }
+            // Run the normal poll logic
+            await pollFeed(client, guildId, config.news_channel_id, feed.id, feed.url, feed.label, feed.last_item_id);
+            const latest = rssFeed.items[0];
+            const latestTitle = latest?.title?.slice(0, 60) || latest?.link || 'No title';
+            results.push(`✅ **${feed.label}** — ${itemCount} items, latest: "${latestTitle}"`);
+        }
+        catch (error) {
+            const msg = error instanceof Error ? error.message : 'Unknown error';
+            results.push(`❌ **${feed.label}** — Error: ${msg.slice(0, 100)}`);
+        }
+    }
+    if (targetLabel && results.length === 0) {
+        results.push(`Feed "${targetLabel}" not found.`);
+    }
+    return results;
 }
 function stopFeedWatcher() {
     if (pollTimer) {
