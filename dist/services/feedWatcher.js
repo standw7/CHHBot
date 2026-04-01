@@ -200,11 +200,12 @@ async function pollFeed(client, guildId, channelId, feedId, feedUrl, feedLabel, 
     const items = rssFeed.items;
     let newItems = [];
     if (!lastItemId) {
-        // First poll - post the most recent item, but seed ALL current items
+        // First poll - post the most recent item, but seed all OTHER items
         // into the dedup table so they're never reposted if the marker is lost
         logger.info({ feedLabel, totalItems: items.length }, 'First poll for feed, seeding dedup table');
-        for (const item of items) {
-            const nid = normalizeItemId(item);
+        // Seed items[1..n] into dedup (skip items[0] so it passes the dedup filter and gets posted)
+        for (let i = 1; i < items.length; i++) {
+            const nid = normalizeItemId(items[i]);
             if (nid)
                 (0, queries_js_1.markFeedItemPosted)(guildId, feedId, nid);
         }
