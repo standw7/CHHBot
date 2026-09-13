@@ -74,7 +74,7 @@ async function processGuild(client: Client, guildId: string): Promise<void> {
       embed = buildPreGameCard(selection.game, games, config.primary_team, standingsResponse?.standings ?? null, guild);
     } else {
       const phrase = pickOffDayPhrase(todayISO);
-      embed = buildOffDayCard(phrase, selection.nextGame, config.primary_team, guild);
+      embed = buildOffDayCard(phrase, selection.nextGame, config.primary_team);
     }
 
     await (channel as TextChannel).send({ embeds: [embed] });
@@ -250,11 +250,8 @@ export function buildPreGameCard(
 export function buildOffDayCard(
   phrase: string,
   nextGame: ScheduleGame | undefined,
-  primaryTeam: string,
-  guild?: Guild
+  primaryTeam: string
 ): EmbedBuilder {
-  void guild; // reserved for parity with buildPreGameCard's signature; no emoji needed in the off-day description
-
   const lines: string[] = [phrase];
 
   if (nextGame) {
