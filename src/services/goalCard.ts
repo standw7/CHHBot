@@ -1,5 +1,5 @@
 import { EmbedBuilder, Guild } from 'discord.js';
-import type { LandingGoal, PbpTeam, Play } from '../nhl/types.js';
+import type { LandingGoal, LandingResponse, PbpTeam, Play } from '../nhl/types.js';
 import { shouldIncludeScoresInEmbed, formatScoreLine, type SpoilerMode } from './spoiler.js';
 import type { Milestone } from './milestones.js';
 
@@ -13,6 +13,18 @@ export interface GoalCardData {
   guild?: Guild;
   primaryTeam?: string;
   milestones?: Milestone[];
+  replayUrl?: string;
+}
+
+// Find the highlight-clip sharing URL (nhl.com) for a specific goal in a landing
+// response. Only highlightClipSharingUrl is trustworthy for public sharing — see
+// the comment in src/bot/commands/replay.ts for why pptReplayUrl/playbackUrl aren't used.
+export function findReplayUrl(landing: LandingResponse, eventId: number): string | undefined {
+  for (const period of landing.summary?.scoring ?? []) {
+    const goal = period.goals.find(g => g.eventId === eventId);
+    if (goal) return goal.highlightClipSharingUrl;
+  }
+  return undefined;
 }
 
 const GOAL_CARD_COLOR = 0x006847;
@@ -60,7 +72,7 @@ function getGoalEmoji(scoringTeamAbbrev: string, primaryTeam: string | undefined
 }
 
 export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { content?: string; embed: EmbedBuilder } {
-  const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild, primaryTeam, milestones } = data;
+  const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild, primaryTeam, milestones, replayUrl } = data;
 
   // Scorer info
   const scorerFirst = landingGoal?.firstName?.default ?? '';
@@ -135,6 +147,10 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
       : `the ${ordinal(play.periodDescriptor?.number ?? 1)} period`;
   const timeRemaining = play.timeRemaining || play.timeInPeriod;
   description += `\n\n${scoringEmoji} ${timeRemaining} left in ${period}`;
+
+  if (replayUrl) {
+    description += `\n\n▶ [Watch replay](${replayUrl})`;
+  }
 
   const embed = new EmbedBuilder()
     .setTitle(title)

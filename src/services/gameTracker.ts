@@ -1,14 +1,20 @@
-import { Client, TextChannel } from 'discord.js';
+import { Client, Message, TextChannel } from 'discord.js';
 import pino from 'pino';
 import * as nhlClient from '../nhl/client.js';
 import { getGuildConfig, hasGoalBeenPosted, markGoalPosted, hasFinalBeenPosted, markFinalPosted, hasGameStartBeenPosted, markGameStartPosted } from '../db/queries.js';
-import { buildGoalCard } from './goalCard.js';
+import { buildGoalCard, findReplayUrl } from './goalCard.js';
+import type { GoalCardData } from './goalCard.js';
 import { buildFinalCard } from './finalCard.js';
 import { detectMilestones } from './milestones.js';
 import type { SpoilerMode } from './spoiler.js';
 import type { ScheduleGame, Play, PbpTeam, LandingGoal } from '../nhl/types.js';
 
 const logger = pino({ name: 'game-tracker' });
+
+// Replay-link polling: how often to re-check the landing endpoint for a goal's
+// highlight clip, and how many times to try before giving up.
+const REPLAY_POLL_INTERVAL_MS = 60_000;
+const REPLAY_POLL_MAX_ATTEMPTS = 20;
 
 type TrackerState = 'IDLE' | 'PRE_GAME' | 'LIVE' | 'FINAL';
 
@@ -22,6 +28,8 @@ interface TrackerContext {
   // Regular-season career totals (goals/points) as of before the current game, keyed by playerId.
   // Cleared on every transition into LIVE since the NHL API only updates career totals after a game.
   careerCache: Map<number, { goals: number; points: number }>;
+  // Active goal-replay poll timers, so they can all be cancelled on stopTracker.
+  replayPollTimers: Set<ReturnType<typeof setTimeout>>;
 }
 
 const trackers = new Map<string, TrackerContext>();
@@ -46,6 +54,7 @@ export function startTracker(client: Client, guildId: string): void {
     pollTimer: null,
     lastAnnouncedPeriod: 0,
     careerCache: new Map(),
+    replayPollTimers: new Set(),
   };
 
   trackers.set(guildId, ctx);
@@ -57,6 +66,12 @@ export function stopTracker(guildId: string): void {
   const ctx = trackers.get(guildId);
   if (ctx?.pollTimer) {
     clearTimeout(ctx.pollTimer);
+  }
+  if (ctx) {
+    for (const timer of ctx.replayPollTimers) {
+      clearTimeout(timer);
+    }
+    ctx.replayPollTimers.clear();
   }
   trackers.delete(guildId);
   logger.info({ guildId }, 'Stopped game tracker');
@@ -314,7 +329,8 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
           : undefined;
 
         const guild = client.guilds.cache.get(ctx.guildId);
-        const cardData = {
+        const replayUrl = landingGoal?.highlightClipSharingUrl;
+        const cardData: GoalCardData = {
           landingGoal,
           play: goal,
           homeTeam: pbp.homeTeam,
@@ -324,14 +340,21 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
           guild,
           primaryTeam: ctx.teamCode,
           milestones,
+          replayUrl,
         };
 
         const { content, embed } = buildGoalCard(cardData, spoilerMode);
-        await (channel as TextChannel).send({
+        const message = await (channel as TextChannel).send({
           content: content ?? undefined,
           embeds: [embed],
         });
         logger.info({ guildId: ctx.guildId, eventId }, 'Goal card posted');
+
+        // If the replay clip isn't ready yet, poll the landing endpoint for it
+        // and edit the message in place once it shows up.
+        if (!replayUrl) {
+          pollForReplay(ctx, gameId, eventId, cardData, spoilerMode, message, 1);
+        }
       } catch (error) {
         logger.error({ error, eventId }, 'Failed to post goal card');
       }
@@ -339,6 +362,43 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
   }
 
   scheduleNext(client, ctx, 10_000); // Poll every 10s during live game
+}
+
+// Poll the landing endpoint for a goal's highlight clip and edit the already-posted
+// card in place once it appears. Stops on success, after REPLAY_POLL_MAX_ATTEMPTS
+// attempts, or if the tracker is stopped (its timer gets cleared out from under it).
+function pollForReplay(
+  ctx: TrackerContext,
+  gameId: number,
+  eventId: number,
+  cardData: GoalCardData,
+  spoilerMode: SpoilerMode,
+  message: Message,
+  attempt: number,
+): void {
+  const timer = setTimeout(async () => {
+    ctx.replayPollTimers.delete(timer);
+    try {
+      const landing = await nhlClient.getLanding(gameId);
+      const replayUrl = landing ? findReplayUrl(landing, eventId) : undefined;
+
+      if (replayUrl) {
+        const { content, embed } = buildGoalCard({ ...cardData, replayUrl }, spoilerMode);
+        await message.edit({ content: content ?? undefined, embeds: [embed] });
+        logger.info({ guildId: ctx.guildId, eventId, attempt }, 'Replay link attached to goal card');
+        return;
+      }
+    } catch (err) {
+      logger.warn({ err, gameId, eventId, attempt }, 'Failed to poll for goal replay, will retry');
+    }
+
+    if (attempt < REPLAY_POLL_MAX_ATTEMPTS) {
+      pollForReplay(ctx, gameId, eventId, cardData, spoilerMode, message, attempt + 1);
+    } else {
+      logger.info({ guildId: ctx.guildId, eventId }, 'Gave up polling for replay link');
+    }
+  }, REPLAY_POLL_INTERVAL_MS);
+  ctx.replayPollTimers.add(timer);
 }
 
 async function handleFinal(client: Client, ctx: TrackerContext): Promise<void> {
