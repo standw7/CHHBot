@@ -12,6 +12,7 @@ const goalCard_js_1 = require("./goalCard.js");
 const discord_js_1 = require("discord.js");
 const goalCard_js_2 = require("./goalCard.js");
 const finalCard_js_1 = require("./finalCard.js");
+const milestones_js_1 = require("./milestones.js");
 const logger = (0, pino_1.default)({ name: 'simulator' });
 // Fake game data for simulation
 const FAKE_GAME_ID = 9999999;
@@ -31,6 +32,18 @@ const fakeAwayTeam = {
     score: 0,
     sog: 0,
 };
+// Stable player IDs so the same scorer/assister maps to the same playerId across
+// multiple sim goals (needed for milestone detection, which counts goals by playerId).
+const SIM_PLAYER_IDS = {
+    'Clayton Keller': 8478873,
+    'Nick Schmaltz': 8477951,
+    'Logan Cooley': 8484153,
+    'Barrett Hayton': 8481557,
+    'Mikhail Sergachev': 8479410,
+};
+function simPlayerId(first, last) {
+    return SIM_PLAYER_IDS[`${first} ${last}`] ?? Math.floor(Math.random() * 9000000) + 1000000;
+}
 const simGoals = [
     {
         eventId: 1001,
@@ -80,13 +93,31 @@ const simGoals = [
         isHome: true, homeScore: 3, awayScore: 1, homeSog: 28, awaySog: 22,
     },
     {
-        // Empty net goal - away team pulls goalie, home team scores
+        // Keller's 2nd of the night, sets up the hat trick check below
         eventId: 1004,
-        scorerName: 'Barrett Hayton',
-        scorerFirst: 'Barrett',
-        scorerLast: 'Hayton',
-        scorerNumber: 29,
-        goalsToDate: 12,
+        scorerName: 'Clayton Keller',
+        scorerFirst: 'Clayton',
+        scorerLast: 'Keller',
+        scorerNumber: 9,
+        goalsToDate: 23,
+        shotType: 'snap',
+        strength: 'ev',
+        situationCode: '1551',
+        assists: [
+            { first: 'Barrett', last: 'Hayton', number: 29, assistsToDate: 19 },
+        ],
+        period: 3, periodType: 'REG', timeInPeriod: '15:40', timeRemaining: '04:20',
+        isHome: true, homeScore: 4, awayScore: 1, homeSog: 30, awaySog: 24,
+    },
+    {
+        // Empty net goal - away team pulls goalie, home team scores. Keller's 3rd of the
+        // night -> exercises the hat_trick milestone banner (manual check via !sim).
+        eventId: 1005,
+        scorerName: 'Clayton Keller',
+        scorerFirst: 'Clayton',
+        scorerLast: 'Keller',
+        scorerNumber: 9,
+        goalsToDate: 24,
         shotType: 'wrist',
         strength: 'ev',
         situationCode: '0651', // away goalie pulled, 6 away skaters, 5 home skaters, home goalie in
@@ -94,12 +125,12 @@ const simGoals = [
             { first: 'Mikhail', last: 'Sergachev', number: 98, assistsToDate: 26 },
         ],
         period: 3, periodType: 'REG', timeInPeriod: '19:05', timeRemaining: '00:55',
-        isHome: true, homeScore: 4, awayScore: 1, homeSog: 32, awaySog: 25,
+        isHome: true, homeScore: 5, awayScore: 1, homeSog: 32, awaySog: 25,
     },
 ];
 function buildLandingGoal(goal) {
     const assists = goal.assists.map(a => ({
-        playerId: Math.floor(Math.random() * 9000000) + 1000000,
+        playerId: simPlayerId(a.first, a.last),
         firstName: { default: a.first },
         lastName: { default: a.last },
         name: { default: `${a.first[0]}. ${a.last}` },
@@ -110,7 +141,7 @@ function buildLandingGoal(goal) {
         eventId: goal.eventId,
         strength: goal.strength,
         situationCode: goal.situationCode,
-        playerId: Math.floor(Math.random() * 9000000) + 1000000,
+        playerId: simPlayerId(goal.scorerFirst, goal.scorerLast),
         firstName: { default: goal.scorerFirst },
         lastName: { default: goal.scorerLast },
         name: { default: `${goal.scorerFirst[0]}. ${goal.scorerLast}` },
@@ -135,7 +166,7 @@ function buildPlay(goal) {
         timeInPeriod: goal.timeInPeriod,
         timeRemaining: goal.timeRemaining,
         details: {
-            scoringPlayerId: Math.floor(Math.random() * 9000000) + 1000000,
+            scoringPlayerId: simPlayerId(goal.scorerFirst, goal.scorerLast),
             scoringPlayerTotal: goal.goalsToDate,
             eventOwnerTeamId: goal.isHome ? fakeHomeTeam.id : fakeAwayTeam.id,
             shotType: goal.shotType,
@@ -215,15 +246,28 @@ async function runSimulation(client, guildId) {
         await textChannel.send(`**[SIMULATION]** Goal detected! Posting in ${delayMs / 1000}s...`);
         const homeTeam = { ...fakeHomeTeam, score: goal.homeScore, sog: goal.homeSog };
         const awayTeam = { ...fakeAwayTeam, score: goal.awayScore, sog: goal.awaySog };
+        const scoringTeamAbbrev = goal.isHome ? homeTeam.abbrev : awayTeam.abbrev;
+        const isPrimaryTeam = scoringTeamAbbrev === config.primary_team;
+        // Milestone detection, same as the real gameTracker flow: goalsSoFar is every
+        // sim goal up to and including this one, tagged with periodType for SO exclusion.
+        const goalsSoFar = simGoals.slice(0, i + 1).map(g => ({ ...buildLandingGoal(g), periodType: g.periodType }));
+        const milestones = (0, milestones_js_1.detectMilestones)({
+            goal: goalsSoFar[goalsSoFar.length - 1],
+            goalsSoFar,
+            periodType: goal.periodType,
+            gameType: 2,
+            isPrimaryTeam,
+        });
         const cardData = {
             landingGoal: buildLandingGoal(goal),
             play: buildPlay(goal),
             homeTeam,
             awayTeam,
-            scoringTeamAbbrev: goal.isHome ? homeTeam.abbrev : awayTeam.abbrev,
+            scoringTeamAbbrev,
             scoringTeamLogo: goal.isHome ? homeTeam.logo : awayTeam.logo,
             guild,
             primaryTeam: config.primary_team,
+            milestones,
         };
         // Apply spoiler delay
         await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -240,7 +284,7 @@ async function runSimulation(client, guildId) {
         const fakeBoxscore = {
             id: FAKE_GAME_ID,
             gameState: 'FINAL',
-            homeTeam: { id: 59, abbrev: 'UTA', logo: fakeHomeTeam.logo, score: 4, sog: 34 },
+            homeTeam: { id: 59, abbrev: 'UTA', logo: fakeHomeTeam.logo, score: 5, sog: 34 },
             awayTeam: { id: 53, abbrev: 'ARI', logo: fakeAwayTeam.logo, score: 1, sog: 25 },
             summary: {
                 threeStars: [

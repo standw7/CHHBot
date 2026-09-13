@@ -36,7 +36,9 @@ function runMigrations(db) {
       spoiler_mode TEXT DEFAULT 'off',
       command_mode TEXT DEFAULT 'slash_plus_prefix',
       link_fix_enabled INTEGER DEFAULT 1,
-      timezone TEXT DEFAULT 'America/Denver'
+      timezone TEXT DEFAULT 'America/Denver',
+      daily_card_enabled INTEGER DEFAULT 1,
+      daily_card_hour INTEGER DEFAULT 9
     );
 
     CREATE TABLE IF NOT EXISTS gif_commands (
@@ -117,6 +119,12 @@ function runMigrations(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_reminders_fire_at ON reminders(fire_at);
     CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders(guild_id, user_id);
+
+    CREATE TABLE IF NOT EXISTS daily_cards_posted (
+      guild_id TEXT,
+      date TEXT,
+      PRIMARY KEY (guild_id, date)
+    );
   `);
     // Migrations for existing databases
     const columns = db.prepare("PRAGMA table_info(guild_config)").all();
@@ -132,6 +140,12 @@ function runMigrations(db) {
     }
     if (!colNames.includes('hof_threshold')) {
         db.exec('ALTER TABLE guild_config ADD COLUMN hof_threshold INTEGER DEFAULT 8');
+    }
+    if (!colNames.includes('daily_card_enabled')) {
+        db.exec('ALTER TABLE guild_config ADD COLUMN daily_card_enabled INTEGER DEFAULT 1');
+    }
+    if (!colNames.includes('daily_card_hour')) {
+        db.exec('ALTER TABLE guild_config ADD COLUMN daily_card_hour INTEGER DEFAULT 9');
     }
     // Check hof_messages columns for HoF message tracking
     const hofColumns = db.prepare("PRAGMA table_info(hof_messages)").all();

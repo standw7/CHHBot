@@ -39,12 +39,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.startTracker = startTracker;
 exports.stopTracker = stopTracker;
 exports.stopAllTrackers = stopAllTrackers;
+const discord_js_1 = require("discord.js");
 const pino_1 = __importDefault(require("pino"));
 const nhlClient = __importStar(require("../nhl/client.js"));
 const queries_js_1 = require("../db/queries.js");
 const goalCard_js_1 = require("./goalCard.js");
 const finalCard_js_1 = require("./finalCard.js");
+const milestones_js_1 = require("./milestones.js");
 const logger = (0, pino_1.default)({ name: 'game-tracker' });
+// Replay-link polling: how often to re-check the landing endpoint for a goal's
+// highlight clip, and how many times to try before giving up.
+const REPLAY_POLL_INTERVAL_MS = 60_000;
+const REPLAY_POLL_MAX_ATTEMPTS = 20;
 const trackers = new Map();
 function startTracker(client, guildId) {
     if (trackers.has(guildId)) {
@@ -63,6 +69,8 @@ function startTracker(client, guildId) {
         teamCode: config.primary_team,
         pollTimer: null,
         lastAnnouncedPeriod: 0,
+        careerCache: new Map(),
+        replayPollTimers: new Set(),
     };
     trackers.set(guildId, ctx);
     logger.info({ guildId, teamCode: ctx.teamCode }, 'Starting game tracker');
@@ -72,6 +80,12 @@ function stopTracker(guildId) {
     const ctx = trackers.get(guildId);
     if (ctx?.pollTimer) {
         clearTimeout(ctx.pollTimer);
+    }
+    if (ctx) {
+        for (const timer of ctx.replayPollTimers) {
+            clearTimeout(timer);
+        }
+        ctx.replayPollTimers.clear();
     }
     trackers.delete(guildId);
     logger.info({ guildId }, 'Stopped game tracker');
@@ -121,6 +135,7 @@ async function handleIdle(client, ctx) {
     if (liveGame) {
         ctx.currentGame = liveGame;
         ctx.state = 'LIVE';
+        ctx.careerCache.clear();
         logger.info({ guildId: ctx.guildId, gameId: liveGame.id }, 'Found live game, switching to LIVE');
         scheduleNext(client, ctx, 0);
         return;
@@ -156,6 +171,7 @@ async function handlePreGame(client, ctx) {
     const pbp = await nhlClient.getPlayByPlay(ctx.currentGame.id);
     if (pbp?.gameState === 'LIVE' || pbp?.gameState === 'CRIT') {
         ctx.state = 'LIVE';
+        ctx.careerCache.clear();
         logger.info({ guildId: ctx.guildId, gameId: ctx.currentGame.id }, 'Game is now LIVE');
         // Post game start notification if not already posted
         await postGameStartNotification(client, ctx, pbp.homeTeam, pbp.awayTeam);
@@ -233,9 +249,12 @@ async function handleLive(client, ctx) {
         const isHome = scoringTeamId === pbp.homeTeam.id;
         const scoringTeamAbbrev = isHome ? pbp.homeTeam.abbrev : pbp.awayTeam.abbrev;
         const scoringTeamLogo = isHome ? pbp.homeTeam.logo : pbp.awayTeam.logo;
-        // Capture gameId and eventId for the closure
+        const isPrimaryTeam = scoringTeamAbbrev === ctx.teamCode;
+        // Capture gameId, eventId, and gameType for the closure (ctx.currentGame may change by post time)
         const gameId = ctx.currentGame.id;
         const eventId = goal.eventId;
+        const gameType = ctx.currentGame.gameType;
+        const periodType = goal.periodDescriptor?.periodType ?? 'REG';
         // Schedule delayed post - fetch landing data at post time for rich info
         setTimeout(async () => {
             try {
@@ -244,24 +263,65 @@ async function handleLive(client, ctx) {
                     logger.error({ channelId: config.gameday_channel_id }, 'Game day channel not found');
                     return;
                 }
-                // Fetch landing for rich goal data (player names, assists, headshots)
+                // Fetch landing for rich goal data (player names, assists, headshots), and
+                // build goalsSoFar (all goals up to and including this one, tagged with periodType)
                 let landingGoal;
+                let goalsSoFar = [];
                 try {
                     const landing = await nhlClient.getLanding(gameId);
                     if (landing?.summary?.scoring) {
+                        const flattened = [];
                         for (const period of landing.summary.scoring) {
-                            const match = period.goals.find(g => g.eventId === eventId);
-                            if (match) {
-                                landingGoal = match;
-                                break;
+                            for (const g of period.goals) {
+                                flattened.push({ ...g, periodType: period.periodDescriptor?.periodType });
                             }
+                        }
+                        const idx = flattened.findIndex(g => g.eventId === eventId);
+                        if (idx !== -1) {
+                            landingGoal = flattened[idx];
+                            goalsSoFar = flattened.slice(0, idx + 1);
                         }
                     }
                 }
                 catch (err) {
                     logger.warn({ err, gameId, eventId }, 'Failed to fetch landing for goal details');
                 }
+                // Career totals lookup (regular season only, primary team scorers only), cached per game
+                let careerBefore;
+                if (landingGoal && isPrimaryTeam && gameType === 2) {
+                    const playerId = landingGoal.playerId;
+                    if (ctx.careerCache.has(playerId)) {
+                        careerBefore = ctx.careerCache.get(playerId);
+                    }
+                    else {
+                        try {
+                            const playerStats = await nhlClient.getPlayerStats(playerId);
+                            const career = playerStats?.careerTotals?.regularSeason;
+                            if (career && typeof career.goals === 'number' && typeof career.points === 'number') {
+                                careerBefore = { goals: career.goals, points: career.points };
+                                ctx.careerCache.set(playerId, careerBefore);
+                            }
+                            else {
+                                logger.warn({ playerId }, 'Career totals missing from player stats response, skipping career milestones');
+                            }
+                        }
+                        catch (err) {
+                            logger.warn({ err, playerId }, 'Failed to fetch player stats for career milestones');
+                        }
+                    }
+                }
+                const milestones = landingGoal
+                    ? (0, milestones_js_1.detectMilestones)({
+                        goal: landingGoal,
+                        goalsSoFar,
+                        periodType,
+                        gameType,
+                        isPrimaryTeam,
+                        careerBefore,
+                    })
+                    : undefined;
                 const guild = client.guilds.cache.get(ctx.guildId);
+                const replayUrl = landingGoal?.highlightClipSharingUrl;
                 const cardData = {
                     landingGoal,
                     play: goal,
@@ -271,13 +331,20 @@ async function handleLive(client, ctx) {
                     scoringTeamLogo,
                     guild,
                     primaryTeam: ctx.teamCode,
+                    milestones,
+                    replayUrl,
                 };
                 const { content, embed } = (0, goalCard_js_1.buildGoalCard)(cardData, spoilerMode);
-                await channel.send({
+                const message = await channel.send({
                     content: content ?? undefined,
                     embeds: [embed],
                 });
                 logger.info({ guildId: ctx.guildId, eventId }, 'Goal card posted');
+                // If the replay clip isn't ready yet, poll the landing endpoint for it
+                // and edit the message in place once it shows up.
+                if (!replayUrl) {
+                    pollForReplay(ctx, gameId, eventId, cardData, spoilerMode, message, 1);
+                }
             }
             catch (error) {
                 logger.error({ error, eventId }, 'Failed to post goal card');
@@ -285,6 +352,47 @@ async function handleLive(client, ctx) {
         }, delayMs);
     }
     scheduleNext(client, ctx, 10_000); // Poll every 10s during live game
+}
+// Poll the landing endpoint for a goal's highlight clip and edit the already-posted
+// card in place once it appears. Stops on success, after REPLAY_POLL_MAX_ATTEMPTS
+// attempts, or if the tracker is stopped (its timer gets cleared out from under it).
+function pollForReplay(ctx, gameId, eventId, cardData, spoilerMode, message, attempt) {
+    const timer = setTimeout(async () => {
+        ctx.replayPollTimers.delete(timer);
+        // getLanding never rejects — on a network/HTTP failure (404/5xx/429/parse
+        // error/fetch exception, after its own internal retries) it resolves to
+        // null. That's the real "network/API failure" case, so it's logged here
+        // rather than relying on a catch that a plain fetch failure never reaches.
+        const landing = await nhlClient.getLanding(gameId);
+        if (!landing) {
+            logger.warn({ gameId, eventId, attempt }, 'Landing endpoint unavailable while polling for goal replay, will retry');
+        }
+        else {
+            const replayUrl = (0, goalCard_js_1.findReplayUrl)(landing, eventId);
+            if (replayUrl) {
+                try {
+                    const { content, embed } = (0, goalCard_js_1.buildGoalCard)({ ...cardData, replayUrl }, spoilerMode);
+                    await message.edit({ content: content ?? undefined, embeds: [embed] });
+                    logger.info({ guildId: ctx.guildId, eventId, attempt }, 'Replay link attached to goal card');
+                    return;
+                }
+                catch (err) {
+                    if (err instanceof discord_js_1.DiscordAPIError && err.code === 10008) {
+                        logger.info({ gameId, eventId, attempt }, 'Goal card message was deleted, stopping replay poll');
+                        return;
+                    }
+                    logger.warn({ err, gameId, eventId, attempt }, 'Failed to edit goal card with replay link, will retry');
+                }
+            }
+        }
+        if (attempt < REPLAY_POLL_MAX_ATTEMPTS) {
+            pollForReplay(ctx, gameId, eventId, cardData, spoilerMode, message, attempt + 1);
+        }
+        else {
+            logger.info({ guildId: ctx.guildId, eventId }, 'Gave up polling for replay link');
+        }
+    }, REPLAY_POLL_INTERVAL_MS);
+    ctx.replayPollTimers.add(timer);
 }
 async function handleFinal(client, ctx) {
     if (!ctx.currentGame) {
@@ -320,13 +428,17 @@ async function handleFinal(client, ctx) {
                 logger.error({ gameId }, 'Failed to fetch landing for final summary');
                 return;
             }
-            // Convert landing to boxscore format for buildFinalCard
+            // Convert landing to boxscore format for buildFinalCard.
+            // The last scoring period tells us whether the game was decided in OT/SO.
+            const scoringPeriods = landing.summary?.scoring;
+            const lastPeriod = scoringPeriods && scoringPeriods.length > 0 ? scoringPeriods[scoringPeriods.length - 1] : undefined;
             const boxscore = {
                 id: landing.id,
                 gameState: landing.gameState,
                 homeTeam: landing.homeTeam,
                 awayTeam: landing.awayTeam,
                 summary: landing.summary,
+                periodDescriptor: lastPeriod?.periodDescriptor,
             };
             const channel = await client.channels.fetch(config.gameday_channel_id);
             if (!channel || !channel.isTextBased()) {

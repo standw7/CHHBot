@@ -30,6 +30,9 @@ export declare function resetGameStart(guildId: string, gameId: number): void;
 export declare function hasFeedItemBeenPosted(guildId: string, feedId: number, itemId: string): boolean;
 export declare function markFeedItemPosted(guildId: string, feedId: number, itemId: string): void;
 export declare function cleanupOldFeedItems(daysOld?: number): number;
+export declare function hasDailyCardBeenPosted(guildId: string, date: string): boolean;
+/** Returns true if this call claimed the (guild, date) pair; false if it was already claimed. */
+export declare function markDailyCardPosted(guildId: string, date: string): boolean;
 export declare function createReminder(guildId: string, channelId: string, userId: string, message: string, fireAt: string, dm: boolean): number;
 export declare function getDueReminders(): Reminder[];
 export declare function getUserReminders(guildId: string, userId: string): Reminder[];

@@ -12,6 +12,7 @@ const gameTracker_js_1 = require("./services/gameTracker.js");
 const linkFixer_js_1 = require("./bot/events/linkFixer.js");
 const feedWatcher_js_1 = require("./services/feedWatcher.js");
 const reminderService_js_1 = require("./services/reminderService.js");
+const dailyCard_js_1 = require("./services/dailyCard.js");
 const healthMonitor_js_1 = require("./services/healthMonitor.js");
 const queries_js_1 = require("./db/queries.js");
 const pino_1 = __importDefault(require("pino"));
@@ -43,6 +44,8 @@ async function main() {
         (0, feedWatcher_js_1.startFeedWatcher)(client);
         // Start reminder service
         (0, reminderService_js_1.startReminderService)(client);
+        // Start daily card service
+        (0, dailyCard_js_1.startDailyCardService)(client);
         // Ensure config exists for all guilds the bot is in, then start trackers
         for (const [guildId] of client.guilds.cache) {
             let guildConfig = (0, queries_js_1.getGuildConfig)(guildId);
@@ -74,6 +77,7 @@ async function main() {
         (0, gameTracker_js_1.stopAllTrackers)();
         (0, feedWatcher_js_1.stopFeedWatcher)();
         (0, reminderService_js_1.stopReminderService)();
+        (0, dailyCard_js_1.stopDailyCardService)();
         (0, healthMonitor_js_1.stopHealthMonitor)();
         client.destroy();
         (0, database_js_1.closeDb)();

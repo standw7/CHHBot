@@ -12,6 +12,8 @@ export interface GuildConfig {
     link_fix_enabled: number;
     timezone: string;
     hof_threshold: number;
+    daily_card_enabled: number;
+    daily_card_hour: number;
 }
 export interface FeedSource {
     id: number;
@@ -51,6 +53,10 @@ export interface HofMessage {
     hof_channel_id: string | null;
     hof_followup_id: string | null;
     inducted_at: string;
+}
+export interface DailyCardPosted {
+    guild_id: string;
+    date: string;
 }
 export interface Reminder {
     id: number;

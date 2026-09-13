@@ -31,6 +31,8 @@ exports.resetGameStart = resetGameStart;
 exports.hasFeedItemBeenPosted = hasFeedItemBeenPosted;
 exports.markFeedItemPosted = markFeedItemPosted;
 exports.cleanupOldFeedItems = cleanupOldFeedItems;
+exports.hasDailyCardBeenPosted = hasDailyCardBeenPosted;
+exports.markDailyCardPosted = markDailyCardPosted;
 exports.createReminder = createReminder;
 exports.getDueReminders = getDueReminders;
 exports.getUserReminders = getUserReminders;
@@ -46,9 +48,9 @@ function upsertGuildConfig(guildId, updates) {
     const existing = getGuildConfig(guildId);
     if (!existing) {
         (0, database_js_1.getDb)().prepare(`
-      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, gameday_role_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone, hof_threshold)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(guildId, updates.primary_team ?? 'UTA', updates.gameday_channel_id ?? null, updates.hof_channel_id ?? null, updates.bot_commands_channel_id ?? null, updates.news_channel_id ?? null, updates.gameday_role_id ?? null, updates.spoiler_delay_seconds ?? 30, updates.spoiler_mode ?? 'off', updates.command_mode ?? 'slash_plus_prefix', updates.link_fix_enabled ?? 1, updates.timezone ?? 'America/Denver', updates.hof_threshold ?? 8);
+      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, gameday_role_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone, hof_threshold, daily_card_enabled, daily_card_hour)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(guildId, updates.primary_team ?? 'UTA', updates.gameday_channel_id ?? null, updates.hof_channel_id ?? null, updates.bot_commands_channel_id ?? null, updates.news_channel_id ?? null, updates.gameday_role_id ?? null, updates.spoiler_delay_seconds ?? 30, updates.spoiler_mode ?? 'off', updates.command_mode ?? 'slash_plus_prefix', updates.link_fix_enabled ?? 1, updates.timezone ?? 'America/Denver', updates.hof_threshold ?? 8, updates.daily_card_enabled ?? 1, updates.daily_card_hour ?? 9);
     }
     else {
         const fields = Object.keys(updates);
@@ -192,6 +194,19 @@ function cleanupOldFeedItems(daysOld = 30) {
     const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000).toISOString();
     const result = (0, database_js_1.getDb)().prepare('DELETE FROM posted_feed_items WHERE posted_at < ?').run(cutoff);
     return result.changes;
+}
+// --- Daily Cards Posted (dedup) ---
+function hasDailyCardBeenPosted(guildId, date) {
+    const row = (0, database_js_1.getDb)().prepare('SELECT 1 FROM daily_cards_posted WHERE guild_id = ? AND date = ?').get(guildId, date);
+    return !!row;
+}
+/** Returns true if this call claimed the (guild, date) pair; false if it was already claimed. */
+function markDailyCardPosted(guildId, date) {
+    const info = (0, database_js_1.getDb)().prepare(`
+    INSERT OR IGNORE INTO daily_cards_posted (guild_id, date)
+    VALUES (?, ?)
+  `).run(guildId, date);
+    return info.changes > 0;
 }
 // --- Reminders ---
 function createReminder(guildId, channelId, userId, message, fireAt, dm) {

@@ -13,6 +13,10 @@ export interface ScheduleGame {
     venue: {
         default: string;
     };
+    tvBroadcasts?: TvBroadcast[];
+    gameOutcome?: {
+        lastPeriodType: string;
+    };
 }
 export interface ScheduleTeam {
     id: number;
@@ -130,6 +134,7 @@ export interface LandingGoal {
     pptReplayUrl?: string;
     isHome?: boolean;
     sweaterNumber?: number;
+    periodType?: string;
 }
 export interface LandingAssist {
     playerId: number;
@@ -152,6 +157,10 @@ export interface BoxscoreResponse {
     awayTeam: BoxscoreTeam;
     summary?: {
         threeStars?: ThreeStar[];
+    };
+    periodDescriptor?: {
+        number: number;
+        periodType: string;
     };
 }
 export interface BoxscoreTeam {
