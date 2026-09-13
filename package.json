@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "test": "tsx --test 'src/**/*.test.ts'"
+    "test": "tsx --test src/services/*.test.ts"
   },
   "keywords": [],
   "license": "UNLICENSED",

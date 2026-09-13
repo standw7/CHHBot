@@ -222,11 +222,13 @@ export function hasDailyCardBeenPosted(guildId: string, date: string): boolean {
   return !!row;
 }
 
-export function markDailyCardPosted(guildId: string, date: string): void {
-  getDb().prepare(`
+/** Returns true if this call claimed the (guild, date) pair; false if it was already claimed. */
+export function markDailyCardPosted(guildId: string, date: string): boolean {
+  const info = getDb().prepare(`
     INSERT OR IGNORE INTO daily_cards_posted (guild_id, date)
     VALUES (?, ?)
   `).run(guildId, date);
+  return info.changes > 0;
 }
 
 // --- Reminders ---

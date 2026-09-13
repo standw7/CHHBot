@@ -111,6 +111,26 @@ describe('detectMilestones - OT winner', () => {
   });
 });
 
+describe('detectMilestones - shootout goals', () => {
+  test('a shootout goal produces no milestones, even after a hat trick in regulation', () => {
+    const playerId = 250;
+    const g1 = goal({ playerId, eventId: 20 });
+    const g2 = goal({ playerId, eventId: 21 });
+    const g3 = goal({ playerId, eventId: 22, goalsToDate: 3 }); // hat trick, regulation
+    const soGoal = goal({ playerId, eventId: 23, periodType: 'SO', goalsToDate: 3 });
+    const input = baseInput({
+      goal: soGoal,
+      goalsSoFar: [g1, g2, g3, soGoal],
+      periodType: 'SO',
+      gameType: 2,
+      careerBefore: { goals: 0, points: 0 },
+    });
+
+    const milestones = detectMilestones(input);
+    assert.deepEqual(milestones, []);
+  });
+});
+
 describe('detectMilestones - season goals', () => {
   test('20th goal of the season fires season_goals', () => {
     const g = goal({ playerId: 300, eventId: 6, goalsToDate: 20 });

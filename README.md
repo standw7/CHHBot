@@ -22,6 +22,7 @@ Tusky is a Discord bot built for hockey servers. It posts live goal notification
   - [Live Goal Cards](#live-goal-cards)
   - [Game Start & Period Notifications](#game-start--period-notifications)
   - [Final Game Summary](#final-game-summary)
+  - [Daily Card](#daily-card)
   - [Hall of Fame](#hall-of-fame)
   - [Auto Link Fix](#auto-link-fix)
   - [News Feed](#news-feed)
@@ -40,6 +41,7 @@ Tusky is a Discord bot built for hockey servers. It posts live goal notification
 - **Hall of Fame** -- When a message in your server gets 5 fire reactions, Tusky automatically reposts it to a special Hall of Fame channel.
 - **News feed** -- Register Twitter/X accounts or RSS feeds and Tusky posts new content to a news channel.
 - **Auto link fix** -- When someone posts a Twitter/X link, Tusky automatically replies with a version that actually embeds properly in Discord.
+- **Daily Card** -- Every day at a configurable hour, Tusky posts a pre-game card on game days (matchup, records, season series) or an off-day message on in-season off days.
 - **Spoiler protection** -- Configurable delay and spoiler tags so people watching on a stream delay don't get spoiled.
 
 ## Configuring Tusky in Your Server
@@ -82,6 +84,8 @@ After inviting Tusky, you need to tell it which channels to use. Run these slash
 | `command_mode` | Whether `!` prefix commands work | `slash_only`, `slash_plus_prefix` | slash_plus_prefix |
 | `link_fix` | Auto-fix Twitter/X links for better embeds | `on` or `off` | on |
 | `timezone` | Timezone for game times | Any timezone (e.g., America/Denver) | America/Denver |
+| `daily_card` | Post a daily pre-game/off-day card in the game day channel | `on` or `off` | on |
+| `daily_card_hour` | Guild-local hour (in `timezone`) to post the daily card | 0 to 23 | 9 |
 
 **Examples:**
 ```
@@ -353,6 +357,16 @@ Period 1 is not announced separately since "Game is starting!" already covers it
 When the game ends, Tusky posts a final summary card with:
 - Final score and shots for both teams
 - Three stars of the game (if available from the NHL)
+
+### Daily Card
+
+Once a day (at the hour set by `daily_card_hour`), Tusky posts to your game day channel: a pre-game card (matchup, records, season series) on game days, or an off-day message on in-season off days when your team isn't playing. Nothing is posted in the off-season.
+
+Turn this on or off with:
+```
+/config set setting:daily_card value:on
+/config set setting:daily_card value:off
+```
 
 ### Hall of Fame
 

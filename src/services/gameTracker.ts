@@ -1,4 +1,4 @@
-import { Client, Message, TextChannel } from 'discord.js';
+import { Client, DiscordAPIError, Message, TextChannel } from 'discord.js';
 import pino from 'pino';
 import * as nhlClient from '../nhl/client.js';
 import { getGuildConfig, hasGoalBeenPosted, markGoalPosted, hasFinalBeenPosted, markFinalPosted, hasGameStartBeenPosted, markGameStartPosted } from '../db/queries.js';
@@ -395,6 +395,10 @@ function pollForReplay(
           logger.info({ guildId: ctx.guildId, eventId, attempt }, 'Replay link attached to goal card');
           return;
         } catch (err) {
+          if (err instanceof DiscordAPIError && err.code === 10008) {
+            logger.info({ gameId, eventId, attempt }, 'Goal card message was deleted, stopping replay poll');
+            return;
+          }
           logger.warn({ err, gameId, eventId, attempt }, 'Failed to edit goal card with replay link, will retry');
         }
       }

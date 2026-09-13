@@ -33,6 +33,15 @@ function assistsBy(playerId: number, goalsSoFar: LandingGoal[]): number {
 
 export function detectMilestones(input: MilestoneInput): Milestone[] {
   const { goal, goalsSoFar, periodType, gameType, isPrimaryTeam, careerBefore } = input;
+
+  // Shootout goals don't count toward any real stat (goalsToDate is unchanged by an SO
+  // goal, and realGoalsBy already excludes them from hat trick/career counts), so they
+  // can never actually produce a milestone. Bail out before re-evaluating a goal whose
+  // count was already reached by an earlier regulation goal in the same game.
+  if (periodType === 'SO') {
+    return [];
+  }
+
   const milestones: Milestone[] = [];
 
   // --- Factual tags: available regardless of primary team or game type ---

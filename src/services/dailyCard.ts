@@ -54,10 +54,23 @@ async function processGuild(client: Client, guildId: string): Promise<void> {
   const scheduleResponse = await nhlClient.getSchedule(config.primary_team);
   const games = scheduleResponse?.games ?? [];
   const selection = selectDailyCard(games, todayISO, zone);
-  if (selection.kind === 'none') return;
+  if (selection.kind === 'none') {
+    // Nothing to post (off-season), but claim the day so we don't refetch the schedule
+    // on every tick until a real game shows up.
+    markDailyCardPosted(guildId, todayISO);
+    return;
+  }
+
+  // Skip a stale pre-game card if the bot was down past puck drop — the game is already
+  // live/final by the time we notice it. Still claim the day so we don't retry every tick.
+  if (selection.kind === 'game' && selection.game.gameState !== 'FUT' && selection.game.gameState !== 'PRE') {
+    markDailyCardPosted(guildId, todayISO);
+    logger.info({ guildId, gameState: selection.game.gameState }, 'Skipping stale pre-game card; game already underway');
+    return;
+  }
 
   // Claim before posting so a slow post (or a second overlapping tick) can't double-post.
-  markDailyCardPosted(guildId, todayISO);
+  if (!markDailyCardPosted(guildId, todayISO)) return;
 
   try {
     const channel = await client.channels.fetch(config.gameday_channel_id);
