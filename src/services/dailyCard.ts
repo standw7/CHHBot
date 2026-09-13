@@ -52,7 +52,15 @@ async function processGuild(client: Client, guildId: string): Promise<void> {
   if (hasDailyCardBeenPosted(guildId, todayISO)) return;
 
   const scheduleResponse = await nhlClient.getSchedule(config.primary_team);
-  const games = scheduleResponse?.games ?? [];
+  if (!scheduleResponse) {
+    // Transient NHL API failure (fetchJson already retried 3x). Don't claim the day —
+    // a genuinely empty/off-season schedule is handled below, but this isn't that; we
+    // want to retry next tick instead of silently suppressing today's card.
+    logger.warn({ guildId }, 'Schedule unavailable, will retry next tick');
+    return;
+  }
+
+  const games = scheduleResponse.games ?? [];
   const selection = selectDailyCard(games, todayISO, zone);
   if (selection.kind === 'none') {
     // Nothing to post (off-season), but claim the day so we don't refetch the schedule
