@@ -51,8 +51,10 @@ CHHBot/
 │       ├── moneyPuck.ts          # Fetches/caches MoneyPuck CSV for advanced stats
 │       ├── parseTime.ts          # Natural-language time parser for reminders
 │       ├── reminderService.ts    # Polls DB for due reminders, fires them
+│       ├── healthMonitor.ts      # Exits (for PM2 restart) if Discord gateway is down >5 min
 │       └── simulator.ts          # Fake game simulation for testing goal/final cards
 ├── dist/                         # Compiled JS (committed for low-RAM VM deployment)
+├── ops/                          # VM supervision: systemd override, watchdog timer, install.sh (see CLAUDE.md)
 ├── docs/plans/                   # Design docs for features
 ├── .github/workflows/ci.yml     # CI: build check on push/PR to main
 ├── package.json

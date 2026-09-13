@@ -1,0 +1,7 @@
+[Unit]
+Description=Tusky bot watchdog
+After=pm2-ubuntu.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/tusky-watchdog.sh
