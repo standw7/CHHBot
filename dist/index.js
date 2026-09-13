@@ -12,6 +12,7 @@ const gameTracker_js_1 = require("./services/gameTracker.js");
 const linkFixer_js_1 = require("./bot/events/linkFixer.js");
 const feedWatcher_js_1 = require("./services/feedWatcher.js");
 const reminderService_js_1 = require("./services/reminderService.js");
+const healthMonitor_js_1 = require("./services/healthMonitor.js");
 const queries_js_1 = require("./db/queries.js");
 const pino_1 = __importDefault(require("pino"));
 const logger = (0, pino_1.default)({
@@ -31,6 +32,7 @@ async function main() {
     // Create Discord client
     const client = (0, client_js_1.createClient)();
     // Register event handlers
+    (0, healthMonitor_js_1.startHealthMonitor)(client);
     (0, messageCreate_js_1.registerMessageHandler)(client);
     (0, reactionAdd_js_1.registerReactionHandler)(client);
     (0, linkFixer_js_1.registerLinkFixer)(client);
@@ -72,6 +74,7 @@ async function main() {
         (0, gameTracker_js_1.stopAllTrackers)();
         (0, feedWatcher_js_1.stopFeedWatcher)();
         (0, reminderService_js_1.stopReminderService)();
+        (0, healthMonitor_js_1.stopHealthMonitor)();
         client.destroy();
         (0, database_js_1.closeDb)();
         logger.info('Goodbye!');

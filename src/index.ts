@@ -7,6 +7,7 @@ import { startTracker, stopAllTrackers } from './services/gameTracker.js';
 import { registerLinkFixer } from './bot/events/linkFixer.js';
 import { startFeedWatcher, stopFeedWatcher } from './services/feedWatcher.js';
 import { startReminderService, stopReminderService } from './services/reminderService.js';
+import { startHealthMonitor, stopHealthMonitor } from './services/healthMonitor.js';
 import { getGuildConfig, upsertGuildConfig } from './db/queries.js';
 import pino from 'pino';
 
@@ -33,6 +34,7 @@ async function main(): Promise<void> {
   const client = createClient();
 
   // Register event handlers
+  startHealthMonitor(client);
   registerMessageHandler(client);
   registerReactionHandler(client);
   registerLinkFixer(client);
@@ -79,6 +81,7 @@ async function main(): Promise<void> {
     stopAllTrackers();
     stopFeedWatcher();
     stopReminderService();
+    stopHealthMonitor();
     client.destroy();
     closeDb();
     logger.info('Goodbye!');
