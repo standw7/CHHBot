@@ -378,18 +378,26 @@ function pollForReplay(
 ): void {
   const timer = setTimeout(async () => {
     ctx.replayPollTimers.delete(timer);
-    try {
-      const landing = await nhlClient.getLanding(gameId);
-      const replayUrl = landing ? findReplayUrl(landing, eventId) : undefined;
 
+    // getLanding never rejects — on a network/HTTP failure (404/5xx/429/parse
+    // error/fetch exception, after its own internal retries) it resolves to
+    // null. That's the real "network/API failure" case, so it's logged here
+    // rather than relying on a catch that a plain fetch failure never reaches.
+    const landing = await nhlClient.getLanding(gameId);
+    if (!landing) {
+      logger.warn({ gameId, eventId, attempt }, 'Landing endpoint unavailable while polling for goal replay, will retry');
+    } else {
+      const replayUrl = findReplayUrl(landing, eventId);
       if (replayUrl) {
-        const { content, embed } = buildGoalCard({ ...cardData, replayUrl }, spoilerMode);
-        await message.edit({ content: content ?? undefined, embeds: [embed] });
-        logger.info({ guildId: ctx.guildId, eventId, attempt }, 'Replay link attached to goal card');
-        return;
+        try {
+          const { content, embed } = buildGoalCard({ ...cardData, replayUrl }, spoilerMode);
+          await message.edit({ content: content ?? undefined, embeds: [embed] });
+          logger.info({ guildId: ctx.guildId, eventId, attempt }, 'Replay link attached to goal card');
+          return;
+        } catch (err) {
+          logger.warn({ err, gameId, eventId, attempt }, 'Failed to edit goal card with replay link, will retry');
+        }
       }
-    } catch (err) {
-      logger.warn({ err, gameId, eventId, attempt }, 'Failed to poll for goal replay, will retry');
     }
 
     if (attempt < REPLAY_POLL_MAX_ATTEMPTS) {
