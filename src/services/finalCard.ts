@@ -10,6 +10,14 @@ export function buildFinalCard(boxscore: BoxscoreResponse, spoilerMode: SpoilerM
     .setTitle(`${getTeamEmoji(awayTeam.abbrev, guild)} ${awayTeam.abbrev} @ ${homeTeam.abbrev} ${getTeamEmoji(homeTeam.abbrev, guild)} - Final`)
     .setColor(0x006847);
 
+  // Note how the game was decided (never reveals the score itself)
+  const periodType = boxscore.periodDescriptor?.periodType;
+  if (periodType === 'SO') {
+    embed.setDescription('🥅 Won in a shootout');
+  } else if (periodType === 'OT') {
+    embed.setDescription('⏱️ Won in overtime');
+  }
+
   if (shouldIncludeScoresInEmbed(spoilerMode)) {
     embed.addFields(
       { name: `${getTeamEmoji(homeTeam.abbrev, guild)} ${homeTeam.abbrev}`, value: `Goals: ${homeTeam.score} | Shots: ${homeTeam.sog}`, inline: true },

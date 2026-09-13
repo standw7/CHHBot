@@ -1,0 +1,81 @@
+import type { LandingGoal } from '../nhl/types.js';
+
+export interface MilestoneInput {
+  goal: LandingGoal; // the goal being posted
+  goalsSoFar: LandingGoal[]; // all goals in the game up to and including this one, in order
+  periodType: string; // 'REG' | 'OT' | 'SO'
+  gameType: number; // 1 pre, 2 regular, 3 playoffs
+  isPrimaryTeam: boolean;
+  careerBefore?: { goals: number; points: number }; // career totals before THIS GAME, regular season, if known
+}
+
+export interface Milestone {
+  kind: 'hat_trick' | 'four_goal' | 'ot_winner' | 'first_nhl_goal' | 'season_goals' | 'career_goals' | 'career_points';
+  label: string;
+  celebrate: boolean;
+}
+
+const SEASON_GOAL_THRESHOLDS = [20, 30, 40, 50, 60, 70];
+const CAREER_POINT_THRESHOLDS = [100, 250, 500, 750, 1000, 1500];
+
+function scorerName(goal: LandingGoal): string {
+  return `${goal.firstName.default} ${goal.lastName.default}`;
+}
+
+// Goals that actually count toward a player's season/career totals — i.e. not shootout goals.
+function realGoalsBy(playerId: number, goalsSoFar: LandingGoal[]): LandingGoal[] {
+  return goalsSoFar.filter(g => g.playerId === playerId && g.periodType !== 'SO');
+}
+
+function assistsBy(playerId: number, goalsSoFar: LandingGoal[]): number {
+  return goalsSoFar.filter(g => g.assists.some(a => a.playerId === playerId)).length;
+}
+
+export function detectMilestones(input: MilestoneInput): Milestone[] {
+  const { goal, goalsSoFar, periodType, gameType, isPrimaryTeam, careerBefore } = input;
+  const milestones: Milestone[] = [];
+
+  // --- Factual tags: available regardless of primary team or game type ---
+  const scorerRealGoals = realGoalsBy(goal.playerId, goalsSoFar);
+  const goalsInGame = scorerRealGoals.length;
+  const name = scorerName(goal);
+
+  if (goalsInGame === 3) {
+    milestones.push({ kind: 'hat_trick', label: `🧢🧢🧢 HAT TRICK! ${name}'s 3rd of the night`, celebrate: isPrimaryTeam });
+  } else if (goalsInGame === 4) {
+    milestones.push({ kind: 'four_goal', label: `🧢🧢🧢🧢 FOUR-GOAL GAME! ${name}`, celebrate: isPrimaryTeam });
+  } else if (goalsInGame >= 5) {
+    milestones.push({ kind: 'four_goal', label: `${goalsInGame}-GOAL GAME! ${name}`, celebrate: isPrimaryTeam });
+  }
+
+  if (periodType === 'OT') {
+    milestones.push({ kind: 'ot_winner', label: 'OT WINNER!', celebrate: isPrimaryTeam });
+  }
+
+  // Season and career milestones only apply to primary-team scorers in regular-season games.
+  if (!isPrimaryTeam || gameType !== 2) {
+    return milestones;
+  }
+
+  if (SEASON_GOAL_THRESHOLDS.includes(goal.goalsToDate)) {
+    milestones.push({ kind: 'season_goals', label: `${goal.goalsToDate}th goal of the season`, celebrate: isPrimaryTeam });
+  }
+
+  if (careerBefore) {
+    const careerAfterGoals = careerBefore.goals + scorerRealGoals.length;
+    const careerAfterPoints = careerBefore.points + scorerRealGoals.length + assistsBy(goal.playerId, goalsSoFar);
+
+    if (careerAfterGoals === 1) {
+      milestones.push({ kind: 'first_nhl_goal', label: 'FIRST NHL GOAL!', celebrate: isPrimaryTeam });
+    } else {
+      if (careerAfterGoals % 100 === 0) {
+        milestones.push({ kind: 'career_goals', label: `Career goal #${careerAfterGoals}`, celebrate: isPrimaryTeam });
+      }
+      if (CAREER_POINT_THRESHOLDS.includes(careerAfterPoints)) {
+        milestones.push({ kind: 'career_points', label: `Career point #${careerAfterPoints}`, celebrate: isPrimaryTeam });
+      }
+    }
+  }
+
+  return milestones;
+}

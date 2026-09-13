@@ -131,6 +131,10 @@ export interface LandingGoal {
   pptReplayUrl?: string;
   isHome?: boolean;
   sweaterNumber?: number;
+  // Not part of the raw NHL API goal shape — gameTracker attaches this when
+  // flattening landing.summary.scoring[] so milestone detection can exclude
+  // shootout goals (which don't count as real goals) from hat-trick counts.
+  periodType?: string;
 }
 
 export interface LandingAssist {
@@ -151,6 +155,13 @@ export interface BoxscoreResponse {
   awayTeam: BoxscoreTeam;
   summary?: {
     threeStars?: ThreeStar[];
+  };
+  // Not always present on the raw boxscore endpoint — gameTracker derives it
+  // from the last landing.summary.scoring[] entry so buildFinalCard can tell
+  // whether the game ended in OT/SO.
+  periodDescriptor?: {
+    number: number;
+    periodType: string; // REG, OT, SO
   };
 }
 

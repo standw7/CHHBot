@@ -4,8 +4,9 @@ import * as nhlClient from '../nhl/client.js';
 import { getGuildConfig, hasGoalBeenPosted, markGoalPosted, hasFinalBeenPosted, markFinalPosted, hasGameStartBeenPosted, markGameStartPosted } from '../db/queries.js';
 import { buildGoalCard } from './goalCard.js';
 import { buildFinalCard } from './finalCard.js';
+import { detectMilestones } from './milestones.js';
 import type { SpoilerMode } from './spoiler.js';
-import type { ScheduleGame, Play, PbpTeam } from '../nhl/types.js';
+import type { ScheduleGame, Play, PbpTeam, LandingGoal } from '../nhl/types.js';
 
 const logger = pino({ name: 'game-tracker' });
 
@@ -18,6 +19,9 @@ interface TrackerContext {
   teamCode: string;
   pollTimer: ReturnType<typeof setTimeout> | null;
   lastAnnouncedPeriod: number;
+  // Regular-season career totals (goals/points) as of before the current game, keyed by playerId.
+  // Cleared on every transition into LIVE since the NHL API only updates career totals after a game.
+  careerCache: Map<number, { goals: number; points: number }>;
 }
 
 const trackers = new Map<string, TrackerContext>();
@@ -41,6 +45,7 @@ export function startTracker(client: Client, guildId: string): void {
     teamCode: config.primary_team,
     pollTimer: null,
     lastAnnouncedPeriod: 0,
+    careerCache: new Map(),
   };
 
   trackers.set(guildId, ctx);
@@ -104,6 +109,7 @@ async function handleIdle(client: Client, ctx: TrackerContext): Promise<void> {
   if (liveGame) {
     ctx.currentGame = liveGame;
     ctx.state = 'LIVE';
+    ctx.careerCache.clear();
     logger.info({ guildId: ctx.guildId, gameId: liveGame.id }, 'Found live game, switching to LIVE');
     scheduleNext(client, ctx, 0);
     return;
@@ -144,6 +150,7 @@ async function handlePreGame(client: Client, ctx: TrackerContext): Promise<void>
   const pbp = await nhlClient.getPlayByPlay(ctx.currentGame.id);
   if (pbp?.gameState === 'LIVE' || pbp?.gameState === 'CRIT') {
     ctx.state = 'LIVE';
+    ctx.careerCache.clear();
     logger.info({ guildId: ctx.guildId, gameId: ctx.currentGame.id }, 'Game is now LIVE');
 
     // Post game start notification if not already posted
@@ -233,10 +240,13 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
     const isHome = scoringTeamId === pbp.homeTeam.id;
     const scoringTeamAbbrev = isHome ? pbp.homeTeam.abbrev : pbp.awayTeam.abbrev;
     const scoringTeamLogo = isHome ? pbp.homeTeam.logo : pbp.awayTeam.logo;
+    const isPrimaryTeam = scoringTeamAbbrev === ctx.teamCode;
 
-    // Capture gameId and eventId for the closure
+    // Capture gameId, eventId, and gameType for the closure (ctx.currentGame may change by post time)
     const gameId = ctx.currentGame.id;
     const eventId = goal.eventId;
+    const gameType = ctx.currentGame.gameType;
+    const periodType = goal.periodDescriptor?.periodType ?? 'REG';
 
     // Schedule delayed post - fetch landing data at post time for rich info
     setTimeout(async () => {
@@ -247,22 +257,61 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
           return;
         }
 
-        // Fetch landing for rich goal data (player names, assists, headshots)
-        let landingGoal;
+        // Fetch landing for rich goal data (player names, assists, headshots), and
+        // build goalsSoFar (all goals up to and including this one, tagged with periodType)
+        let landingGoal: LandingGoal | undefined;
+        let goalsSoFar: LandingGoal[] = [];
         try {
           const landing = await nhlClient.getLanding(gameId);
           if (landing?.summary?.scoring) {
+            const flattened: LandingGoal[] = [];
             for (const period of landing.summary.scoring) {
-              const match = period.goals.find(g => g.eventId === eventId);
-              if (match) {
-                landingGoal = match;
-                break;
+              for (const g of period.goals) {
+                flattened.push({ ...g, periodType: period.periodDescriptor?.periodType });
               }
+            }
+            const idx = flattened.findIndex(g => g.eventId === eventId);
+            if (idx !== -1) {
+              landingGoal = flattened[idx];
+              goalsSoFar = flattened.slice(0, idx + 1);
             }
           }
         } catch (err) {
           logger.warn({ err, gameId, eventId }, 'Failed to fetch landing for goal details');
         }
+
+        // Career totals lookup (regular season only, primary team scorers only), cached per game
+        let careerBefore: { goals: number; points: number } | undefined;
+        if (landingGoal && isPrimaryTeam && gameType === 2) {
+          const playerId = landingGoal.playerId;
+          if (ctx.careerCache.has(playerId)) {
+            careerBefore = ctx.careerCache.get(playerId);
+          } else {
+            try {
+              const playerStats = await nhlClient.getPlayerStats(playerId);
+              const career = playerStats?.careerTotals?.regularSeason;
+              if (career && typeof career.goals === 'number' && typeof career.points === 'number') {
+                careerBefore = { goals: career.goals, points: career.points };
+                ctx.careerCache.set(playerId, careerBefore);
+              } else {
+                logger.warn({ playerId }, 'Career totals missing from player stats response, skipping career milestones');
+              }
+            } catch (err) {
+              logger.warn({ err, playerId }, 'Failed to fetch player stats for career milestones');
+            }
+          }
+        }
+
+        const milestones = landingGoal
+          ? detectMilestones({
+              goal: landingGoal,
+              goalsSoFar,
+              periodType,
+              gameType,
+              isPrimaryTeam,
+              careerBefore,
+            })
+          : undefined;
 
         const guild = client.guilds.cache.get(ctx.guildId);
         const cardData = {
@@ -274,6 +323,7 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
           scoringTeamLogo,
           guild,
           primaryTeam: ctx.teamCode,
+          milestones,
         };
 
         const { content, embed } = buildGoalCard(cardData, spoilerMode);
@@ -333,13 +383,17 @@ async function handleFinal(client: Client, ctx: TrackerContext): Promise<void> {
         return;
       }
 
-      // Convert landing to boxscore format for buildFinalCard
+      // Convert landing to boxscore format for buildFinalCard.
+      // The last scoring period tells us whether the game was decided in OT/SO.
+      const scoringPeriods = landing.summary?.scoring;
+      const lastPeriod = scoringPeriods && scoringPeriods.length > 0 ? scoringPeriods[scoringPeriods.length - 1] : undefined;
       const boxscore = {
         id: landing.id,
         gameState: landing.gameState,
         homeTeam: landing.homeTeam,
         awayTeam: landing.awayTeam,
         summary: landing.summary,
+        periodDescriptor: lastPeriod?.periodDescriptor,
       };
 
       const channel = await client.channels.fetch(config.gameday_channel_id!);

@@ -1,6 +1,7 @@
 import { EmbedBuilder, Guild } from 'discord.js';
 import type { LandingGoal, PbpTeam, Play } from '../nhl/types.js';
 import { shouldIncludeScoresInEmbed, formatScoreLine, type SpoilerMode } from './spoiler.js';
+import type { Milestone } from './milestones.js';
 
 export interface GoalCardData {
   landingGoal?: LandingGoal;
@@ -11,7 +12,11 @@ export interface GoalCardData {
   scoringTeamLogo: string;
   guild?: Guild;
   primaryTeam?: string;
+  milestones?: Milestone[];
 }
+
+const GOAL_CARD_COLOR = 0x006847;
+const MILESTONE_CELEBRATE_COLOR = 0xFFD700;
 
 const STRENGTH_LABELS: Record<string, string> = {
   ev: '5v5',
@@ -55,7 +60,7 @@ function getGoalEmoji(scoringTeamAbbrev: string, primaryTeam: string | undefined
 }
 
 export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { content?: string; embed: EmbedBuilder } {
-  const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild, primaryTeam } = data;
+  const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild, primaryTeam, milestones } = data;
 
   // Scorer info
   const scorerFirst = landingGoal?.firstName?.default ?? '';
@@ -79,6 +84,13 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
 
   // --- Description ---
   let description = '';
+
+  // Milestone banner (never reveals the game score — scorer/count only)
+  const hasCelebration = !!milestones?.some(m => m.celebrate);
+  if (milestones && milestones.length > 0) {
+    const banner = milestones.map(m => m.label).join(' • ');
+    description += `${hasCelebration ? '🎉 ' : ''}${banner}\n\n`;
+  }
 
   // Scorer line: #10 Matty Beniers (13) wrist assists: #19 Jared McCann (12), #62 Brandon Montour (14)
   const numberPrefix = scorerNumber ? `#${scorerNumber} ` : '';
@@ -127,7 +139,7 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
   const embed = new EmbedBuilder()
     .setTitle(title)
     .setDescription(description)
-    .setColor(0x006847)
+    .setColor(hasCelebration ? MILESTONE_CELEBRATE_COLOR : GOAL_CARD_COLOR)
     .setThumbnail(scoringTeamLogo);
 
   // Spoiler-wrapped score line as separate content above embed
