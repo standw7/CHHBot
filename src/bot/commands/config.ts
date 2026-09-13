@@ -30,6 +30,8 @@ export const data = new SlashCommandBuilder()
             { name: 'link_fix', value: 'link_fix_enabled' },
             { name: 'hof_threshold', value: 'hof_threshold' },
             { name: 'timezone', value: 'timezone' },
+            { name: 'daily_card', value: 'daily_card_enabled' },
+            { name: 'daily_card_hour', value: 'daily_card_hour' },
           )
       )
       .addStringOption(opt =>
@@ -83,6 +85,8 @@ async function handleShow(interaction: ChatInputCommandInteraction, guildId: str
     `**Link Fix (auto-embed):** ${config.link_fix_enabled ? 'on' : 'off'}`,
     `**HOF Threshold:** ${config.hof_threshold ?? 8} reactions`,
     `**Timezone:** ${config.timezone}`,
+    `**Daily Card:** ${config.daily_card_enabled ? 'on' : 'off'}`,
+    `**Daily Card Hour:** ${config.daily_card_hour ?? 9}`,
   ];
 
   await interaction.reply({ content: `**Tusky Configuration**\n${lines.join('\n')}`, ephemeral: true });
@@ -163,6 +167,24 @@ async function handleSet(interaction: ChatInputCommandInteraction, guildId: stri
     case 'timezone':
       updates.timezone = value;
       break;
+    case 'daily_card_enabled': {
+      const lower = value.toLowerCase();
+      if (!['on', 'off', '1', '0'].includes(lower)) {
+        await interaction.reply({ content: 'Daily card must be: on or off', ephemeral: true });
+        return;
+      }
+      updates.daily_card_enabled = (lower === 'on' || lower === '1') ? 1 : 0;
+      break;
+    }
+    case 'daily_card_hour': {
+      const num = parseInt(value, 10);
+      if (isNaN(num) || num < 0 || num > 23) {
+        await interaction.reply({ content: 'Daily card hour must be a number between 0 and 23.', ephemeral: true });
+        return;
+      }
+      updates.daily_card_hour = num;
+      break;
+    }
     default:
       await interaction.reply({ content: 'Unknown setting.', ephemeral: true });
       return;

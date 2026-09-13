@@ -11,8 +11,8 @@ export function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildCo
   const existing = getGuildConfig(guildId);
   if (!existing) {
     getDb().prepare(`
-      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, gameday_role_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone, hof_threshold)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, gameday_role_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone, hof_threshold, daily_card_enabled, daily_card_hour)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       guildId,
       updates.primary_team ?? 'UTA',
@@ -26,7 +26,9 @@ export function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildCo
       updates.command_mode ?? 'slash_plus_prefix',
       updates.link_fix_enabled ?? 1,
       updates.timezone ?? 'America/Denver',
-      updates.hof_threshold ?? 8
+      updates.hof_threshold ?? 8,
+      updates.daily_card_enabled ?? 1,
+      updates.daily_card_hour ?? 9
     );
   } else {
     const fields = Object.keys(updates) as (keyof typeof updates)[];
@@ -211,6 +213,20 @@ export function cleanupOldFeedItems(daysOld: number = 30): number {
   const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000).toISOString();
   const result = getDb().prepare('DELETE FROM posted_feed_items WHERE posted_at < ?').run(cutoff);
   return result.changes;
+}
+
+// --- Daily Cards Posted (dedup) ---
+
+export function hasDailyCardBeenPosted(guildId: string, date: string): boolean {
+  const row = getDb().prepare('SELECT 1 FROM daily_cards_posted WHERE guild_id = ? AND date = ?').get(guildId, date);
+  return !!row;
+}
+
+export function markDailyCardPosted(guildId: string, date: string): void {
+  getDb().prepare(`
+    INSERT OR IGNORE INTO daily_cards_posted (guild_id, date)
+    VALUES (?, ?)
+  `).run(guildId, date);
 }
 
 // --- Reminders ---

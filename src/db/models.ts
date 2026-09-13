@@ -12,6 +12,8 @@ export interface GuildConfig {
   link_fix_enabled: number; // 1 = on, 0 = off
   timezone: string;
   hof_threshold: number; // minimum reactions needed for HoF induction
+  daily_card_enabled: number; // 1 = on, 0 = off
+  daily_card_hour: number; // 0-23, guild-local hour to post the daily card
 }
 
 export interface FeedSource {
@@ -56,6 +58,11 @@ export interface HofMessage {
   hof_channel_id: string | null;
   hof_followup_id: string | null;
   inducted_at: string;
+}
+
+export interface DailyCardPosted {
+  guild_id: string;
+  date: string; // YYYY-MM-DD in the guild's timezone
 }
 
 export interface Reminder {

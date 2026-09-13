@@ -14,6 +14,8 @@ export interface ScheduleGame {
   awayTeam: ScheduleTeam;
   gameState: string; // FUT, PRE, LIVE, CRIT, FINAL, OFF
   venue: { default: string };
+  tvBroadcasts?: TvBroadcast[];
+  gameOutcome?: { lastPeriodType: string }; // REG, OT, SO — present once the game has finished
 }
 
 export interface ScheduleTeam {
