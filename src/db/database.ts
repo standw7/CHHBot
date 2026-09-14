@@ -35,7 +35,9 @@ function runMigrations(db: Database.Database): void {
       link_fix_enabled INTEGER DEFAULT 1,
       timezone TEXT DEFAULT 'America/Denver',
       daily_card_enabled INTEGER DEFAULT 1,
-      daily_card_hour INTEGER DEFAULT 9
+      daily_card_hour INTEGER DEFAULT 9,
+      season_start TEXT DEFAULT '2026-09-29',
+      season_end TEXT DEFAULT '2027-04-10'
     );
 
     CREATE TABLE IF NOT EXISTS gif_commands (
@@ -144,6 +146,12 @@ function runMigrations(db: Database.Database): void {
   }
   if (!colNames.includes('daily_card_hour')) {
     db.exec('ALTER TABLE guild_config ADD COLUMN daily_card_hour INTEGER DEFAULT 9');
+  }
+  if (!colNames.includes('season_start')) {
+    db.exec("ALTER TABLE guild_config ADD COLUMN season_start TEXT DEFAULT '2026-09-29'");
+  }
+  if (!colNames.includes('season_end')) {
+    db.exec("ALTER TABLE guild_config ADD COLUMN season_end TEXT DEFAULT '2027-04-10'");
   }
 
   // Check hof_messages columns for HoF message tracking

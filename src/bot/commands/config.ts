@@ -3,6 +3,7 @@ import {
   SlashCommandBuilder,
   PermissionFlagsBits,
 } from 'discord.js';
+import { DateTime } from 'luxon';
 import { getGuildConfig, upsertGuildConfig } from '../../db/queries.js';
 import type { GuildConfig } from '../../db/models.js';
 
@@ -32,6 +33,8 @@ export const data = new SlashCommandBuilder()
             { name: 'timezone', value: 'timezone' },
             { name: 'daily_card', value: 'daily_card_enabled' },
             { name: 'daily_card_hour', value: 'daily_card_hour' },
+            { name: 'season_start', value: 'season_start' },
+            { name: 'season_end', value: 'season_end' },
           )
       )
       .addStringOption(opt =>
@@ -87,6 +90,8 @@ async function handleShow(interaction: ChatInputCommandInteraction, guildId: str
     `**Timezone:** ${config.timezone}`,
     `**Daily Card:** ${config.daily_card_enabled ? 'on' : 'off'}`,
     `**Daily Card Hour:** ${config.daily_card_hour ?? 9}`,
+    `**Season Start:** ${config.season_start ?? '2026-09-29'}`,
+    `**Season End:** ${config.season_end ?? '2027-04-10'}`,
   ];
 
   await interaction.reply({ content: `**Tusky Configuration**\n${lines.join('\n')}`, ephemeral: true });
@@ -183,6 +188,22 @@ async function handleSet(interaction: ChatInputCommandInteraction, guildId: stri
         return;
       }
       updates.daily_card_hour = num;
+      break;
+    }
+    case 'season_start': {
+      if (value.length !== 10 || !DateTime.fromISO(value).isValid) {
+        await interaction.reply({ content: 'Season start must be a valid date in YYYY-MM-DD format.', ephemeral: true });
+        return;
+      }
+      updates.season_start = value;
+      break;
+    }
+    case 'season_end': {
+      if (value.length !== 10 || !DateTime.fromISO(value).isValid) {
+        await interaction.reply({ content: 'Season end must be a valid date in YYYY-MM-DD format.', ephemeral: true });
+        return;
+      }
+      updates.season_end = value;
       break;
     }
     default:

@@ -86,6 +86,8 @@ After inviting Tusky, you need to tell it which channels to use. Run these slash
 | `timezone` | Timezone for game times | Any timezone (e.g., America/Denver) | America/Denver |
 | `daily_card` | Post a daily pre-game/off-day card in the game day channel | `on` or `off` | on |
 | `daily_card_hour` | Guild-local hour (in `timezone`) to post the daily card | 0 to 23 | 9 |
+| `season_start` | First day of the in-season off-day card window | ISO date (YYYY-MM-DD) | 2026-09-29 |
+| `season_end` | Last day of the in-season off-day card window (playoff games extend it) | ISO date (YYYY-MM-DD) | 2027-04-10 |
 
 **Examples:**
 ```

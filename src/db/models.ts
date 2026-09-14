@@ -14,6 +14,8 @@ export interface GuildConfig {
   hof_threshold: number; // minimum reactions needed for HoF induction
   daily_card_enabled: number; // 1 = on, 0 = off
   daily_card_hour: number; // 0-23, guild-local hour to post the daily card
+  season_start: string; // ISO YYYY-MM-DD, first day of the "in season" off-day card window
+  season_end: string; // ISO YYYY-MM-DD, last day of the "in season" off-day card window
 }
 
 export interface FeedSource {

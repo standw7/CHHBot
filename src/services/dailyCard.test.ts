@@ -9,6 +9,7 @@ import {
 import type { ScheduleGame } from '../nhl/types.js';
 
 const ZONE = 'America/Denver';
+const WINDOW = { start: '2026-09-29', end: '2027-04-10' };
 
 function game(overrides: Partial<ScheduleGame> & { id: number }): ScheduleGame {
   return {
@@ -28,7 +29,7 @@ describe('selectDailyCard', () => {
   test('returns the game when a game is scheduled today', () => {
     const todayGame = game({ id: 1, gameDate: '2026-11-05', startTimeUTC: '2026-11-06T02:00:00Z' }); // 8pm MST on 11-05
     const games = [todayGame];
-    const result = selectDailyCard(games, '2026-11-05', ZONE);
+    const result = selectDailyCard(games, '2026-11-05', ZONE, WINDOW);
     assert.equal(result.kind, 'game');
     if (result.kind === 'game') {
       assert.equal(result.game.id, 1);
@@ -40,35 +41,58 @@ describe('selectDailyCard', () => {
       game({ id: 1, gameDate: '2026-11-03', startTimeUTC: '2026-11-04T02:00:00Z' }), // past
       game({ id: 2, gameDate: '2026-11-07', startTimeUTC: '2026-11-08T02:00:00Z' }), // future
     ];
-    const result = selectDailyCard(games, '2026-11-05', ZONE);
+    const result = selectDailyCard(games, '2026-11-05', ZONE, WINDOW);
     assert.equal(result.kind, 'offday');
     if (result.kind === 'offday') {
       assert.equal(result.nextGame?.id, 2);
     }
   });
 
-  test('returns none before the first regular-season game when only preseason has been played', () => {
+  test('day before season_start with only preseason games yields none', () => {
     const games = [
-      game({ id: 1, gameType: 1, gameDate: '2026-09-20', startTimeUTC: '2026-09-21T02:00:00Z' }), // preseason, past
-      game({ id: 2, gameType: 2, gameDate: '2026-10-08', startTimeUTC: '2026-10-09T02:00:00Z' }), // regular season, future
+      game({ id: 1, gameType: 1, gameDate: '2026-09-27', startTimeUTC: '2026-09-28T02:00:00Z' }), // preseason
+      game({ id: 2, gameType: 1, gameDate: '2026-09-30', startTimeUTC: '2026-10-01T02:00:00Z' }), // preseason
     ];
-    const result = selectDailyCard(games, '2026-09-25', ZONE);
+    const result = selectDailyCard(games, '2026-09-28', ZONE, WINDOW);
     assert.equal(result.kind, 'none');
   });
 
-  test('returns none after the last game of the season', () => {
+  test('on season_start with no game yields offday', () => {
     const games = [
-      game({ id: 1, gameType: 2, gameDate: '2027-04-01', startTimeUTC: '2027-04-02T02:00:00Z' }), // past
-      game({ id: 2, gameType: 3, gameDate: '2027-04-10', startTimeUTC: '2027-04-11T02:00:00Z' }), // playoffs, still past
+      game({ id: 1, gameType: 2, gameDate: '2026-10-05', startTimeUTC: '2026-10-06T02:00:00Z' }), // future
     ];
-    const result = selectDailyCard(games, '2027-05-01', ZONE);
+    const result = selectDailyCard(games, WINDOW.start, ZONE, WINDOW);
+    assert.equal(result.kind, 'offday');
+  });
+
+  test('on season_end yields offday', () => {
+    const games = [
+      game({ id: 1, gameType: 2, gameDate: '2027-04-05', startTimeUTC: '2027-04-06T02:00:00Z' }), // past
+    ];
+    const result = selectDailyCard(games, WINDOW.end, ZONE, WINDOW);
+    assert.equal(result.kind, 'offday');
+  });
+
+  test('day after season_end with no playoff games yields none', () => {
+    const games = [
+      game({ id: 1, gameType: 2, gameDate: '2027-04-05', startTimeUTC: '2027-04-06T02:00:00Z' }), // past, regular season
+    ];
+    const result = selectDailyCard(games, '2027-04-11', ZONE, WINDOW);
     assert.equal(result.kind, 'none');
+  });
+
+  test('day after season_end with a future playoff (gameType 3) game yields offday', () => {
+    const games = [
+      game({ id: 1, gameType: 3, gameDate: '2027-04-13', startTimeUTC: '2027-04-14T02:00:00Z' }), // future playoff game
+    ];
+    const result = selectDailyCard(games, '2027-04-11', ZONE, WINDOW);
+    assert.equal(result.kind, 'offday');
   });
 
   test('a game late in UTC still counts as tonight in America/Denver', () => {
     // 11:30pm MST on 11-05 == 06:30 UTC on 11-06
     const lateGame = game({ id: 1, gameDate: '2026-11-05', startTimeUTC: '2026-11-06T06:30:00Z' });
-    const result = selectDailyCard([lateGame], '2026-11-05', ZONE);
+    const result = selectDailyCard([lateGame], '2026-11-05', ZONE, WINDOW);
     assert.equal(result.kind, 'game');
     if (result.kind === 'game') {
       assert.equal(result.game.id, 1);

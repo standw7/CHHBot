@@ -9,6 +9,8 @@ import type { ScheduleGame, TeamStanding } from '../nhl/types.js';
 const logger = pino({ name: 'daily-card-service' });
 const POLL_INTERVAL_MS = 60_000;
 const DEFAULT_ZONE = 'America/Denver';
+const DEFAULT_SEASON_START = '2026-09-29';
+const DEFAULT_SEASON_END = '2027-04-10';
 const CARD_COLOR = 0x006847;
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -61,7 +63,11 @@ async function processGuild(client: Client, guildId: string): Promise<void> {
   }
 
   const games = scheduleResponse.games ?? [];
-  const selection = selectDailyCard(games, todayISO, zone);
+  const window = {
+    start: config.season_start || DEFAULT_SEASON_START,
+    end: config.season_end || DEFAULT_SEASON_END,
+  };
+  const selection = selectDailyCard(games, todayISO, zone, window);
   if (selection.kind === 'none') {
     // Nothing to post (off-season), but claim the day so we don't refetch the schedule
     // on every tick until a real game shows up.
@@ -112,10 +118,17 @@ export type DailyCardSelection =
   | { kind: 'offday'; nextGame?: ScheduleGame }
   | { kind: 'none' };
 
-/** In-season game types: 2 = regular season, 3 = playoffs. Preseason (1) doesn't count. */
-const IN_SEASON_GAME_TYPES = new Set([2, 3]);
+export interface SeasonWindow {
+  start: string; // ISO YYYY-MM-DD
+  end: string; // ISO YYYY-MM-DD
+}
 
-export function selectDailyCard(games: ScheduleGame[], todayISO: string, zone: string): DailyCardSelection {
+export function selectDailyCard(
+  games: ScheduleGame[],
+  todayISO: string,
+  zone: string,
+  window: SeasonWindow
+): DailyCardSelection {
   const gameToday = games.find(
     g => DateTime.fromISO(g.startTimeUTC, { zone: 'utc' }).setZone(zone).toISODate() === todayISO
   );
@@ -123,11 +136,10 @@ export function selectDailyCard(games: ScheduleGame[], todayISO: string, zone: s
     return { kind: 'game', game: gameToday };
   }
 
-  const seasonGames = games.filter(g => IN_SEASON_GAME_TYPES.has(g.gameType));
-  const hasPastSeasonGame = seasonGames.some(g => g.gameDate <= todayISO);
-  const hasFutureSeasonGame = seasonGames.some(g => g.gameDate >= todayISO);
+  const inConfiguredWindow = window.start <= todayISO && todayISO <= window.end;
+  const hasFuturePlayoffGame = games.some(g => g.gameType === 3 && g.gameDate >= todayISO);
 
-  if (!hasPastSeasonGame || !hasFutureSeasonGame) {
+  if (!inConfiguredWindow && !hasFuturePlayoffGame) {
     return { kind: 'none' };
   }
 
