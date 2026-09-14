@@ -13,6 +13,8 @@ const logger = (0, pino_1.default)({ name: 'prefix-commands' });
 // Cooldown tracking for prefix gif commands
 const cooldowns = new Map();
 const COOLDOWN_MS = 5000;
+// Guilds with a `!hof scan` currently running — prevents overlapping scans/double-posting
+const hofScanInFlight = new Set();
 function registerMessageHandler(client) {
     client.on('messageCreate', async (message) => {
         if (message.author.bot)
@@ -832,7 +834,8 @@ async function handlePrefixHof(message, args) {
             `Current threshold: **${currentThreshold}** reactions\n` +
             'Qualifying emojis: 🔥 😂 🤣\n\n' +
             '`!hof threshold <number>` - Set minimum reactions needed (admin)\n' +
-            '`!hof update` - Rebuild all HOF posts with reply context, media, and twitter rendering (admin)\n\n' +
+            '`!hof update` - Rebuild all HOF posts with reply context, media, and twitter rendering (admin)\n' +
+            '`!hof scan <YYYY-MM-DD> [go]` - Find messages since a date that qualify but were never inducted; add `go` to post them (admin). Scanning months back can take a while.\n\n' +
             'A message is inducted once when ANY qualifying emoji reaches the threshold.');
         return;
     }
@@ -956,6 +959,112 @@ async function handlePrefixHof(message, args) {
         }
         await statusMsg.edit(`Done! Resent **${updated}** posts in order, **${skipped}** skipped (original message deleted/missing).`);
         return;
+    }
+    if (sub === 'scan') {
+        if (hofScanInFlight.has(guildId)) {
+            await message.reply('A HoF scan is already running for this server.');
+            return;
+        }
+        hofScanInFlight.add(guildId);
+        try {
+            const dateArg = args[1];
+            const goMode = args[2]?.toLowerCase() === 'go';
+            const zone = config?.timezone ?? 'utc';
+            if (!dateArg || dateArg.length !== 10 || !luxon_1.DateTime.fromISO(dateArg, { zone }).isValid) {
+                await message.reply('Usage: `!hof scan <YYYY-MM-DD> [go]` - Provide a valid date in YYYY-MM-DD format.');
+                return;
+            }
+            const sinceDate = luxon_1.DateTime.fromISO(dateArg, { zone }).startOf('day');
+            if (sinceDate > luxon_1.DateTime.now().setZone(zone)) {
+                await message.reply('The date cannot be in the future.');
+                return;
+            }
+            if (!config?.hof_channel_id) {
+                await message.reply('Hall of Fame is not configured for this server. Set a channel with `/config`.');
+                return;
+            }
+            const { scanForMissedHof } = await import('../../services/hofScan.js');
+            const { inductMessage } = await import('./reactionAdd.js');
+            const { hasMessageBeenInducted } = await import('../../db/queries.js');
+            await message.reply('Scanning…');
+            let candidates;
+            try {
+                candidates = await scanForMissedHof(message.guild, config, sinceDate.toISO());
+            }
+            catch (error) {
+                logger.error({ error }, 'Failed to scan for missed HoF messages');
+                await message.reply('Something went wrong while scanning. Check the logs.');
+                return;
+            }
+            if (!goMode) {
+                const header = `Found ${candidates.length} messages since ${dateArg} that qualify and were never inducted.`;
+                if (candidates.length === 0) {
+                    await message.reply(header);
+                    return;
+                }
+                const bodyLines = candidates
+                    .slice(0, 20)
+                    .map((c) => `#${c.channelName} — ${c.topCount} reactions — ${c.message.url}`);
+                const hint = `Run \`!hof scan ${dateArg} go\` to post them.`;
+                // Discord caps messages at 2000 chars; chunk well under that so we never hit 50035.
+                const chunks = [];
+                let current = '';
+                for (const line of [header, ...bodyLines, hint]) {
+                    const withLine = current ? `${current}\n${line}` : line;
+                    if (withLine.length > 1900 && current) {
+                        chunks.push(current);
+                        current = line;
+                    }
+                    else {
+                        current = withLine;
+                    }
+                }
+                if (current)
+                    chunks.push(current);
+                for (let i = 0; i < chunks.length; i++) {
+                    if (i === 0) {
+                        await message.reply(chunks[i]);
+                    }
+                    else if (message.channel.isSendable()) {
+                        await message.channel.send(chunks[i]);
+                    }
+                }
+                return;
+            }
+            let toPost = candidates;
+            let capped = false;
+            if (toPost.length > 50) {
+                toPost = toPost.slice(0, 50);
+                capped = true;
+            }
+            let inducted = 0;
+            for (let i = 0; i < toPost.length; i++) {
+                try {
+                    // Re-check: the live reaction handler (or another scan) may have inducted this
+                    // message since scanForMissedHof built the candidate list.
+                    if (hasMessageBeenInducted(guildId, toPost[i].message.id))
+                        continue;
+                    const posted = await inductMessage(toPost[i].message, guildId, config);
+                    if (posted)
+                        inducted++;
+                }
+                catch (error) {
+                    logger.warn({ error, messageId: toPost[i].message.id }, 'Failed to induct message during hof scan');
+                }
+                if (i < toPost.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                }
+            }
+            let finalReply = `Inducted ${inducted} of ${candidates.length}.`;
+            if (capped) {
+                finalReply += ' Capped at 50 for this run — re-run `!hof scan` to post the rest.';
+            }
+            await message.reply(finalReply);
+            return;
+        }
+        finally {
+            hofScanInFlight.delete(guildId);
+        }
     }
     await message.reply('Unknown subcommand. Use `!hof help` for usage.');
 }

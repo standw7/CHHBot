@@ -3,15 +3,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.HOF_EMOJIS = void 0;
 exports.buildHofPost = buildHofPost;
+exports.inductMessage = inductMessage;
 exports.registerReactionHandler = registerReactionHandler;
 const discord_js_1 = require("discord.js");
 const queries_js_1 = require("../../db/queries.js");
+const hofScan_js_1 = require("../../services/hofScan.js");
+Object.defineProperty(exports, "HOF_EMOJIS", { enumerable: true, get: function () { return hofScan_js_1.HOF_EMOJIS; } });
 const pino_1 = __importDefault(require("pino"));
 const logger = (0, pino_1.default)({ name: 'hall-of-fame' });
-// Emojis that can trigger HoF induction
-const HOF_EMOJIS = ['🔥', '😂', '🤣'];
-const DEFAULT_THRESHOLD = 8;
 // Social link patterns: match all variants (original + embed-fix domains), normalize to embed-fix URL
 const SOCIAL_LINK_PATTERNS = [
     {
@@ -147,6 +148,37 @@ async function buildHofPost(message, guildId, channelId, messageId) {
     }
     return { embed, embedLinks, files };
 }
+/**
+ * Build a HoF post for the given message and post it to the guild's HoF channel,
+ * marking it inducted (and recording any follow-up message) in the DB.
+ * Returns true when it posted, false if the HoF channel could not be resolved.
+ * Shared by the reaction handler and the `!hof scan` backfill command.
+ */
+async function inductMessage(message, guildId, config) {
+    const channelId = message.channel.id;
+    const messageId = message.id;
+    // Build the HoF post
+    const { embed, embedLinks, files } = await buildHofPost(message, guildId, channelId, messageId);
+    // Post to HoF channel
+    const hofChannel = await message.guild.channels.fetch(config.hof_channel_id);
+    if (!hofChannel || !hofChannel.isTextBased()) {
+        logger.error({ hofChannelId: config.hof_channel_id }, 'Hall of Fame channel not found or not text-based');
+        return false;
+    }
+    const tc = hofChannel;
+    // Send the main HOF embed (no files — videos go in follow-up so they render below)
+    const hofMessage = await tc.send({ embeds: [embed] });
+    (0, queries_js_1.markMessageInducted)(guildId, messageId, channelId, hofMessage.id, config.hof_channel_id);
+    // Send follow-up with fxtwitter links and/or video files (renders below the card)
+    if (embedLinks.length > 0 || files.length > 0) {
+        const followup = await tc.send({
+            content: embedLinks.length > 0 ? embedLinks.join('\n') : undefined,
+            files,
+        });
+        (0, queries_js_1.updateHofFollowup)(guildId, messageId, followup.id);
+    }
+    return true;
+}
 function registerReactionHandler(client) {
     client.on('messageReactionAdd', async (reaction, user) => {
         try {
@@ -164,7 +196,7 @@ function registerReactionHandler(client) {
                 return;
             // Check if this is a qualifying emoji
             const emojiName = reaction.emoji.name;
-            if (!emojiName || !HOF_EMOJIS.includes(emojiName))
+            if (!emojiName || !hofScan_js_1.HOF_EMOJIS.includes(emojiName))
                 return;
             const guildId = reaction.message.guild.id;
             const config = (0, queries_js_1.getGuildConfig)(guildId);
@@ -175,7 +207,7 @@ function registerReactionHandler(client) {
             // Don't induct messages from the HoF channel itself
             if (channelId === config.hof_channel_id)
                 return;
-            const threshold = config.hof_threshold ?? DEFAULT_THRESHOLD;
+            const threshold = config.hof_threshold ?? hofScan_js_1.DEFAULT_THRESHOLD;
             const count = reaction.count ?? 0;
             // Check if already inducted - skip if so (no duplicates)
             if ((0, queries_js_1.hasMessageBeenInducted)(guildId, messageId))
@@ -185,27 +217,10 @@ function registerReactionHandler(client) {
                 return;
             // Fetch the full message
             const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
-            // Build the HoF post
-            const { embed, embedLinks, files } = await buildHofPost(message, guildId, channelId, messageId);
-            // Post to HoF channel
-            const hofChannel = await message.guild.channels.fetch(config.hof_channel_id);
-            if (!hofChannel || !hofChannel.isTextBased()) {
-                logger.error({ hofChannelId: config.hof_channel_id }, 'Hall of Fame channel not found or not text-based');
-                return;
+            const posted = await inductMessage(message, guildId, config);
+            if (posted) {
+                logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
             }
-            const tc = hofChannel;
-            // Send the main HOF embed (no files — videos go in follow-up so they render below)
-            const hofMessage = await tc.send({ embeds: [embed] });
-            (0, queries_js_1.markMessageInducted)(guildId, messageId, channelId, hofMessage.id, config.hof_channel_id);
-            // Send follow-up with fxtwitter links and/or video files (renders below the card)
-            if (embedLinks.length > 0 || files.length > 0) {
-                const followup = await tc.send({
-                    content: embedLinks.length > 0 ? embedLinks.join('\n') : undefined,
-                    files,
-                });
-                (0, queries_js_1.updateHofFollowup)(guildId, messageId, followup.id);
-            }
-            logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
         }
         catch (error) {
             logger.error({ error }, 'Error in hall of fame reaction handler');

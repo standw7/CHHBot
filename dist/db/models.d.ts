@@ -14,6 +14,8 @@ export interface GuildConfig {
     hof_threshold: number;
     daily_card_enabled: number;
     daily_card_hour: number;
+    season_start: string;
+    season_end: string;
 }
 export interface FeedSource {
     id: number;

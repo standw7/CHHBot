@@ -1,5 +1,7 @@
 import { Client, EmbedBuilder, Guild } from 'discord.js';
 import type { ScheduleGame, TeamStanding } from '../nhl/types.js';
+export declare const DEFAULT_SEASON_START = "2026-09-29";
+export declare const DEFAULT_SEASON_END = "2027-04-10";
 export declare function startDailyCardService(client: Client): void;
 export declare function stopDailyCardService(): void;
 export type DailyCardSelection = {
@@ -11,7 +13,11 @@ export type DailyCardSelection = {
 } | {
     kind: 'none';
 };
-export declare function selectDailyCard(games: ScheduleGame[], todayISO: string, zone: string): DailyCardSelection;
+export interface SeasonWindow {
+    start: string;
+    end: string;
+}
+export declare function selectDailyCard(games: ScheduleGame[], todayISO: string, zone: string, window: SeasonWindow): DailyCardSelection;
 export declare const OFF_DAY_PHRASES: string[];
 export declare function pickOffDayPhrase(todayISO: string): string;
 export interface SeasonSeriesRecord {

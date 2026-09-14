@@ -40,6 +40,7 @@ exports.cancelReminder = cancelReminder;
 exports.deleteReminder = deleteReminder;
 exports.countUserReminders = countUserReminders;
 const database_js_1 = require("./database.js");
+const dailyCard_js_1 = require("../services/dailyCard.js");
 // --- Guild Config ---
 function getGuildConfig(guildId) {
     return (0, database_js_1.getDb)().prepare('SELECT * FROM guild_config WHERE guild_id = ?').get(guildId);
@@ -48,9 +49,9 @@ function upsertGuildConfig(guildId, updates) {
     const existing = getGuildConfig(guildId);
     if (!existing) {
         (0, database_js_1.getDb)().prepare(`
-      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, gameday_role_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone, hof_threshold, daily_card_enabled, daily_card_hour)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(guildId, updates.primary_team ?? 'UTA', updates.gameday_channel_id ?? null, updates.hof_channel_id ?? null, updates.bot_commands_channel_id ?? null, updates.news_channel_id ?? null, updates.gameday_role_id ?? null, updates.spoiler_delay_seconds ?? 30, updates.spoiler_mode ?? 'off', updates.command_mode ?? 'slash_plus_prefix', updates.link_fix_enabled ?? 1, updates.timezone ?? 'America/Denver', updates.hof_threshold ?? 8, updates.daily_card_enabled ?? 1, updates.daily_card_hour ?? 9);
+      INSERT INTO guild_config (guild_id, primary_team, gameday_channel_id, hof_channel_id, bot_commands_channel_id, news_channel_id, gameday_role_id, spoiler_delay_seconds, spoiler_mode, command_mode, link_fix_enabled, timezone, hof_threshold, daily_card_enabled, daily_card_hour, season_start, season_end)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(guildId, updates.primary_team ?? 'UTA', updates.gameday_channel_id ?? null, updates.hof_channel_id ?? null, updates.bot_commands_channel_id ?? null, updates.news_channel_id ?? null, updates.gameday_role_id ?? null, updates.spoiler_delay_seconds ?? 30, updates.spoiler_mode ?? 'off', updates.command_mode ?? 'slash_plus_prefix', updates.link_fix_enabled ?? 1, updates.timezone ?? 'America/Denver', updates.hof_threshold ?? 8, updates.daily_card_enabled ?? 1, updates.daily_card_hour ?? 9, updates.season_start ?? dailyCard_js_1.DEFAULT_SEASON_START, updates.season_end ?? dailyCard_js_1.DEFAULT_SEASON_END);
     }
     else {
         const fields = Object.keys(updates);

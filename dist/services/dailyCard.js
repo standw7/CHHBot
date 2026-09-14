@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OFF_DAY_PHRASES = void 0;
+exports.OFF_DAY_PHRASES = exports.DEFAULT_SEASON_END = exports.DEFAULT_SEASON_START = void 0;
 exports.startDailyCardService = startDailyCardService;
 exports.stopDailyCardService = stopDailyCardService;
 exports.selectDailyCard = selectDailyCard;
@@ -53,6 +53,8 @@ const goalCard_js_1 = require("./goalCard.js");
 const logger = (0, pino_1.default)({ name: 'daily-card-service' });
 const POLL_INTERVAL_MS = 60_000;
 const DEFAULT_ZONE = 'America/Denver';
+exports.DEFAULT_SEASON_START = '2026-09-29';
+exports.DEFAULT_SEASON_END = '2027-04-10';
 const CARD_COLOR = 0x006847;
 let timer = null;
 function startDailyCardService(client) {
@@ -102,7 +104,11 @@ async function processGuild(client, guildId) {
         return;
     }
     const games = scheduleResponse.games ?? [];
-    const selection = selectDailyCard(games, todayISO, zone);
+    const window = {
+        start: config.season_start || exports.DEFAULT_SEASON_START,
+        end: config.season_end || exports.DEFAULT_SEASON_END,
+    };
+    const selection = selectDailyCard(games, todayISO, zone, window);
     if (selection.kind === 'none') {
         // Nothing to post (off-season), but claim the day so we don't refetch the schedule
         // on every tick until a real game shows up.
@@ -142,17 +148,14 @@ async function processGuild(client, guildId) {
         logger.error({ err, guildId }, 'Failed to post daily card');
     }
 }
-/** In-season game types: 2 = regular season, 3 = playoffs. Preseason (1) doesn't count. */
-const IN_SEASON_GAME_TYPES = new Set([2, 3]);
-function selectDailyCard(games, todayISO, zone) {
+function selectDailyCard(games, todayISO, zone, window) {
     const gameToday = games.find(g => luxon_1.DateTime.fromISO(g.startTimeUTC, { zone: 'utc' }).setZone(zone).toISODate() === todayISO);
     if (gameToday) {
         return { kind: 'game', game: gameToday };
     }
-    const seasonGames = games.filter(g => IN_SEASON_GAME_TYPES.has(g.gameType));
-    const hasPastSeasonGame = seasonGames.some(g => g.gameDate <= todayISO);
-    const hasFutureSeasonGame = seasonGames.some(g => g.gameDate >= todayISO);
-    if (!hasPastSeasonGame || !hasFutureSeasonGame) {
+    const inConfiguredWindow = window.start <= todayISO && todayISO <= window.end;
+    const hasFuturePlayoffGame = games.some(g => g.gameType === 3 && g.gameDate >= todayISO);
+    if (!inConfiguredWindow && !hasFuturePlayoffGame) {
         return { kind: 'none' };
     }
     const upcoming = games
