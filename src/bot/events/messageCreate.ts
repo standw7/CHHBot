@@ -14,6 +14,9 @@ const logger = pino({ name: 'prefix-commands' });
 const cooldowns = new Map<string, number>();
 const COOLDOWN_MS = 5000;
 
+// Guilds with a `!hof scan` currently running — prevents overlapping scans/double-posting
+const hofScanInFlight = new Set<string>();
+
 export function registerMessageHandler(client: Client): void {
   client.on('messageCreate', async (message: Message) => {
     if (message.author.bot) return;
@@ -979,7 +982,7 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
       'Qualifying emojis: 🔥 😂 🤣\n\n' +
       '`!hof threshold <number>` - Set minimum reactions needed (admin)\n' +
       '`!hof update` - Rebuild all HOF posts with reply context, media, and twitter rendering (admin)\n' +
-      '`!hof scan <YYYY-MM-DD> [go]` - Find messages since a date that qualify but were never inducted; add `go` to post them (admin)\n\n' +
+      '`!hof scan <YYYY-MM-DD> [go]` - Find messages since a date that qualify but were never inducted; add `go` to post them (admin). Scanning months back can take a while.\n\n' +
       'A message is inducted once when ANY qualifying emoji reaches the threshold.'
     );
     return;
@@ -1120,78 +1123,115 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
   }
 
   if (sub === 'scan') {
-    const dateArg = args[1];
-    const goMode = args[2]?.toLowerCase() === 'go';
-    const zone = config?.timezone ?? 'utc';
-
-    if (!dateArg || dateArg.length !== 10 || !DateTime.fromISO(dateArg, { zone }).isValid) {
-      await message.reply('Usage: `!hof scan <YYYY-MM-DD> [go]` - Provide a valid date in YYYY-MM-DD format.');
+    if (hofScanInFlight.has(guildId)) {
+      await message.reply('A HoF scan is already running for this server.');
       return;
     }
-
-    const sinceDate = DateTime.fromISO(dateArg, { zone }).startOf('day');
-    if (sinceDate > DateTime.now().setZone(zone)) {
-      await message.reply('The date cannot be in the future.');
-      return;
-    }
-
-    if (!config?.hof_channel_id) {
-      await message.reply('Hall of Fame is not configured for this server. Set a channel with `/config`.');
-      return;
-    }
-
-    const { scanForMissedHof } = await import('../../services/hofScan.js');
-    const { inductMessage } = await import('./reactionAdd.js');
-
-    await message.reply('Scanning…');
-
-    let candidates;
+    hofScanInFlight.add(guildId);
     try {
-      candidates = await scanForMissedHof(message.guild!, config, sinceDate.toISO()!);
-    } catch (error) {
-      logger.error({ error }, 'Failed to scan for missed HoF messages');
-      await message.reply('Something went wrong while scanning. Check the logs.');
-      return;
-    }
+      const dateArg = args[1];
+      const goMode = args[2]?.toLowerCase() === 'go';
+      const zone = config?.timezone ?? 'utc';
 
-    if (!goMode) {
-      let reply = `Found ${candidates.length} messages since ${dateArg} that qualify and were never inducted.`;
-      if (candidates.length > 0) {
-        const lines = candidates
+      if (!dateArg || dateArg.length !== 10 || !DateTime.fromISO(dateArg, { zone }).isValid) {
+        await message.reply('Usage: `!hof scan <YYYY-MM-DD> [go]` - Provide a valid date in YYYY-MM-DD format.');
+        return;
+      }
+
+      const sinceDate = DateTime.fromISO(dateArg, { zone }).startOf('day');
+      if (sinceDate > DateTime.now().setZone(zone)) {
+        await message.reply('The date cannot be in the future.');
+        return;
+      }
+
+      if (!config?.hof_channel_id) {
+        await message.reply('Hall of Fame is not configured for this server. Set a channel with `/config`.');
+        return;
+      }
+
+      const { scanForMissedHof } = await import('../../services/hofScan.js');
+      const { inductMessage } = await import('./reactionAdd.js');
+      const { hasMessageBeenInducted } = await import('../../db/queries.js');
+
+      await message.reply('Scanning…');
+
+      let candidates;
+      try {
+        candidates = await scanForMissedHof(message.guild!, config, sinceDate.toISO()!);
+      } catch (error) {
+        logger.error({ error }, 'Failed to scan for missed HoF messages');
+        await message.reply('Something went wrong while scanning. Check the logs.');
+        return;
+      }
+
+      if (!goMode) {
+        const header = `Found ${candidates.length} messages since ${dateArg} that qualify and were never inducted.`;
+        if (candidates.length === 0) {
+          await message.reply(header);
+          return;
+        }
+
+        const bodyLines = candidates
           .slice(0, 20)
           .map((c) => `#${c.channelName} — ${c.topCount} reactions — ${c.message.url}`);
-        reply += `\n${lines.join('\n')}\nRun \`!hof scan ${dateArg} go\` to post them.`;
+        const hint = `Run \`!hof scan ${dateArg} go\` to post them.`;
+
+        // Discord caps messages at 2000 chars; chunk well under that so we never hit 50035.
+        const chunks: string[] = [];
+        let current = '';
+        for (const line of [header, ...bodyLines, hint]) {
+          const withLine = current ? `${current}\n${line}` : line;
+          if (withLine.length > 1900 && current) {
+            chunks.push(current);
+            current = line;
+          } else {
+            current = withLine;
+          }
+        }
+        if (current) chunks.push(current);
+
+        for (let i = 0; i < chunks.length; i++) {
+          if (i === 0) {
+            await message.reply(chunks[i]);
+          } else if (message.channel.isSendable()) {
+            await message.channel.send(chunks[i]);
+          }
+        }
+        return;
       }
-      await message.reply(reply);
+
+      let toPost = candidates;
+      let capped = false;
+      if (toPost.length > 50) {
+        toPost = toPost.slice(0, 50);
+        capped = true;
+      }
+
+      let inducted = 0;
+      for (let i = 0; i < toPost.length; i++) {
+        try {
+          // Re-check: the live reaction handler (or another scan) may have inducted this
+          // message since scanForMissedHof built the candidate list.
+          if (hasMessageBeenInducted(guildId, toPost[i].message.id)) continue;
+          const posted = await inductMessage(toPost[i].message, guildId, config);
+          if (posted) inducted++;
+        } catch (error) {
+          logger.warn({ error, messageId: toPost[i].message.id }, 'Failed to induct message during hof scan');
+        }
+        if (i < toPost.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
+
+      let finalReply = `Inducted ${inducted} of ${candidates.length}.`;
+      if (capped) {
+        finalReply += ' Capped at 50 for this run — re-run `!hof scan` to post the rest.';
+      }
+      await message.reply(finalReply);
       return;
+    } finally {
+      hofScanInFlight.delete(guildId);
     }
-
-    let toPost = candidates;
-    let capped = false;
-    if (toPost.length > 50) {
-      toPost = toPost.slice(0, 50);
-      capped = true;
-    }
-
-    let inducted = 0;
-    for (let i = 0; i < toPost.length; i++) {
-      try {
-        const posted = await inductMessage(toPost[i].message, guildId, config);
-        if (posted) inducted++;
-      } catch (error) {
-        logger.warn({ error, messageId: toPost[i].message.id }, 'Failed to induct message during hof scan');
-      }
-      if (i < toPost.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-    }
-
-    let finalReply = `Inducted ${inducted} of ${candidates.length}.`;
-    if (capped) {
-      finalReply += ' Capped at 50 for this run — re-run `!hof scan` to post the rest.';
-    }
-    await message.reply(finalReply);
-    return;
   }
 
   await message.reply('Unknown subcommand. Use `!hof help` for usage.');

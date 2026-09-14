@@ -2,9 +2,13 @@ import { ChannelType, Guild, Message, PermissionFlagsBits, TextChannel } from 'd
 import pino from 'pino';
 import { hasMessageBeenInducted } from '../db/queries.js';
 import type { GuildConfig } from '../db/models.js';
-import { HOF_EMOJIS } from '../bot/events/reactionAdd.js';
 
 const logger = pino({ name: 'hof-scan' });
+
+// Emojis that can trigger HoF induction. Shared by the reaction handler and the scanner
+// so `services/` doesn't need to import from `bot/events/`.
+export const HOF_EMOJIS = ['🔥', '😂', '🤣'];
+export const DEFAULT_THRESHOLD = 8;
 
 export interface ReactionCount {
   emojiName: string | null;
@@ -42,7 +46,7 @@ export async function scanForMissedHof(
   sinceISO: string
 ): Promise<ScanCandidate[]> {
   const since = new Date(sinceISO).getTime();
-  const threshold = config.hof_threshold;
+  const threshold = config.hof_threshold ?? DEFAULT_THRESHOLD;
   const candidates: ScanCandidate[] = [];
 
   const me = guild.members.me;
@@ -89,6 +93,9 @@ export async function scanForMissedHof(
         if (!oldest) break;
         before = oldest.id;
         if (oldest.createdTimestamp < since) break;
+        // Fewer than a full page means this was the last page of history — avoid an
+        // extra round trip that would just come back empty.
+        if (page.size < 100) break;
       }
     } catch (error) {
       logger.warn({ error, channelId: channel.id }, 'Failed to scan channel for missed HoF messages');

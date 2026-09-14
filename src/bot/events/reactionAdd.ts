@@ -1,13 +1,13 @@
 import { Client, EmbedBuilder, Message, MessageReaction, PartialMessageReaction, User, PartialUser, TextChannel, AttachmentBuilder } from 'discord.js';
 import { getGuildConfig, hasMessageBeenInducted, markMessageInducted, updateHofFollowup } from '../../db/queries.js';
 import type { GuildConfig } from '../../db/models.js';
+import { HOF_EMOJIS, DEFAULT_THRESHOLD } from '../../services/hofScan.js';
 import pino from 'pino';
 
 const logger = pino({ name: 'hall-of-fame' });
 
-// Emojis that can trigger HoF induction
-export const HOF_EMOJIS = ['🔥', '😂', '🤣'];
-const DEFAULT_THRESHOLD = 8;
+// Re-exported for callers that historically imported the qualifying-emoji list from here.
+export { HOF_EMOJIS };
 
 // Social link patterns: match all variants (original + embed-fix domains), normalize to embed-fix URL
 const SOCIAL_LINK_PATTERNS: { re: RegExp; toEmbedUrl: (match: RegExpExecArray) => string }[] = [

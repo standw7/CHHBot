@@ -1,8 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { qualifiesForHof } from './hofScan.js';
-
-const HOF_EMOJIS = ['🔥', '😂', '🤣'];
+import { qualifiesForHof, HOF_EMOJIS } from './hofScan.js';
 
 describe('qualifiesForHof', () => {
   test('meets threshold on 🔥', () => {
