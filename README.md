@@ -383,6 +383,8 @@ When any message in your server gets **5 fire emoji reactions** (🔥), Tusky au
 
 Each message can only be inducted once, even if it gets more reactions later.
 
+**Backfill missed messages** (admin, e.g. after downtime): `!hof scan <YYYY-MM-DD>` scans every readable text channel for messages posted since that date that meet the threshold but were never inducted, and shows a dry-run preview. Add `go` (`!hof scan <YYYY-MM-DD> go`) to actually post them, oldest first, up to 50 per run.
+
 ### Auto Link Fix
 
 When someone posts a Twitter/X link (x.com or twitter.com), Tusky automatically replies with a fxtwitter.com version that actually embeds properly in Discord. This means everyone can see the tweet content without having to click the link.

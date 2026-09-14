@@ -1,11 +1,12 @@
 import { Client, EmbedBuilder, Message, MessageReaction, PartialMessageReaction, User, PartialUser, TextChannel, AttachmentBuilder } from 'discord.js';
 import { getGuildConfig, hasMessageBeenInducted, markMessageInducted, updateHofFollowup } from '../../db/queries.js';
+import type { GuildConfig } from '../../db/models.js';
 import pino from 'pino';
 
 const logger = pino({ name: 'hall-of-fame' });
 
 // Emojis that can trigger HoF induction
-const HOF_EMOJIS = ['🔥', '😂', '🤣'];
+export const HOF_EMOJIS = ['🔥', '😂', '🤣'];
 const DEFAULT_THRESHOLD = 8;
 
 // Social link patterns: match all variants (original + embed-fix domains), normalize to embed-fix URL
@@ -169,6 +170,44 @@ export async function buildHofPost(
   return { embed, embedLinks, files };
 }
 
+/**
+ * Build a HoF post for the given message and post it to the guild's HoF channel,
+ * marking it inducted (and recording any follow-up message) in the DB.
+ * Returns true when it posted, false if the HoF channel could not be resolved.
+ * Shared by the reaction handler and the `!hof scan` backfill command.
+ */
+export async function inductMessage(message: Message, guildId: string, config: GuildConfig): Promise<boolean> {
+  const channelId = message.channel.id;
+  const messageId = message.id;
+
+  // Build the HoF post
+  const { embed, embedLinks, files } = await buildHofPost(message, guildId, channelId, messageId);
+
+  // Post to HoF channel
+  const hofChannel = await message.guild!.channels.fetch(config.hof_channel_id!);
+  if (!hofChannel || !hofChannel.isTextBased()) {
+    logger.error({ hofChannelId: config.hof_channel_id }, 'Hall of Fame channel not found or not text-based');
+    return false;
+  }
+
+  const tc = hofChannel as TextChannel;
+
+  // Send the main HOF embed (no files — videos go in follow-up so they render below)
+  const hofMessage = await tc.send({ embeds: [embed] });
+  markMessageInducted(guildId, messageId, channelId, hofMessage.id, config.hof_channel_id!);
+
+  // Send follow-up with fxtwitter links and/or video files (renders below the card)
+  if (embedLinks.length > 0 || files.length > 0) {
+    const followup = await tc.send({
+      content: embedLinks.length > 0 ? embedLinks.join('\n') : undefined,
+      files,
+    });
+    updateHofFollowup(guildId, messageId, followup.id);
+  }
+
+  return true;
+}
+
 export function registerReactionHandler(client: Client): void {
   client.on('messageReactionAdd', async (reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser) => {
     try {
@@ -210,32 +249,10 @@ export function registerReactionHandler(client: Client): void {
       // Fetch the full message
       const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
 
-      // Build the HoF post
-      const { embed, embedLinks, files } = await buildHofPost(message, guildId, channelId, messageId);
-
-      // Post to HoF channel
-      const hofChannel = await message.guild!.channels.fetch(config.hof_channel_id);
-      if (!hofChannel || !hofChannel.isTextBased()) {
-        logger.error({ hofChannelId: config.hof_channel_id }, 'Hall of Fame channel not found or not text-based');
-        return;
+      const posted = await inductMessage(message, guildId, config);
+      if (posted) {
+        logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
       }
-
-      const tc = hofChannel as TextChannel;
-
-      // Send the main HOF embed (no files — videos go in follow-up so they render below)
-      const hofMessage = await tc.send({ embeds: [embed] });
-      markMessageInducted(guildId, messageId, channelId, hofMessage.id, config.hof_channel_id);
-
-      // Send follow-up with fxtwitter links and/or video files (renders below the card)
-      if (embedLinks.length > 0 || files.length > 0) {
-        const followup = await tc.send({
-          content: embedLinks.length > 0 ? embedLinks.join('\n') : undefined,
-          files,
-        });
-        updateHofFollowup(guildId, messageId, followup.id);
-      }
-
-      logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
 
     } catch (error) {
       logger.error({ error }, 'Error in hall of fame reaction handler');

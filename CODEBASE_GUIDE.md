@@ -78,7 +78,8 @@ CHHBot/
 | `src/db/queries.ts` | Every DB read/write. If you need data, the function is here. |
 | `src/nhl/client.ts` | All NHL API calls with in-memory cache and retry logic. |
 | `src/services/feedWatcher.ts` | RSS feed polling. Handles Twitter-specific rich embeds via fxtwitter API, generic RSS embeds, dedup, flood protection. |
-| `src/bot/events/reactionAdd.ts` | Hall of Fame: watches reactions, builds HoF embed with media/reply context/social links, posts to HoF channel. Exports `buildHofPost()` for reuse. |
+| `src/bot/events/reactionAdd.ts` | Hall of Fame: watches reactions, builds HoF embed with media/reply context/social links, posts to HoF channel. Exports `buildHofPost()`, `inductMessage()` (build + post + mark inducted, shared with `!hof scan`), and `HOF_EMOJIS`. |
+| `src/services/hofScan.ts` | `!hof scan` backfill: `qualifiesForHof()` (pure threshold check, unit tested) and `scanForMissedHof()` (paginates channel history looking for missed HoF-worthy messages). |
 
 ---
 
@@ -111,7 +112,8 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 - `feedBridge` tries multiple RSS bridge services to convert Twitter profiles to RSS URLs
 
 ### Hall of Fame flow
-- Reaction added → check emoji (fire/laughing) → check threshold → fetch full message → `buildHofPost()` → post embed + social link follow-up to HoF channel
+- Reaction added → check emoji (fire/laughing) → check threshold → fetch full message → `inductMessage()` (`buildHofPost()` → post embed + social link follow-up to HoF channel → `markMessageInducted`)
+- `!hof scan <date> [go]` (admin): `scanForMissedHof()` pages each readable text channel's history back to `<date>` looking for messages that qualify (`qualifiesForHof()`) but were never inducted; dry run lists them, `go` calls the same `inductMessage()` oldest→newest (1.5s spacing, capped at 50/run)
 
 ---
 
@@ -140,6 +142,8 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 | Change tweet rendering | `src/services/feedWatcher.ts` `postTwitterItem()` |
 | Change HoF qualifying emojis/threshold | `src/bot/events/reactionAdd.ts` `HOF_EMOJIS`, threshold comes from `guild_config.hof_threshold` |
 | Change HoF post format | `src/bot/events/reactionAdd.ts` `buildHofPost()` |
+| Change HoF induction (used by both live reactions and `!hof scan`) | `src/bot/events/reactionAdd.ts` `inductMessage()` |
+| Change `!hof scan` backfill behavior | `src/services/hofScan.ts` (`qualifiesForHof()`, `scanForMissedHof()`), command handling in `src/bot/events/messageCreate.ts` `handlePrefixHof()` |
 | Change link fixer domains | `src/bot/events/linkFixer.ts` `LINK_REPLACEMENTS` |
 | Change reminder time parsing | `src/services/parseTime.ts` |
 | Add a new env variable | `src/config/environment.ts`, `.env.example` |
