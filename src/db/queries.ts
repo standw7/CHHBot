@@ -1,5 +1,6 @@
 import { getDb } from './database.js';
 import type { GuildConfig, GifCommand, PostedGoal, HofMessage, FeedSource, Reminder } from './models.js';
+import { DEFAULT_SEASON_START, DEFAULT_SEASON_END } from '../services/dailyCard.js';
 
 // --- Guild Config ---
 
@@ -29,8 +30,8 @@ export function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildCo
       updates.hof_threshold ?? 8,
       updates.daily_card_enabled ?? 1,
       updates.daily_card_hour ?? 9,
-      updates.season_start ?? '2026-09-29',
-      updates.season_end ?? '2027-04-10'
+      updates.season_start ?? DEFAULT_SEASON_START,
+      updates.season_end ?? DEFAULT_SEASON_END
     );
   } else {
     const fields = Object.keys(updates) as (keyof typeof updates)[];

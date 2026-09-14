@@ -9,8 +9,8 @@ import type { ScheduleGame, TeamStanding } from '../nhl/types.js';
 const logger = pino({ name: 'daily-card-service' });
 const POLL_INTERVAL_MS = 60_000;
 const DEFAULT_ZONE = 'America/Denver';
-const DEFAULT_SEASON_START = '2026-09-29';
-const DEFAULT_SEASON_END = '2027-04-10';
+export const DEFAULT_SEASON_START = '2026-09-29';
+export const DEFAULT_SEASON_END = '2027-04-10';
 const CARD_COLOR = 0x006847;
 
 let timer: ReturnType<typeof setInterval> | null = null;

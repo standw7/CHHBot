@@ -6,6 +6,7 @@ import {
 import { DateTime } from 'luxon';
 import { getGuildConfig, upsertGuildConfig } from '../../db/queries.js';
 import type { GuildConfig } from '../../db/models.js';
+import { DEFAULT_SEASON_START, DEFAULT_SEASON_END } from '../../services/dailyCard.js';
 
 export const data = new SlashCommandBuilder()
   .setName('config')
@@ -103,6 +104,7 @@ async function handleSet(interaction: ChatInputCommandInteraction, guildId: stri
 
   // Validate the value based on setting
   const updates: Partial<Omit<GuildConfig, 'guild_id'>> = {};
+  const config = getGuildConfig(guildId);
 
   switch (setting) {
     case 'primary_team':
@@ -191,16 +193,26 @@ async function handleSet(interaction: ChatInputCommandInteraction, guildId: stri
       break;
     }
     case 'season_start': {
-      if (value.length !== 10 || !DateTime.fromISO(value).isValid) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !DateTime.fromISO(value).isValid) {
         await interaction.reply({ content: 'Season start must be a valid date in YYYY-MM-DD format.', ephemeral: true });
+        return;
+      }
+      const seasonEnd = config?.season_end || DEFAULT_SEASON_END;
+      if (value > seasonEnd) {
+        await interaction.reply({ content: `season_start must be on or before season_end (currently ${seasonEnd}).`, ephemeral: true });
         return;
       }
       updates.season_start = value;
       break;
     }
     case 'season_end': {
-      if (value.length !== 10 || !DateTime.fromISO(value).isValid) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !DateTime.fromISO(value).isValid) {
         await interaction.reply({ content: 'Season end must be a valid date in YYYY-MM-DD format.', ephemeral: true });
+        return;
+      }
+      const seasonStart = config?.season_start || DEFAULT_SEASON_START;
+      if (seasonStart > value) {
+        await interaction.reply({ content: `season_end must be on or after season_start (currently ${seasonStart}).`, ephemeral: true });
         return;
       }
       updates.season_end = value;
