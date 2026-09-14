@@ -57,12 +57,18 @@ export function detectMilestones(input: MilestoneInput): Milestone[] {
     milestones.push({ kind: 'four_goal', label: `${goalsInGame}-GOAL GAME! ${name}`, celebrate: isPrimaryTeam });
   }
 
+  // Only the factual, goal-count tags (hat_trick/four_goal) apply to a non-primary-team
+  // scorer. ot_winner, season_goals, and career milestones all require isPrimaryTeam.
+  if (!isPrimaryTeam) {
+    return milestones;
+  }
+
   if (periodType === 'OT') {
     milestones.push({ kind: 'ot_winner', label: 'OT WINNER!', celebrate: isPrimaryTeam });
   }
 
-  // Season and career milestones only apply to primary-team scorers in regular-season games.
-  if (!isPrimaryTeam || gameType !== 2) {
+  // Season and career milestones only apply to regular-season games.
+  if (gameType !== 2) {
     return milestones;
   }
 

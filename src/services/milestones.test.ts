@@ -233,13 +233,11 @@ describe('detectMilestones - career milestones', () => {
 });
 
 describe('detectMilestones - non-primary team', () => {
-  test('non-primary team scorer only gets factual tags (hat_trick/four_goal/ot_winner) with celebrate: false', () => {
-    const g1 = goal({ playerId: 800, eventId: 14 });
-    const g2 = goal({ playerId: 800, eventId: 15 });
-    const g3 = goal({ playerId: 800, eventId: 16, goalsToDate: 20 });
+  test('opponent OT goal (not a multi-goal game) yields no milestones', () => {
+    const g = goal({ playerId: 800, eventId: 14 });
     const input = baseInput({
-      goal: g3,
-      goalsSoFar: [g1, g2, g3],
+      goal: g,
+      goalsSoFar: [g],
       periodType: 'OT',
       gameType: 2,
       isPrimaryTeam: false,
@@ -247,21 +245,40 @@ describe('detectMilestones - non-primary team', () => {
     });
 
     const milestones = detectMilestones(input);
+    assert.deepEqual(milestones, []);
+  });
 
-    // Factual tags present
-    const kinds = milestones.map(m => m.kind);
-    assert.ok(kinds.includes('hat_trick'));
-    assert.ok(kinds.includes('ot_winner'));
+  test('opponent hat trick yields exactly one hat_trick milestone with celebrate: false', () => {
+    const g1 = goal({ playerId: 800, eventId: 14 });
+    const g2 = goal({ playerId: 800, eventId: 15 });
+    const g3 = goal({ playerId: 800, eventId: 16 });
+    const input = baseInput({
+      goal: g3,
+      goalsSoFar: [g1, g2, g3],
+      periodType: 'REG',
+      gameType: 2,
+      isPrimaryTeam: false,
+      careerBefore: { goals: 0, points: 0 },
+    });
 
-    // No season/career milestones for non-primary team
-    assert.equal(kinds.includes('season_goals'), false);
-    assert.equal(kinds.includes('first_nhl_goal'), false);
-    assert.equal(kinds.includes('career_goals'), false);
-    assert.equal(kinds.includes('career_points'), false);
+    const milestones = detectMilestones(input);
+    assert.equal(milestones.length, 1);
+    assert.equal(milestones[0].kind, 'hat_trick');
+    assert.equal(milestones[0].celebrate, false);
+  });
 
-    // Every milestone has celebrate: false
-    for (const m of milestones) {
-      assert.equal(m.celebrate, false, `expected celebrate:false for ${m.kind}`);
-    }
+  test('opponent 20th-of-season goal yields no milestones', () => {
+    const g = goal({ playerId: 800, eventId: 16, goalsToDate: 20 });
+    const input = baseInput({
+      goal: g,
+      goalsSoFar: [g],
+      periodType: 'REG',
+      gameType: 2,
+      isPrimaryTeam: false,
+      careerBefore: { goals: 0, points: 0 },
+    });
+
+    const milestones = detectMilestones(input);
+    assert.deepEqual(milestones, []);
   });
 });
