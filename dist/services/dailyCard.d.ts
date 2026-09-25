@@ -27,6 +27,6 @@ export interface SeasonSeriesRecord {
 }
 /** Season series (regular season only) for `primaryTeam` against `opponent`, from completed games. */
 export declare function calculateSeasonSeries(games: ScheduleGame[], primaryTeam: string, opponent: string): SeasonSeriesRecord;
-export declare function buildPreGameCard(game: ScheduleGame, seasonGames: ScheduleGame[], primaryTeam: string, standings: TeamStanding[] | null, guild?: Guild): EmbedBuilder;
+export declare function buildPreGameCard(game: ScheduleGame, seasonGames: ScheduleGame[], primaryTeam: string, standings: TeamStanding[] | null, guild?: Guild, milestoneLines?: string[]): EmbedBuilder;
 export declare function buildOffDayCard(phrase: string, nextGame: ScheduleGame | undefined, primaryTeam: string): EmbedBuilder;
 //# sourceMappingURL=dailyCard.d.ts.map

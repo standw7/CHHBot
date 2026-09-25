@@ -5,6 +5,7 @@ import {
   pickOffDayPhrase,
   OFF_DAY_PHRASES,
   calculateSeasonSeries,
+  buildPreGameCard,
 } from './dailyCard.js';
 import type { ScheduleGame } from '../nhl/types.js';
 
@@ -223,5 +224,19 @@ describe('calculateSeasonSeries', () => {
     ];
     const result = calculateSeasonSeries(games, PRIMARY, OPPONENT);
     assert.deepEqual(result, { wins: 0, losses: 0, otLosses: 0 });
+  });
+});
+
+describe('buildPreGameCard milestone watch', () => {
+  test('adds a Milestone watch section when lines are given', () => {
+    const g = game({ id: 1 });
+    const embed = buildPreGameCard(g, [g], 'UTA', null, undefined, ['Keller: 1 goal from 20 this season']);
+    assert.match(embed.data.description ?? '', /🎯 \*\*Milestone watch\*\*\nKeller: 1 goal from 20 this season$/);
+  });
+
+  test('no section when there are no lines', () => {
+    const g = game({ id: 1 });
+    const embed = buildPreGameCard(g, [g], 'UTA', null, undefined, []);
+    assert.doesNotMatch(embed.data.description ?? '', /Milestone watch/);
   });
 });

@@ -12,4 +12,5 @@ export declare function standingsUrl(): string;
 export declare function playerSearchUrl(query: string): string;
 export declare function playerStatsUrl(playerId: number): string;
 export declare function searchPlayersUrl(query: string): string;
+export declare function rosterUrl(teamCode: string): string;
 //# sourceMappingURL=endpoints.d.ts.map

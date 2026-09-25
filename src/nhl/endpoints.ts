@@ -55,3 +55,7 @@ export function playerStatsUrl(playerId: number): string {
 export function searchPlayersUrl(query: string): string {
   return `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=10&q=${encodeURIComponent(query)}`;
 }
+
+export function rosterUrl(teamCode: string): string {
+  return `${BASE_URL}/v1/roster/${teamCode}/current`;
+}

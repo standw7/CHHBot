@@ -4,6 +4,7 @@ import pino from 'pino';
 import * as nhlClient from '../nhl/client.js';
 import { getGuildConfig, hasDailyCardBeenPosted, markDailyCardPosted } from '../db/queries.js';
 import { getTeamEmoji } from './goalCard.js';
+import { findUpcomingMilestones, loadWatchPlayers } from './milestoneWatch.js';
 import type { ScheduleGame, TeamStanding } from '../nhl/types.js';
 
 const logger = pino({ name: 'daily-card-service' });
@@ -98,7 +99,8 @@ async function processGuild(client: Client, guildId: string): Promise<void> {
     let embed: EmbedBuilder;
     if (selection.kind === 'game') {
       const standingsResponse = await nhlClient.getStandings();
-      embed = buildPreGameCard(selection.game, games, config.primary_team, standingsResponse?.standings ?? null, guild);
+      const milestoneLines = await loadMilestoneLines(selection.game, config.primary_team);
+      embed = buildPreGameCard(selection.game, games, config.primary_team, standingsResponse?.standings ?? null, guild, milestoneLines);
     } else {
       const phrase = pickOffDayPhrase(todayISO);
       embed = buildOffDayCard(phrase, selection.nextGame, config.primary_team);
@@ -108,6 +110,18 @@ async function processGuild(client: Client, guildId: string): Promise<void> {
     logger.info({ guildId, kind: selection.kind }, 'Daily card posted');
   } catch (err) {
     logger.error({ err, guildId }, 'Failed to post daily card');
+  }
+}
+
+// Regular season only: the watched stats are regular-season totals. Never blocks the card.
+async function loadMilestoneLines(game: ScheduleGame, primaryTeam: string): Promise<string[]> {
+  if (game.gameType !== 2) return [];
+  try {
+    const players = await loadWatchPlayers(primaryTeam, game.season);
+    return players ? findUpcomingMilestones(players) : [];
+  } catch (err) {
+    logger.warn({ err }, 'Milestone watch failed, posting card without it');
+    return [];
   }
 }
 
@@ -234,7 +248,8 @@ export function buildPreGameCard(
   seasonGames: ScheduleGame[],
   primaryTeam: string,
   standings: TeamStanding[] | null,
-  guild?: Guild
+  guild?: Guild,
+  milestoneLines: string[] = []
 ): EmbedBuilder {
   const homeEmoji = getTeamEmoji(game.homeTeam.abbrev, guild);
   const awayEmoji = getTeamEmoji(game.awayTeam.abbrev, guild);
@@ -267,6 +282,10 @@ export function buildPreGameCard(
     if (gamesPlayed > 0) {
       lines.push(`**Season series:** ${formatSeasonSeries(series)}`);
     }
+  }
+
+  if (milestoneLines.length > 0) {
+    lines.push('', '🎯 **Milestone watch**', ...milestoneLines);
   }
 
   const embed = new EmbedBuilder()

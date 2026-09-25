@@ -340,4 +340,18 @@ export interface PlayerGameLog {
     savePctg?: number;
     shotsAgainst?: number;
 }
+export interface RosterPlayer {
+    id: number;
+    firstName: {
+        default: string;
+    };
+    lastName: {
+        default: string;
+    };
+}
+export interface RosterResponse {
+    forwards: RosterPlayer[];
+    defensemen: RosterPlayer[];
+    goalies: RosterPlayer[];
+}
 //# sourceMappingURL=types.d.ts.map

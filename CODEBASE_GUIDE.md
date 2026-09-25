@@ -54,6 +54,7 @@ CHHBot/
 │       ├── healthMonitor.ts      # Exits (for PM2 restart) if Discord gateway is down >5 min
 │       ├── dailyCard.ts          # 9am pre-game card / in-season off-day card scheduler (+ .test.ts)
 │       ├── rewardsReminder.ts    # !rewards role + private #rewards channel; pings at puck drop and every 45 min while LIVE (+ .test.ts)
+│       ├── milestoneWatch.ts     # Morning-card "Milestone watch": roster players close to goal/point/games marks or debuting (+ .test.ts)
 │       ├── milestones.ts         # Pure detectMilestones(): hat trick 🧢🧢🧢, OT winner, season/career marks (+ .test.ts)
 │       └── simulator.ts          # Fake game simulation for testing goal/final cards
 ├── dist/                         # Compiled JS (committed for low-RAM VM deployment)
@@ -124,6 +125,7 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 - Special goal cards (hat trick, milestones, thresholds) → `src/services/milestones.ts`; styling in `goalCard.ts` (`milestones` in `GoalCardData`); career cache in `gameTracker.ts` `TrackerContext`
 - Auto replay link on goal cards → `gameTracker.ts` `pollForReplay` + `goalCard.ts` `findReplayUrl`
 - Rewards check-in reminders → `src/services/rewardsReminder.ts` (`REWARDS_PING_INTERVAL_MS`, message text, channel perms); called from `gameTracker.ts` `handleLive`; last ping per game in `rewards_pings` table; `!rewards` toggle in `messageCreate.ts` `handlePrefixRewards()`
+- Morning-card milestone watch (thresholds, distances, wording) → `src/services/milestoneWatch.ts` (`findUpcomingMilestones`, `loadWatchPlayers`); added in `dailyCard.ts` `loadMilestoneLines` (regular season only); shares thresholds with `milestones.ts`
 - Tests → `npm test` (`node --test` via tsx, `src/services/*.test.ts`)
 
 | Change | Files to edit |

@@ -50,6 +50,7 @@ const pino_1 = __importDefault(require("pino"));
 const nhlClient = __importStar(require("../nhl/client.js"));
 const queries_js_1 = require("../db/queries.js");
 const goalCard_js_1 = require("./goalCard.js");
+const milestoneWatch_js_1 = require("./milestoneWatch.js");
 const logger = (0, pino_1.default)({ name: 'daily-card-service' });
 const POLL_INTERVAL_MS = 60_000;
 const DEFAULT_ZONE = 'America/Denver';
@@ -135,7 +136,8 @@ async function processGuild(client, guildId) {
         let embed;
         if (selection.kind === 'game') {
             const standingsResponse = await nhlClient.getStandings();
-            embed = buildPreGameCard(selection.game, games, config.primary_team, standingsResponse?.standings ?? null, guild);
+            const milestoneLines = await loadMilestoneLines(selection.game, config.primary_team);
+            embed = buildPreGameCard(selection.game, games, config.primary_team, standingsResponse?.standings ?? null, guild, milestoneLines);
         }
         else {
             const phrase = pickOffDayPhrase(todayISO);
@@ -146,6 +148,19 @@ async function processGuild(client, guildId) {
     }
     catch (err) {
         logger.error({ err, guildId }, 'Failed to post daily card');
+    }
+}
+// Regular season only: the watched stats are regular-season totals. Never blocks the card.
+async function loadMilestoneLines(game, primaryTeam) {
+    if (game.gameType !== 2)
+        return [];
+    try {
+        const players = await (0, milestoneWatch_js_1.loadWatchPlayers)(primaryTeam, game.season);
+        return players ? (0, milestoneWatch_js_1.findUpcomingMilestones)(players) : [];
+    }
+    catch (err) {
+        logger.warn({ err }, 'Milestone watch failed, posting card without it');
+        return [];
     }
 }
 function selectDailyCard(games, todayISO, zone, window) {
@@ -229,7 +244,7 @@ function formatRecordLine(abbrev, standing) {
         return null;
     return `**${abbrev}**: GP:${standing.gamesPlayed} W:${standing.wins} L:${standing.losses} OT:${standing.otLosses} PTS:${standing.points} S:${formatStreak(standing)}`;
 }
-function buildPreGameCard(game, seasonGames, primaryTeam, standings, guild) {
+function buildPreGameCard(game, seasonGames, primaryTeam, standings, guild, milestoneLines = []) {
     const homeEmoji = (0, goalCard_js_1.getTeamEmoji)(game.homeTeam.abbrev, guild);
     const awayEmoji = (0, goalCard_js_1.getTeamEmoji)(game.awayTeam.abbrev, guild);
     const lines = [`${awayEmoji} **${game.awayTeam.abbrev}** @ **${game.homeTeam.abbrev}** ${homeEmoji}`, ''];
@@ -258,6 +273,9 @@ function buildPreGameCard(game, seasonGames, primaryTeam, standings, guild) {
         if (gamesPlayed > 0) {
             lines.push(`**Season series:** ${formatSeasonSeries(series)}`);
         }
+    }
+    if (milestoneLines.length > 0) {
+        lines.push('', '🎯 **Milestone watch**', ...milestoneLines);
     }
     const embed = new discord_js_1.EmbedBuilder()
         .setTitle('Game day!')

@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.CAREER_POINT_THRESHOLDS = exports.SEASON_GOAL_THRESHOLDS = void 0;
 exports.detectMilestones = detectMilestones;
-const SEASON_GOAL_THRESHOLDS = [20, 30, 40, 50, 60, 70];
-const CAREER_POINT_THRESHOLDS = [100, 250, 500, 750, 1000, 1500];
+exports.SEASON_GOAL_THRESHOLDS = [20, 30, 40, 50, 60, 70];
+exports.CAREER_POINT_THRESHOLDS = [100, 250, 500, 750, 1000, 1500];
 function scorerName(goal) {
     return `${goal.firstName.default} ${goal.lastName.default}`;
 }
@@ -48,7 +49,7 @@ function detectMilestones(input) {
     if (gameType !== 2) {
         return milestones;
     }
-    if (SEASON_GOAL_THRESHOLDS.includes(goal.goalsToDate)) {
+    if (exports.SEASON_GOAL_THRESHOLDS.includes(goal.goalsToDate)) {
         milestones.push({ kind: 'season_goals', label: `${goal.goalsToDate}th goal of the season`, celebrate: isPrimaryTeam });
     }
     if (careerBefore) {
@@ -61,7 +62,7 @@ function detectMilestones(input) {
             if (careerAfterGoals % 100 === 0) {
                 milestones.push({ kind: 'career_goals', label: `Career goal #${careerAfterGoals}`, celebrate: isPrimaryTeam });
             }
-            if (CAREER_POINT_THRESHOLDS.includes(careerAfterPoints)) {
+            if (exports.CAREER_POINT_THRESHOLDS.includes(careerAfterPoints)) {
                 milestones.push({ kind: 'career_points', label: `Career point #${careerAfterPoints}`, celebrate: isPrimaryTeam });
             }
         }

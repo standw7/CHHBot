@@ -15,8 +15,8 @@ export interface Milestone {
   celebrate: boolean;
 }
 
-const SEASON_GOAL_THRESHOLDS = [20, 30, 40, 50, 60, 70];
-const CAREER_POINT_THRESHOLDS = [100, 250, 500, 750, 1000, 1500];
+export const SEASON_GOAL_THRESHOLDS = [20, 30, 40, 50, 60, 70];
+export const CAREER_POINT_THRESHOLDS = [100, 250, 500, 750, 1000, 1500];
 
 function scorerName(goal: LandingGoal): string {
   return `${goal.firstName.default} ${goal.lastName.default}`;
