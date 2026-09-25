@@ -57,6 +57,7 @@ CHHBot/
 │       ├── milestoneWatch.ts     # Morning-card "Milestone watch": roster players close to goal/point/games marks or debuting (+ .test.ts)
 │       ├── postGame.ts           # After the final: polls for three stars (own card) + standings change (edited into final card) (+ .test.ts)
 │       ├── standings.ts          # standingsForSeason(): drop last season's standings (preseason) (+ .test.ts)
+│       ├── follows.ts            # !follow: roster name matching, follow DM text, sendFollowDms() on goal cards (+ .test.ts)
 │       ├── milestones.ts         # Pure detectMilestones(): hat trick 🧢🧢🧢, OT winner, season/career marks (+ .test.ts)
 │       └── simulator.ts          # Fake game simulation for testing goal/final cards
 ├── dist/                         # Compiled JS (committed for low-RAM VM deployment)
@@ -130,6 +131,7 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 - Morning-card milestone watch (thresholds, distances, wording) → `src/services/milestoneWatch.ts` (`findUpcomingMilestones`, `loadWatchPlayers`); added in `dailyCard.ts` `loadMilestoneLines` (regular season only); shares thresholds with `milestones.ts`
 - Three stars card / final-card standings line → `src/services/postGame.ts` (`buildThreeStarsCard`, `formatStandingsLine`, `startPostGameFollowUp`); started from `gameTracker.ts` `handleFinal`; pre-game standings snapshot in `TrackerContext.standingsBefore` (taken on LIVE)
 - Records/standings shown anywhere → pass through `standingsForSeason()` (`src/services/standings.ts`) so preseason never shows last season
+- Player follows / goal+assist DMs → `src/services/follows.ts` (`matchRosterPlayer`, `buildFollowDm`, `sendFollowDms`, `MAX_FOLLOWS`); tables `player_follows` + `follow_dms_sent` (dedupes across guild trackers); called after the goal card posts in `gameTracker.ts` `handleLive`; commands `handlePrefixFollow/Unfollow/Following` in `messageCreate.ts`
 - Tests → `npm test` (`node --test` via tsx, `src/services/*.test.ts`)
 
 | Change | Files to edit |

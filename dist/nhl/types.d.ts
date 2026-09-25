@@ -357,6 +357,7 @@ export interface RosterPlayer {
     lastName: {
         default: string;
     };
+    sweaterNumber?: number;
 }
 export interface RosterResponse {
     forwards: RosterPlayer[];

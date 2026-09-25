@@ -8,6 +8,7 @@ import { buildFinalCard } from './finalCard.js';
 import { detectMilestones } from './milestones.js';
 import { maybeSendRewardsReminder } from './rewardsReminder.js';
 import { startPostGameFollowUp } from './postGame.js';
+import { sendFollowDms } from './follows.js';
 import { shouldIncludeScoresInEmbed } from './spoiler.js';
 import { standingsForSeason } from './standings.js';
 import type { SpoilerMode } from './spoiler.js';
@@ -374,6 +375,19 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
         // and edit the message in place once it shows up.
         if (!replayUrl) {
           pollForReplay(ctx, gameId, eventId, cardData, spoilerMode, message, 1);
+        }
+
+        // DM anyone following the scorer or an assister (same moment as the card)
+        if (landingGoal) {
+          await sendFollowDms(client, gameId, {
+            goal: landingGoal,
+            teamCode: ctx.teamCode,
+            homeAbbrev: pbp.homeTeam.abbrev,
+            awayAbbrev: pbp.awayTeam.abbrev,
+            periodNumber: goal.periodDescriptor?.number ?? 1,
+            periodType,
+            cardUrl: message.url,
+          });
         }
       } catch (error) {
         logger.error({ error, eventId }, 'Failed to post goal card');

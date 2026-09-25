@@ -64,6 +64,15 @@ export function registerMessageHandler(client: Client): void {
         case 'rewards':
           await handlePrefixRewards(message);
           break;
+        case 'follow':
+          await handlePrefixFollow(message, args.slice(1).join(' '));
+          break;
+        case 'unfollow':
+          await handlePrefixUnfollow(message, args.slice(1).join(' '));
+          break;
+        case 'following':
+          await handlePrefixFollowing(message);
+          break;
         case 'player':
           await handlePrefixPlayer(message, args.slice(1));
           break;
@@ -125,7 +134,7 @@ function buildHelpPages(gifKeysText: string): EmbedBuilder[] {
         { name: 'Stats', value: '`!stats [category]` - Team stat leaders (top 5)\n`!stats [category] on [date]` - Game-specific leaders\n`!stats help` - List all stat categories', inline: false },
         { name: 'Player Lookup', value: '`!player <name>` - Player stats, bio, and last 5 games', inline: false },
         { name: 'Standings', value: '`!standings` - Your conference playoff picture\n`!standings league` - Top 16 NHL teams\n`!standings west` / `!standings east` - By conference', inline: false },
-        { name: 'Notifications', value: '`!gameday` - Toggle gameday ping role\n`!rewards` - Toggle rewards check-in reminders (private #rewards channel)', inline: false },
+        { name: 'Notifications', value: '`!gameday` - Toggle gameday ping role\n`!rewards` - Toggle rewards check-in reminders (private #rewards channel)\n`!follow <player>` - DM me when a Utah player scores or assists\n`!unfollow <player>` / `!following` - Manage who you follow', inline: false },
         { name: 'Reminders', value: '`!remind <time> <message>` — Set a reminder\n`!remind <time> <message> --dm` — Remind via DM\n`!reminders` — List your reminders\n`!remind cancel <id>` — Cancel a reminder', inline: false },
       )
       .setFooter({ text: 'Page 1/3 — Use buttons to navigate' })
@@ -1011,6 +1020,91 @@ async function handlePrefixRewards(message: Message): Promise<void> {
     logger.error({ error }, 'Failed to toggle Rewards role');
     await message.reply('Failed to update your role. The bot may not have permission to manage roles.');
   }
+}
+
+function describeCandidates(players: { firstName: string; lastName: string; sweaterNumber?: number }[]): string {
+  return players.map(p => `${p.firstName} ${p.lastName}${p.sweaterNumber ? ` (#${p.sweaterNumber})` : ''}`).join(', ');
+}
+
+async function handlePrefixFollow(message: Message, query: string): Promise<void> {
+  const { matchRosterPlayer, loadFollowablePlayers, MAX_FOLLOWS } = await import('../../services/follows.js');
+  const { addFollow, listFollows } = await import('../../db/queries.js');
+
+  if (!query.trim()) {
+    await message.reply('Usage: `!follow <player>`, e.g. `!follow keller` or `!follow 9`. I\'ll DM you when he scores or gets an assist.');
+    return;
+  }
+
+  const teamCode = getGuildConfig(message.guild!.id)?.primary_team ?? 'UTA';
+  const players = await loadFollowablePlayers(teamCode);
+  if (!players) {
+    await message.reply("Couldn't load the roster right now. Try again in a bit.");
+    return;
+  }
+
+  const result = matchRosterPlayer(query, players);
+  if (result.kind === 'none') {
+    await message.reply(`No ${teamCode} player matches "${query}".`);
+    return;
+  }
+  if (result.kind === 'ambiguous') {
+    await message.reply(`Which one? ${describeCandidates(result.players)}`);
+    return;
+  }
+
+  const player = result.player;
+  const name = `${player.firstName} ${player.lastName}`;
+  const current = listFollows(message.author.id);
+  if (current.some(f => f.playerId === player.id)) {
+    await message.reply(`You already follow **${name}**.`);
+    return;
+  }
+  if (current.length >= MAX_FOLLOWS) {
+    await message.reply(`You can follow up to ${MAX_FOLLOWS} players. Use \`!unfollow <player>\` first.`);
+    return;
+  }
+
+  addFollow(message.author.id, player.id, name);
+  await message.reply(`Following **${name}**. I'll DM you when he scores or gets an assist (make sure DMs from server members are on).`);
+}
+
+async function handlePrefixUnfollow(message: Message, query: string): Promise<void> {
+  const { matchRosterPlayer } = await import('../../services/follows.js');
+  const { listFollows, removeFollow } = await import('../../db/queries.js');
+
+  const follows = listFollows(message.author.id);
+  if (follows.length === 0) {
+    await message.reply("You're not following anyone.");
+    return;
+  }
+
+  // Match against the user's own follows, so players who left the roster can still be removed
+  const candidates = follows.map(f => {
+    const [firstName, ...rest] = f.playerName.split(' ');
+    return { id: f.playerId, firstName, lastName: rest.join(' ') };
+  });
+  const result = matchRosterPlayer(query, candidates);
+  if (result.kind === 'none') {
+    await message.reply(`You don't follow anyone matching "${query}". You follow: ${follows.map(f => f.playerName).join(', ')}`);
+    return;
+  }
+  if (result.kind === 'ambiguous') {
+    await message.reply(`Which one? ${describeCandidates(result.players)}`);
+    return;
+  }
+
+  removeFollow(message.author.id, result.player.id);
+  await message.reply(`Unfollowed **${result.player.firstName} ${result.player.lastName}**.`);
+}
+
+async function handlePrefixFollowing(message: Message): Promise<void> {
+  const { listFollows } = await import('../../db/queries.js');
+  const follows = listFollows(message.author.id);
+  await message.reply(
+    follows.length === 0
+      ? "You're not following anyone. Use `!follow <player>` to start."
+      : `You follow: ${follows.map(f => `**${f.playerName}**`).join(', ')}`
+  );
 }
 
 async function handlePrefixHof(message: Message, args: string[]): Promise<void> {

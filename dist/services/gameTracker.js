@@ -48,6 +48,7 @@ const finalCard_js_1 = require("./finalCard.js");
 const milestones_js_1 = require("./milestones.js");
 const rewardsReminder_js_1 = require("./rewardsReminder.js");
 const postGame_js_1 = require("./postGame.js");
+const follows_js_1 = require("./follows.js");
 const spoiler_js_1 = require("./spoiler.js");
 const standings_js_1 = require("./standings.js");
 const logger = (0, pino_1.default)({ name: 'game-tracker' });
@@ -356,6 +357,18 @@ async function handleLive(client, ctx) {
                 // and edit the message in place once it shows up.
                 if (!replayUrl) {
                     pollForReplay(ctx, gameId, eventId, cardData, spoilerMode, message, 1);
+                }
+                // DM anyone following the scorer or an assister (same moment as the card)
+                if (landingGoal) {
+                    await (0, follows_js_1.sendFollowDms)(client, gameId, {
+                        goal: landingGoal,
+                        teamCode: ctx.teamCode,
+                        homeAbbrev: pbp.homeTeam.abbrev,
+                        awayAbbrev: pbp.awayTeam.abbrev,
+                        periodNumber: goal.periodDescriptor?.number ?? 1,
+                        periodType,
+                        cardUrl: message.url,
+                    });
                 }
             }
             catch (error) {

@@ -178,6 +178,9 @@ Look up team stat leaders for the current season or for a specific game.
 |---------|-------------|
 | `!gameday` | Toggle the Gameday role on yourself |
 | `!rewards` | Toggle the Rewards role (check-in reminders in the private #rewards channel) |
+| `!follow <player>` | DM me when this Utah player scores or gets an assist (name, last name or jersey number; up to 5) |
+| `!unfollow <player>` | Stop following a player |
+| `!following` | List the players you follow |
 
 When you have the **Gameday** role, you'll be pinged when games start. Use `!gameday` again to remove the role and stop getting pinged.
 

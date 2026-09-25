@@ -94,6 +94,21 @@ function runMigrations(db) {
       PRIMARY KEY(guild_id, game_id)
     );
 
+    CREATE TABLE IF NOT EXISTS player_follows (
+      user_id TEXT,
+      player_id INTEGER,
+      player_name TEXT,
+      created_at TEXT,
+      PRIMARY KEY(user_id, player_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS follow_dms_sent (
+      user_id TEXT,
+      game_id INTEGER,
+      event_id INTEGER,
+      PRIMARY KEY(user_id, game_id, event_id)
+    );
+
     DROP TABLE IF EXISTS rewards_pings;
     CREATE TABLE IF NOT EXISTS rewards_schedule (
       guild_id TEXT,

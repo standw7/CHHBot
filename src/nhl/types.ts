@@ -355,6 +355,7 @@ export interface RosterPlayer {
   id: number;
   firstName: { default: string };
   lastName: { default: string };
+  sweaterNumber?: number;
 }
 
 export interface RosterResponse {

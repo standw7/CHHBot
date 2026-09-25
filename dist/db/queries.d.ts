@@ -34,6 +34,16 @@ export declare function saveRewardsSchedule(guildId: string, gameId: number, sch
     anchorAt: number;
     lastSlot: number;
 }): void;
+export declare function addFollow(userId: string, playerId: number, playerName: string): void;
+export declare function removeFollow(userId: string, playerId: number): boolean;
+export declare function listFollows(userId: string): {
+    playerId: number;
+    playerName: string;
+}[];
+/** userId → set of followed playerIds, for users following any of `playerIds`. */
+export declare function getFollowersOf(playerIds: number[]): Map<string, Set<number>>;
+/** Claims the DM for this user + goal. False if another tracker already sent it. */
+export declare function claimFollowDm(userId: string, gameId: number, eventId: number): boolean;
 export declare function resetGameStart(guildId: string, gameId: number): void;
 export declare function hasFeedItemBeenPosted(guildId: string, feedId: number, itemId: string): boolean;
 export declare function markFeedItemPosted(guildId: string, feedId: number, itemId: string): void;

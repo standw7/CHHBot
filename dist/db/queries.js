@@ -29,6 +29,11 @@ exports.hasGameStartBeenPosted = hasGameStartBeenPosted;
 exports.markGameStartPosted = markGameStartPosted;
 exports.getRewardsSchedule = getRewardsSchedule;
 exports.saveRewardsSchedule = saveRewardsSchedule;
+exports.addFollow = addFollow;
+exports.removeFollow = removeFollow;
+exports.listFollows = listFollows;
+exports.getFollowersOf = getFollowersOf;
+exports.claimFollowDm = claimFollowDm;
 exports.resetGameStart = resetGameStart;
 exports.hasFeedItemBeenPosted = hasFeedItemBeenPosted;
 exports.markFeedItemPosted = markFeedItemPosted;
@@ -189,6 +194,37 @@ function saveRewardsSchedule(guildId, gameId, schedule) {
     VALUES (?, ?, ?, ?)
     ON CONFLICT(guild_id, game_id) DO UPDATE SET anchor_at = excluded.anchor_at, last_slot = excluded.last_slot
   `).run(guildId, gameId, schedule.anchorAt, schedule.lastSlot);
+}
+function addFollow(userId, playerId, playerName) {
+    (0, database_js_1.getDb)().prepare(`
+    INSERT OR IGNORE INTO player_follows (user_id, player_id, player_name, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(userId, playerId, playerName, new Date().toISOString());
+}
+function removeFollow(userId, playerId) {
+    return (0, database_js_1.getDb)().prepare('DELETE FROM player_follows WHERE user_id = ? AND player_id = ?').run(userId, playerId).changes > 0;
+}
+function listFollows(userId) {
+    const rows = (0, database_js_1.getDb)().prepare('SELECT player_id, player_name FROM player_follows WHERE user_id = ? ORDER BY created_at').all(userId);
+    return rows.map(r => ({ playerId: r.player_id, playerName: r.player_name }));
+}
+/** userId → set of followed playerIds, for users following any of `playerIds`. */
+function getFollowersOf(playerIds) {
+    const result = new Map();
+    if (playerIds.length === 0)
+        return result;
+    const placeholders = playerIds.map(() => '?').join(', ');
+    const rows = (0, database_js_1.getDb)().prepare(`SELECT user_id, player_id FROM player_follows WHERE player_id IN (${placeholders})`).all(...playerIds);
+    for (const r of rows) {
+        if (!result.has(r.user_id))
+            result.set(r.user_id, new Set());
+        result.get(r.user_id).add(r.player_id);
+    }
+    return result;
+}
+/** Claims the DM for this user + goal. False if another tracker already sent it. */
+function claimFollowDm(userId, gameId, eventId) {
+    return (0, database_js_1.getDb)().prepare('INSERT OR IGNORE INTO follow_dms_sent (user_id, game_id, event_id) VALUES (?, ?, ?)').run(userId, gameId, eventId).changes > 0;
 }
 function resetGameStart(guildId, gameId) {
     (0, database_js_1.getDb)().prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, gameId);

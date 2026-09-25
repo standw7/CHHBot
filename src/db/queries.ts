@@ -207,6 +207,40 @@ export function saveRewardsSchedule(guildId: string, gameId: number, schedule: {
   `).run(guildId, gameId, schedule.anchorAt, schedule.lastSlot);
 }
 
+export function addFollow(userId: string, playerId: number, playerName: string): void {
+  getDb().prepare(`
+    INSERT OR IGNORE INTO player_follows (user_id, player_id, player_name, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(userId, playerId, playerName, new Date().toISOString());
+}
+
+export function removeFollow(userId: string, playerId: number): boolean {
+  return getDb().prepare('DELETE FROM player_follows WHERE user_id = ? AND player_id = ?').run(userId, playerId).changes > 0;
+}
+
+export function listFollows(userId: string): { playerId: number; playerName: string }[] {
+  const rows = getDb().prepare('SELECT player_id, player_name FROM player_follows WHERE user_id = ? ORDER BY created_at').all(userId) as { player_id: number; player_name: string }[];
+  return rows.map(r => ({ playerId: r.player_id, playerName: r.player_name }));
+}
+
+/** userId → set of followed playerIds, for users following any of `playerIds`. */
+export function getFollowersOf(playerIds: number[]): Map<string, Set<number>> {
+  const result = new Map<string, Set<number>>();
+  if (playerIds.length === 0) return result;
+  const placeholders = playerIds.map(() => '?').join(', ');
+  const rows = getDb().prepare(`SELECT user_id, player_id FROM player_follows WHERE player_id IN (${placeholders})`).all(...playerIds) as { user_id: string; player_id: number }[];
+  for (const r of rows) {
+    if (!result.has(r.user_id)) result.set(r.user_id, new Set());
+    result.get(r.user_id)!.add(r.player_id);
+  }
+  return result;
+}
+
+/** Claims the DM for this user + goal. False if another tracker already sent it. */
+export function claimFollowDm(userId: string, gameId: number, eventId: number): boolean {
+  return getDb().prepare('INSERT OR IGNORE INTO follow_dms_sent (user_id, game_id, event_id) VALUES (?, ?, ?)').run(userId, gameId, eventId).changes > 0;
+}
+
 export function resetGameStart(guildId: string, gameId: number): void {
   getDb().prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, gameId);
 }
