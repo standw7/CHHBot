@@ -1,0 +1,1 @@
+{"version":3,"file":"standings.js","sourceRoot":"","sources":["../../src/services/standings.ts"],"names":[],"mappings":";;AAOA,gDAIC;AATD;;;;GAIG;AACH,SAAgB,kBAAkB,CAAC,QAAkC,EAAE,MAAc;IACnF,MAAM,SAAS,GAAG,QAAQ,EAAE,SAAS,CAAC;IACtC,IAAI,CAAC,SAAS,EAAE,MAAM,IAAI,SAAS,CAAC,CAAC,CAAC,CAAC,QAAQ,KAAK,MAAM;QAAE,OAAO,IAAI,CAAC;IACxE,OAAO,SAAS,CAAC;AACnB,CAAC"}

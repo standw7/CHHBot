@@ -175,7 +175,7 @@ export interface BoxscoreTeam {
 }
 export interface ThreeStar {
     star: number;
-    id: number;
+    playerId?: number;
     name?: {
         default: string;
     };
@@ -185,9 +185,15 @@ export interface ThreeStar {
     lastName?: {
         default: string;
     };
-    sweaterNumber?: number;
+    sweaterNo?: number;
     teamAbbrev?: string;
     position?: string;
+    headshot?: string;
+    goals?: number;
+    assists?: number;
+    points?: number;
+    goalsAgainstAverage?: number;
+    savePctg?: number;
 }
 export interface TvBroadcast {
     id: number;
@@ -235,7 +241,10 @@ export interface TeamStanding {
     teamLogo: string;
     divisionName: string;
     conferenceName: string;
+    conferenceAbbrev: string;
+    seasonId: number;
     divisionSequence: number;
+    wildcardSequence: number;
     gamesPlayed: number;
     wins: number;
     losses: number;

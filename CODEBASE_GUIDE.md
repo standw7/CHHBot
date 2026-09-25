@@ -55,6 +55,8 @@ CHHBot/
 │       ├── dailyCard.ts          # 9am pre-game card / in-season off-day card scheduler (+ .test.ts)
 │       ├── rewardsReminder.ts    # !rewards role + private #rewards channel; pings at puck drop and every 45 min while LIVE (+ .test.ts)
 │       ├── milestoneWatch.ts     # Morning-card "Milestone watch": roster players close to goal/point/games marks or debuting (+ .test.ts)
+│       ├── postGame.ts           # After the final: polls for three stars (own card) + standings change (edited into final card) (+ .test.ts)
+│       ├── standings.ts          # standingsForSeason(): drop last season's standings (preseason) (+ .test.ts)
 │       ├── milestones.ts         # Pure detectMilestones(): hat trick 🧢🧢🧢, OT winner, season/career marks (+ .test.ts)
 │       └── simulator.ts          # Fake game simulation for testing goal/final cards
 ├── dist/                         # Compiled JS (committed for low-RAM VM deployment)
@@ -126,6 +128,8 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 - Auto replay link on goal cards → `gameTracker.ts` `pollForReplay` + `goalCard.ts` `findReplayUrl`
 - Rewards check-in reminders → `src/services/rewardsReminder.ts` (`REWARDS_PING_INTERVAL_MS`, message text, channel perms); called from `gameTracker.ts` `handleLive`; last ping per game in `rewards_pings` table; `!rewards` toggle in `messageCreate.ts` `handlePrefixRewards()`
 - Morning-card milestone watch (thresholds, distances, wording) → `src/services/milestoneWatch.ts` (`findUpcomingMilestones`, `loadWatchPlayers`); added in `dailyCard.ts` `loadMilestoneLines` (regular season only); shares thresholds with `milestones.ts`
+- Three stars card / final-card standings line → `src/services/postGame.ts` (`buildThreeStarsCard`, `formatStandingsLine`, `startPostGameFollowUp`); started from `gameTracker.ts` `handleFinal`; pre-game standings snapshot in `TrackerContext.standingsBefore` (taken on LIVE)
+- Records/standings shown anywhere → pass through `standingsForSeason()` (`src/services/standings.ts`) so preseason never shows last season
 - Tests → `npm test` (`node --test` via tsx, `src/services/*.test.ts`)
 
 | Change | Files to edit |
@@ -135,7 +139,7 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 | Add a new DB table | Add `CREATE TABLE` in `src/db/database.ts` `runMigrations()`, add interface in `src/db/models.ts`, add queries in `src/db/queries.ts` |
 | Add a column to existing table | Add `ALTER TABLE` migration at bottom of `src/db/database.ts`, update interface in `src/db/models.ts`, update queries in `src/db/queries.ts` |
 | Change goal card appearance | `src/services/goalCard.ts` `buildGoalCard()` |
-| Change final card appearance | `src/services/finalCard.ts` `buildFinalCard()` |
+| Change final card appearance | `src/services/finalCard.ts` `buildFinalCard()` (three stars live in `postGame.ts`, not here) |
 | Change game start notification | `src/services/gameTracker.ts` `postGameStartNotification()` |
 | Change polling intervals | `src/services/gameTracker.ts` — delay values in `handleIdle`, `handlePreGame`, `handleLive` |
 | Change spoiler behavior | `src/services/spoiler.ts` |

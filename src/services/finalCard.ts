@@ -25,21 +25,6 @@ export function buildFinalCard(boxscore: BoxscoreResponse, spoilerMode: SpoilerM
     );
   }
 
-  // Three stars
-  const stars = boxscore.summary?.threeStars;
-  if (stars && stars.length > 0) {
-    const starLines = stars.map(s => {
-      const name = s.name?.default
-        ?? `${s.firstName?.default ?? ''} ${s.lastName?.default ?? ''}`.trim()
-        ?? 'Unknown';
-      const num = s.sweaterNumber ? `#${s.sweaterNumber}` : '';
-      const team = s.teamAbbrev ?? '';
-      const starEmoji = '⭐'.repeat(s.star);
-      return `${starEmoji} ${num} ${name} (${team})`;
-    }).join('\n');
-    embed.addFields({ name: 'Stars of the Game', value: starLines, inline: false });
-  }
-
   // Home team logo as thumbnail
   if (homeTeam.logo) {
     embed.setThumbnail(homeTeam.logo);

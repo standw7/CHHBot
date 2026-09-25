@@ -47,6 +47,9 @@ const goalCard_js_1 = require("./goalCard.js");
 const finalCard_js_1 = require("./finalCard.js");
 const milestones_js_1 = require("./milestones.js");
 const rewardsReminder_js_1 = require("./rewardsReminder.js");
+const postGame_js_1 = require("./postGame.js");
+const spoiler_js_1 = require("./spoiler.js");
+const standings_js_1 = require("./standings.js");
 const logger = (0, pino_1.default)({ name: 'game-tracker' });
 // Replay-link polling: how often to re-check the landing endpoint for a goal's
 // highlight clip, and how many times to try before giving up.
@@ -71,6 +74,7 @@ function startTracker(client, guildId) {
         pollTimer: null,
         lastAnnouncedPeriod: 0,
         watchedFromStart: false,
+        standingsBefore: null,
         careerCache: new Map(),
         replayPollTimers: new Set(),
     };
@@ -139,6 +143,7 @@ async function handleIdle(client, ctx) {
         ctx.state = 'LIVE';
         ctx.careerCache.clear();
         ctx.watchedFromStart = false;
+        ctx.standingsBefore = (0, standings_js_1.standingsForSeason)(await nhlClient.getStandings(true), ctx.currentGame.season);
         logger.info({ guildId: ctx.guildId, gameId: liveGame.id }, 'Found live game, switching to LIVE');
         scheduleNext(client, ctx, 0);
         return;
@@ -176,6 +181,7 @@ async function handlePreGame(client, ctx) {
         ctx.state = 'LIVE';
         ctx.careerCache.clear();
         ctx.watchedFromStart = true;
+        ctx.standingsBefore = (0, standings_js_1.standingsForSeason)(await nhlClient.getStandings(true), ctx.currentGame.season);
         logger.info({ guildId: ctx.guildId, gameId: ctx.currentGame.id }, 'Game is now LIVE');
         // Post game start notification if not already posted
         await postGameStartNotification(client, ctx, pbp.homeTeam, pbp.awayTeam);
@@ -425,6 +431,10 @@ async function handleFinal(client, ctx) {
     (0, queries_js_1.markFinalPosted)(ctx.guildId, gameId);
     const spoilerMode = (config.spoiler_mode ?? 'off');
     const delayMs = (config.spoiler_delay_seconds ?? 30) * 1000;
+    // Captured now: ctx is reset for the next game before the delayed post runs.
+    const { teamCode, standingsBefore } = ctx;
+    const gameType = ctx.currentGame.gameType;
+    ctx.standingsBefore = null;
     logger.info({ guildId: ctx.guildId, gameId, delay: delayMs }, 'Scheduling final summary post');
     setTimeout(async () => {
         try {
@@ -453,11 +463,24 @@ async function handleFinal(client, ctx) {
             }
             const guild = client.guilds.cache.get(ctx.guildId);
             const { content, embed } = (0, finalCard_js_1.buildFinalCard)(boxscore, spoilerMode, guild);
-            await channel.send({
+            const finalMessage = await channel.send({
                 content: content ?? undefined,
                 embeds: [embed],
             });
             logger.info({ guildId: ctx.guildId, gameId }, 'Final summary posted');
+            // Standings reveal the result, so only when the final card shows scores; regular season only.
+            (0, postGame_js_1.startPostGameFollowUp)({
+                client,
+                guildId: ctx.guildId,
+                channelId: config.gameday_channel_id,
+                gameId,
+                teamCode,
+                awayAbbrev: landing.awayTeam.abbrev,
+                homeAbbrev: landing.homeTeam.abbrev,
+                finalMessage,
+                standingsBefore,
+                trackStandings: gameType === 2 && (0, spoiler_js_1.shouldIncludeScoresInEmbed)(spoilerMode),
+            });
         }
         catch (error) {
             logger.error({ error, gameId }, 'Failed to post final summary');
@@ -504,9 +527,10 @@ async function postGameStartNotification(client, ctx, homeTeam, awayTeam) {
         const homeEmoji = getTeamEmoji(homeTeam.abbrev, guild);
         const awayEmoji = getTeamEmoji(awayTeam.abbrev, guild);
         // Fetch standings for team records
-        const standings = await nhlClient.getStandings();
-        const homeStanding = standings?.standings.find(s => s.teamAbbrev.default === homeTeam.abbrev);
-        const awayStanding = standings?.standings.find(s => s.teamAbbrev.default === awayTeam.abbrev);
+        // Only this season's standings — during preseason the NHL still serves last season's
+        const standings = (0, standings_js_1.standingsForSeason)(await nhlClient.getStandings(), ctx.currentGame.season);
+        const homeStanding = standings?.find(s => s.teamAbbrev.default === homeTeam.abbrev);
+        const awayStanding = standings?.find(s => s.teamAbbrev.default === awayTeam.abbrev);
         // Format streak (W2, L1, OT, etc.)
         const formatStreak = (standing) => {
             if (!standing)

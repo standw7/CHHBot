@@ -20,20 +20,6 @@ function buildFinalCard(boxscore, spoilerMode, guild) {
     if ((0, spoiler_js_1.shouldIncludeScoresInEmbed)(spoilerMode)) {
         embed.addFields({ name: `${(0, goalCard_js_1.getTeamEmoji)(homeTeam.abbrev, guild)} ${homeTeam.abbrev}`, value: `Goals: ${homeTeam.score} | Shots: ${homeTeam.sog}`, inline: true }, { name: `${(0, goalCard_js_1.getTeamEmoji)(awayTeam.abbrev, guild)} ${awayTeam.abbrev}`, value: `Goals: ${awayTeam.score} | Shots: ${awayTeam.sog}`, inline: true });
     }
-    // Three stars
-    const stars = boxscore.summary?.threeStars;
-    if (stars && stars.length > 0) {
-        const starLines = stars.map(s => {
-            const name = s.name?.default
-                ?? `${s.firstName?.default ?? ''} ${s.lastName?.default ?? ''}`.trim()
-                ?? 'Unknown';
-            const num = s.sweaterNumber ? `#${s.sweaterNumber}` : '';
-            const team = s.teamAbbrev ?? '';
-            const starEmoji = '⭐'.repeat(s.star);
-            return `${starEmoji} ${num} ${name} (${team})`;
-        }).join('\n');
-        embed.addFields({ name: 'Stars of the Game', value: starLines, inline: false });
-    }
     // Home team logo as thumbnail
     if (homeTeam.logo) {
         embed.setThumbnail(homeTeam.logo);

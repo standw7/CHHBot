@@ -7,8 +7,11 @@ import type { GoalCardData } from './goalCard.js';
 import { buildFinalCard } from './finalCard.js';
 import { detectMilestones } from './milestones.js';
 import { maybeSendRewardsReminder } from './rewardsReminder.js';
+import { startPostGameFollowUp } from './postGame.js';
+import { shouldIncludeScoresInEmbed } from './spoiler.js';
+import { standingsForSeason } from './standings.js';
 import type { SpoilerMode } from './spoiler.js';
-import type { ScheduleGame, Play, PbpTeam, LandingGoal } from '../nhl/types.js';
+import type { ScheduleGame, Play, PbpTeam, LandingGoal, TeamStanding } from '../nhl/types.js';
 
 const logger = pino({ name: 'game-tracker' });
 
@@ -28,6 +31,8 @@ interface TrackerContext {
   lastAnnouncedPeriod: number;
   // True if this tracker saw the PRE_GAME → LIVE transition (puck drop), false if it found the game already live.
   watchedFromStart: boolean;
+  // Standings snapshot taken when the game went LIVE, for the final card's standings change.
+  standingsBefore: TeamStanding[] | null;
   // Regular-season career totals (goals/points) as of before the current game, keyed by playerId.
   // Cleared on every transition into LIVE since the NHL API only updates career totals after a game.
   careerCache: Map<number, { goals: number; points: number }>;
@@ -57,6 +62,7 @@ export function startTracker(client: Client, guildId: string): void {
     pollTimer: null,
     lastAnnouncedPeriod: 0,
     watchedFromStart: false,
+    standingsBefore: null,
     careerCache: new Map(),
     replayPollTimers: new Set(),
   };
@@ -130,6 +136,7 @@ async function handleIdle(client: Client, ctx: TrackerContext): Promise<void> {
     ctx.state = 'LIVE';
     ctx.careerCache.clear();
     ctx.watchedFromStart = false;
+    ctx.standingsBefore = standingsForSeason(await nhlClient.getStandings(true), ctx.currentGame.season);
     logger.info({ guildId: ctx.guildId, gameId: liveGame.id }, 'Found live game, switching to LIVE');
     scheduleNext(client, ctx, 0);
     return;
@@ -172,6 +179,7 @@ async function handlePreGame(client: Client, ctx: TrackerContext): Promise<void>
     ctx.state = 'LIVE';
     ctx.careerCache.clear();
     ctx.watchedFromStart = true;
+    ctx.standingsBefore = standingsForSeason(await nhlClient.getStandings(true), ctx.currentGame.season);
     logger.info({ guildId: ctx.guildId, gameId: ctx.currentGame.id }, 'Game is now LIVE');
 
     // Post game start notification if not already posted
@@ -455,6 +463,10 @@ async function handleFinal(client: Client, ctx: TrackerContext): Promise<void> {
 
   const spoilerMode = (config.spoiler_mode ?? 'off') as SpoilerMode;
   const delayMs = (config.spoiler_delay_seconds ?? 30) * 1000;
+  // Captured now: ctx is reset for the next game before the delayed post runs.
+  const { teamCode, standingsBefore } = ctx;
+  const gameType = ctx.currentGame.gameType;
+  ctx.standingsBefore = null;
 
   logger.info({ guildId: ctx.guildId, gameId, delay: delayMs }, 'Scheduling final summary post');
 
@@ -488,11 +500,25 @@ async function handleFinal(client: Client, ctx: TrackerContext): Promise<void> {
 
       const guild = client.guilds.cache.get(ctx.guildId);
       const { content, embed } = buildFinalCard(boxscore, spoilerMode, guild);
-      await (channel as TextChannel).send({
+      const finalMessage = await (channel as TextChannel).send({
         content: content ?? undefined,
         embeds: [embed],
       });
       logger.info({ guildId: ctx.guildId, gameId }, 'Final summary posted');
+
+      // Standings reveal the result, so only when the final card shows scores; regular season only.
+      startPostGameFollowUp({
+        client,
+        guildId: ctx.guildId,
+        channelId: config.gameday_channel_id!,
+        gameId,
+        teamCode,
+        awayAbbrev: landing.awayTeam.abbrev,
+        homeAbbrev: landing.homeTeam.abbrev,
+        finalMessage,
+        standingsBefore,
+        trackStandings: gameType === 2 && shouldIncludeScoresInEmbed(spoilerMode),
+      });
     } catch (error) {
       logger.error({ error, gameId }, 'Failed to post final summary');
     }
@@ -553,9 +579,10 @@ async function postGameStartNotification(
     const awayEmoji = getTeamEmoji(awayTeam.abbrev, guild);
 
     // Fetch standings for team records
-    const standings = await nhlClient.getStandings();
-    const homeStanding = standings?.standings.find(s => s.teamAbbrev.default === homeTeam.abbrev);
-    const awayStanding = standings?.standings.find(s => s.teamAbbrev.default === awayTeam.abbrev);
+    // Only this season's standings — during preseason the NHL still serves last season's
+    const standings = standingsForSeason(await nhlClient.getStandings(), ctx.currentGame.season);
+    const homeStanding = standings?.find(s => s.teamAbbrev.default === homeTeam.abbrev);
+    const awayStanding = standings?.find(s => s.teamAbbrev.default === awayTeam.abbrev);
 
     // Format streak (W2, L1, OT, etc.)
     const formatStreak = (standing: typeof homeStanding) => {

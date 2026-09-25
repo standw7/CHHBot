@@ -51,6 +51,7 @@ const nhlClient = __importStar(require("../nhl/client.js"));
 const queries_js_1 = require("../db/queries.js");
 const goalCard_js_1 = require("./goalCard.js");
 const milestoneWatch_js_1 = require("./milestoneWatch.js");
+const standings_js_1 = require("./standings.js");
 const logger = (0, pino_1.default)({ name: 'daily-card-service' });
 const POLL_INTERVAL_MS = 60_000;
 const DEFAULT_ZONE = 'America/Denver';
@@ -137,7 +138,9 @@ async function processGuild(client, guildId) {
         if (selection.kind === 'game') {
             const standingsResponse = await nhlClient.getStandings();
             const milestoneLines = await loadMilestoneLines(selection.game, config.primary_team);
-            embed = buildPreGameCard(selection.game, games, config.primary_team, standingsResponse?.standings ?? null, guild, milestoneLines);
+            // Only this season's standings — during preseason the NHL still serves last season's
+            const standings = (0, standings_js_1.standingsForSeason)(standingsResponse, selection.game.season);
+            embed = buildPreGameCard(selection.game, games, config.primary_team, standings, guild, milestoneLines);
         }
         else {
             const phrase = pickOffDayPhrase(todayISO);

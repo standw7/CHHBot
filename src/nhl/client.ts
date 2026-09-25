@@ -26,9 +26,9 @@ const cache = new Map<string, CacheEntry<unknown>>();
 const SCHEDULE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_CACHE_TTL = 30 * 1000; // 30 seconds
 
-async function fetchJson<T>(url: string, cacheTtl: number = DEFAULT_CACHE_TTL): Promise<T | null> {
+async function fetchJson<T>(url: string, cacheTtl: number = DEFAULT_CACHE_TTL, bypassCache = false): Promise<T | null> {
   const cached = cache.get(url);
-  if (cached && cached.expiresAt > Date.now()) {
+  if (!bypassCache && cached && cached.expiresAt > Date.now()) {
     return cached.data as T;
   }
 
@@ -100,8 +100,8 @@ export async function getClubStats(teamCode: string): Promise<ClubStatsResponse 
   return fetchJson<ClubStatsResponse>(endpoints.clubStatsUrl(teamCode), SCHEDULE_CACHE_TTL);
 }
 
-export async function getStandings(): Promise<StandingsResponse | null> {
-  return fetchJson<StandingsResponse>(endpoints.standingsUrl(), SCHEDULE_CACHE_TTL);
+export async function getStandings(fresh = false): Promise<StandingsResponse | null> {
+  return fetchJson<StandingsResponse>(endpoints.standingsUrl(), SCHEDULE_CACHE_TTL, fresh);
 }
 
 export async function searchPlayers(query: string): Promise<PlayerSearchResult[] | null> {

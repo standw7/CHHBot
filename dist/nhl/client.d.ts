@@ -8,7 +8,7 @@ export declare function getLanding(gameId: number): Promise<LandingResponse | nu
 export declare function getGoalReplay(gameId: number, eventNumber: number): Promise<GoalReplayResponse | null>;
 export declare function getTvSchedule(date?: string): Promise<TvScheduleResponse | null>;
 export declare function getClubStats(teamCode: string): Promise<ClubStatsResponse | null>;
-export declare function getStandings(): Promise<StandingsResponse | null>;
+export declare function getStandings(fresh?: boolean): Promise<StandingsResponse | null>;
 export declare function searchPlayers(query: string): Promise<PlayerSearchResult[] | null>;
 export declare function getPlayerStats(playerId: number): Promise<PlayerLandingResponse | null>;
 export declare function getRoster(teamCode: string): Promise<RosterResponse | null>;

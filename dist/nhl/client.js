@@ -55,9 +55,9 @@ const logger = (0, pino_1.default)({ name: 'nhl-client' });
 const cache = new Map();
 const SCHEDULE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_CACHE_TTL = 30 * 1000; // 30 seconds
-async function fetchJson(url, cacheTtl = DEFAULT_CACHE_TTL) {
+async function fetchJson(url, cacheTtl = DEFAULT_CACHE_TTL, bypassCache = false) {
     const cached = cache.get(url);
-    if (cached && cached.expiresAt > Date.now()) {
+    if (!bypassCache && cached && cached.expiresAt > Date.now()) {
         return cached.data;
     }
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -117,8 +117,8 @@ async function getTvSchedule(date) {
 async function getClubStats(teamCode) {
     return fetchJson(endpoints.clubStatsUrl(teamCode), SCHEDULE_CACHE_TTL);
 }
-async function getStandings() {
-    return fetchJson(endpoints.standingsUrl(), SCHEDULE_CACHE_TTL);
+async function getStandings(fresh = false) {
+    return fetchJson(endpoints.standingsUrl(), SCHEDULE_CACHE_TTL, fresh);
 }
 async function searchPlayers(query) {
     return fetchJson(endpoints.searchPlayersUrl(query), SCHEDULE_CACHE_TTL);

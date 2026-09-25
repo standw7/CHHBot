@@ -5,6 +5,7 @@ import * as nhlClient from '../nhl/client.js';
 import { getGuildConfig, hasDailyCardBeenPosted, markDailyCardPosted } from '../db/queries.js';
 import { getTeamEmoji } from './goalCard.js';
 import { findUpcomingMilestones, loadWatchPlayers } from './milestoneWatch.js';
+import { standingsForSeason } from './standings.js';
 import type { ScheduleGame, TeamStanding } from '../nhl/types.js';
 
 const logger = pino({ name: 'daily-card-service' });
@@ -100,7 +101,9 @@ async function processGuild(client: Client, guildId: string): Promise<void> {
     if (selection.kind === 'game') {
       const standingsResponse = await nhlClient.getStandings();
       const milestoneLines = await loadMilestoneLines(selection.game, config.primary_team);
-      embed = buildPreGameCard(selection.game, games, config.primary_team, standingsResponse?.standings ?? null, guild, milestoneLines);
+      // Only this season's standings — during preseason the NHL still serves last season's
+      const standings = standingsForSeason(standingsResponse, selection.game.season);
+      embed = buildPreGameCard(selection.game, games, config.primary_team, standings, guild, milestoneLines);
     } else {
       const phrase = pickOffDayPhrase(todayISO);
       embed = buildOffDayCard(phrase, selection.nextGame, config.primary_team);

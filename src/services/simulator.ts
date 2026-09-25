@@ -340,18 +340,19 @@ export async function runSimulation(client: Client, guildId: string): Promise<vo
       gameState: 'FINAL',
       homeTeam: { id: 59, abbrev: 'UTA', logo: fakeHomeTeam.logo, score: 5, sog: 34 },
       awayTeam: { id: 53, abbrev: 'ARI', logo: fakeAwayTeam.logo, score: 1, sog: 25 },
-      summary: {
-        threeStars: [
-          { star: 1, id: 1, firstName: { default: 'Clayton' }, lastName: { default: 'Keller' }, sweaterNumber: 9, teamAbbrev: 'UTA' },
-          { star: 2, id: 2, firstName: { default: 'Logan' }, lastName: { default: 'Cooley' }, sweaterNumber: 92, teamAbbrev: 'UTA' },
-          { star: 3, id: 3, firstName: { default: 'Nick' }, lastName: { default: 'Schmaltz' }, sweaterNumber: 8, teamAbbrev: 'UTA' },
-        ],
-      },
     };
 
     const { content, embed } = buildFinalCard(fakeBoxscore, spoilerMode, guild);
     await textChannel.send({ content: content ?? undefined, embeds: [embed] });
     logger.info({ guildId }, 'Simulated final summary posted');
+
+    const { buildThreeStarsCard } = await import('./postGame.js');
+    const fakeStars = [
+      { star: 1, name: { default: 'C. Keller' }, teamAbbrev: 'UTA', position: 'C', goals: 2, assists: 1 },
+      { star: 2, name: { default: 'L. Cooley' }, teamAbbrev: 'UTA', position: 'C', goals: 1, assists: 1 },
+      { star: 3, name: { default: 'K. Vejmelka' }, teamAbbrev: 'UTA', position: 'G', savePctg: 0.96, goalsAgainstAverage: 1.0 },
+    ];
+    await textChannel.send({ embeds: [buildThreeStarsCard(fakeStars, 'ARI', 'UTA', guild)] });
   }
 
   await textChannel.send('**[SIMULATION] Complete!** All game-day features tested.');
