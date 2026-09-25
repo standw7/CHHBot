@@ -94,6 +94,13 @@ function runMigrations(db) {
       PRIMARY KEY(guild_id, game_id)
     );
 
+    CREATE TABLE IF NOT EXISTS rewards_pings (
+      guild_id TEXT,
+      game_id INTEGER,
+      last_ping_at INTEGER,
+      PRIMARY KEY(guild_id, game_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_gif_commands_guild_key ON gif_commands(guild_id, key);
     CREATE INDEX IF NOT EXISTS idx_posted_goals_game ON posted_goals(guild_id, game_id);
     CREATE INDEX IF NOT EXISTS idx_feed_sources_guild ON feed_sources(guild_id);
@@ -139,6 +146,12 @@ function runMigrations(db) {
     }
     if (!colNames.includes('gameday_role_id')) {
         db.exec('ALTER TABLE guild_config ADD COLUMN gameday_role_id TEXT');
+    }
+    if (!colNames.includes('rewards_role_id')) {
+        db.exec('ALTER TABLE guild_config ADD COLUMN rewards_role_id TEXT');
+    }
+    if (!colNames.includes('rewards_channel_id')) {
+        db.exec('ALTER TABLE guild_config ADD COLUMN rewards_channel_id TEXT');
     }
     if (!colNames.includes('hof_threshold')) {
         db.exec('ALTER TABLE guild_config ADD COLUMN hof_threshold INTEGER DEFAULT 8');

@@ -6,6 +6,8 @@ export interface GuildConfig {
   bot_commands_channel_id: string | null;
   news_channel_id: string | null;
   gameday_role_id: string | null;
+  rewards_role_id: string | null;
+  rewards_channel_id: string | null;
   spoiler_delay_seconds: number;
   spoiler_mode: 'off' | 'wrap_scores' | 'minimal_embed';
   command_mode: 'slash_only' | 'slash_plus_prefix';

@@ -61,6 +61,9 @@ export function registerMessageHandler(client: Client): void {
         case 'gameday':
           await handlePrefixGameday(message);
           break;
+        case 'rewards':
+          await handlePrefixRewards(message);
+          break;
         case 'player':
           await handlePrefixPlayer(message, args.slice(1));
           break;
@@ -122,7 +125,7 @@ function buildHelpPages(gifKeysText: string): EmbedBuilder[] {
         { name: 'Stats', value: '`!stats [category]` - Team stat leaders (top 5)\n`!stats [category] on [date]` - Game-specific leaders\n`!stats help` - List all stat categories', inline: false },
         { name: 'Player Lookup', value: '`!player <name>` - Player stats, bio, and last 5 games', inline: false },
         { name: 'Standings', value: '`!standings` - Your conference playoff picture\n`!standings league` - Top 16 NHL teams\n`!standings west` / `!standings east` - By conference', inline: false },
-        { name: 'Notifications', value: '`!gameday` - Toggle gameday ping role', inline: false },
+        { name: 'Notifications', value: '`!gameday` - Toggle gameday ping role\n`!rewards` - Toggle rewards check-in reminders (private #rewards channel)', inline: false },
         { name: 'Reminders', value: '`!remind <time> <message>` — Set a reminder\n`!remind <time> <message> --dm` — Remind via DM\n`!reminders` — List your reminders\n`!remind cancel <id>` — Cancel a reminder', inline: false },
       )
       .setFooter({ text: 'Page 1/3 — Use buttons to navigate' })
@@ -962,6 +965,50 @@ async function handlePrefixGameday(message: Message): Promise<void> {
     }
   } catch (error) {
     logger.error({ error }, 'Failed to toggle Gameday role');
+    await message.reply('Failed to update your role. The bot may not have permission to manage roles.');
+  }
+}
+
+async function handlePrefixRewards(message: Message): Promise<void> {
+  const { resolveRewardsRole, resolveRewardsChannel, REWARDS_ROLE_NAME } = await import('../../services/rewardsReminder.js');
+
+  const guild = message.guild!;
+  const member = message.member;
+  if (!member) {
+    await message.reply('Could not find your member information.');
+    return;
+  }
+
+  let role;
+  try {
+    role = await resolveRewardsRole(guild, true);
+  } catch (error) {
+    logger.error({ error }, 'Failed to find or create Rewards role');
+    await message.reply(`The "${REWARDS_ROLE_NAME}" role doesn't exist and I couldn't create it. Ask an admin to create it.`);
+    return;
+  }
+  if (!role) return;
+
+  let channel;
+  try {
+    channel = await resolveRewardsChannel(guild, role);
+  } catch (error) {
+    logger.error({ error }, 'Failed to find or create #rewards channel');
+    await message.reply("I couldn't create the #rewards channel. Ask an admin to create a private `rewards` channel for the Rewards role.");
+    return;
+  }
+
+  try {
+    if (member.roles.cache.has(role.id)) {
+      await member.roles.remove(role);
+      await message.reply(`Removed the **${role.name}** role. You won't get check-in reminders anymore.`);
+    } else {
+      await member.roles.add(role);
+      const where = channel ? ` in <#${channel.id}>` : '';
+      await message.reply(`Added the **${role.name}** role! You'll be reminded to check in${where} at puck drop and every 45 minutes during games.`);
+    }
+  } catch (error) {
+    logger.error({ error }, 'Failed to toggle Rewards role');
     await message.reply('Failed to update your role. The bot may not have permission to manage roles.');
   }
 }

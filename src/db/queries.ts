@@ -194,6 +194,19 @@ export function markGameStartPosted(guildId: string, gameId: number): void {
   `).run(guildId, gameId, new Date().toISOString());
 }
 
+export function getLastRewardsPing(guildId: string, gameId: number): number | null {
+  const row = getDb().prepare('SELECT last_ping_at FROM rewards_pings WHERE guild_id = ? AND game_id = ?').get(guildId, gameId) as { last_ping_at: number } | undefined;
+  return row?.last_ping_at ?? null;
+}
+
+export function markRewardsPing(guildId: string, gameId: number, pingedAt: number): void {
+  getDb().prepare(`
+    INSERT INTO rewards_pings (guild_id, game_id, last_ping_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(guild_id, game_id) DO UPDATE SET last_ping_at = excluded.last_ping_at
+  `).run(guildId, gameId, pingedAt);
+}
+
 export function resetGameStart(guildId: string, gameId: number): void {
   getDb().prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, gameId);
 }

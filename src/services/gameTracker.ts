@@ -6,6 +6,7 @@ import { buildGoalCard, findReplayUrl } from './goalCard.js';
 import type { GoalCardData } from './goalCard.js';
 import { buildFinalCard } from './finalCard.js';
 import { detectMilestones } from './milestones.js';
+import { maybeSendRewardsReminder } from './rewardsReminder.js';
 import type { SpoilerMode } from './spoiler.js';
 import type { ScheduleGame, Play, PbpTeam, LandingGoal } from '../nhl/types.js';
 
@@ -214,6 +215,9 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
     scheduleNext(client, ctx, 0);
     return;
   }
+
+  // Rewards check-in ping: at puck drop, then every 45 min until FINAL
+  await maybeSendRewardsReminder(client, ctx.guildId, ctx.currentGame.id);
 
   // Check for period changes and post period start notification (no ping, no delay)
   // Skip period 1 since "Game is starting!" already covers that

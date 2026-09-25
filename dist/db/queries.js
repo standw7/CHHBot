@@ -27,6 +27,8 @@ exports.updateFeedLastItem = updateFeedLastItem;
 exports.resetFeedLastItem = resetFeedLastItem;
 exports.hasGameStartBeenPosted = hasGameStartBeenPosted;
 exports.markGameStartPosted = markGameStartPosted;
+exports.getLastRewardsPing = getLastRewardsPing;
+exports.markRewardsPing = markRewardsPing;
 exports.resetGameStart = resetGameStart;
 exports.hasFeedItemBeenPosted = hasFeedItemBeenPosted;
 exports.markFeedItemPosted = markFeedItemPosted;
@@ -176,6 +178,17 @@ function markGameStartPosted(guildId, gameId) {
     INSERT OR IGNORE INTO posted_game_starts (guild_id, game_id, posted_at)
     VALUES (?, ?, ?)
   `).run(guildId, gameId, new Date().toISOString());
+}
+function getLastRewardsPing(guildId, gameId) {
+    const row = (0, database_js_1.getDb)().prepare('SELECT last_ping_at FROM rewards_pings WHERE guild_id = ? AND game_id = ?').get(guildId, gameId);
+    return row?.last_ping_at ?? null;
+}
+function markRewardsPing(guildId, gameId, pingedAt) {
+    (0, database_js_1.getDb)().prepare(`
+    INSERT INTO rewards_pings (guild_id, game_id, last_ping_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(guild_id, game_id) DO UPDATE SET last_ping_at = excluded.last_ping_at
+  `).run(guildId, gameId, pingedAt);
 }
 function resetGameStart(guildId, gameId) {
     (0, database_js_1.getDb)().prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, gameId);

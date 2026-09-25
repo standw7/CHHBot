@@ -46,6 +46,7 @@ const queries_js_1 = require("../db/queries.js");
 const goalCard_js_1 = require("./goalCard.js");
 const finalCard_js_1 = require("./finalCard.js");
 const milestones_js_1 = require("./milestones.js");
+const rewardsReminder_js_1 = require("./rewardsReminder.js");
 const logger = (0, pino_1.default)({ name: 'game-tracker' });
 // Replay-link polling: how often to re-check the landing endpoint for a goal's
 // highlight clip, and how many times to try before giving up.
@@ -213,6 +214,8 @@ async function handleLive(client, ctx) {
         scheduleNext(client, ctx, 0);
         return;
     }
+    // Rewards check-in ping: at puck drop, then every 45 min until FINAL
+    await (0, rewardsReminder_js_1.maybeSendRewardsReminder)(client, ctx.guildId, ctx.currentGame.id);
     // Check for period changes and post period start notification (no ping, no delay)
     // Skip period 1 since "Game is starting!" already covers that
     const currentPeriod = pbp.period;

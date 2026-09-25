@@ -53,6 +53,7 @@ CHHBot/
 │       ├── reminderService.ts    # Polls DB for due reminders, fires them
 │       ├── healthMonitor.ts      # Exits (for PM2 restart) if Discord gateway is down >5 min
 │       ├── dailyCard.ts          # 9am pre-game card / in-season off-day card scheduler (+ .test.ts)
+│       ├── rewardsReminder.ts    # !rewards role + private #rewards channel; pings at puck drop and every 45 min while LIVE (+ .test.ts)
 │       ├── milestones.ts         # Pure detectMilestones(): hat trick 🧢🧢🧢, OT winner, season/career marks (+ .test.ts)
 │       └── simulator.ts          # Fake game simulation for testing goal/final cards
 ├── dist/                         # Compiled JS (committed for low-RAM VM deployment)
@@ -122,6 +123,7 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 - Daily pre-game / off-day card, phrases, posting hour → `src/services/dailyCard.ts` (`OFF_DAY_PHRASES`, `selectDailyCard`), config columns `daily_card_enabled`/`daily_card_hour`
 - Special goal cards (hat trick, milestones, thresholds) → `src/services/milestones.ts`; styling in `goalCard.ts` (`milestones` in `GoalCardData`); career cache in `gameTracker.ts` `TrackerContext`
 - Auto replay link on goal cards → `gameTracker.ts` `pollForReplay` + `goalCard.ts` `findReplayUrl`
+- Rewards check-in reminders → `src/services/rewardsReminder.ts` (`REWARDS_PING_INTERVAL_MS`, message text, channel perms); called from `gameTracker.ts` `handleLive`; last ping per game in `rewards_pings` table; `!rewards` toggle in `messageCreate.ts` `handlePrefixRewards()`
 - Tests → `npm test` (`node --test` via tsx, `src/services/*.test.ts`)
 
 | Change | Files to edit |
