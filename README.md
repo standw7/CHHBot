@@ -180,7 +180,11 @@ Look up team stat leaders for the current season or for a specific game.
 | `!rewards` | Toggle the Rewards role (check-in reminders in the private #rewards channel) |
 | `!follow <player>` | DM me when this Utah player scores, gets an assist, or is named first star (name, last name or jersey number; up to 5) |
 | `!unfollow <player>` | Stop following a player |
-| `!following` | List the players you follow |
+| `!follow @member` | DM me when this member's post makes the Hall of Fame (up to 5 per server) |
+| `!unfollow @member` | Stop following a member |
+| `!following` | List the players and members you follow |
+| `!followers` | See how many people follow you, and who |
+| `!follow off` / `!follow on` | Stop anyone following you (removes current followers) / allow it again |
 
 When you have the **Gameday** role, you'll be pinged when games start. Use `!gameday` again to remove the role and stop getting pinged.
 

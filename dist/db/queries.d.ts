@@ -44,6 +44,15 @@ export declare function listFollows(userId: string): {
 export declare function getFollowersOf(playerIds: number[]): Map<string, Set<number>>;
 /** Claims the DM for this user + goal. False if another tracker already sent it. */
 export declare function claimFollowDm(userId: string, gameId: number, eventId: number): boolean;
+export declare function addMemberFollow(guildId: string, followerId: string, targetId: string): void;
+export declare function removeMemberFollow(guildId: string, followerId: string, targetId: string): boolean;
+/** Members this user follows in this guild (user IDs). */
+export declare function listMemberFollows(guildId: string, followerId: string): string[];
+/** Users following this member in this guild (user IDs). */
+export declare function getMemberFollowers(guildId: string, targetId: string): string[];
+export declare function isFollowOptedOut(guildId: string, userId: string): boolean;
+/** Opting out also removes everyone currently following this member. */
+export declare function setFollowOptOut(guildId: string, userId: string, optedOut: boolean): void;
 export declare function resetGameStart(guildId: string, gameId: number): void;
 export declare function hasFeedItemBeenPosted(guildId: string, feedId: number, itemId: string): boolean;
 export declare function markFeedItemPosted(guildId: string, feedId: number, itemId: string): void;

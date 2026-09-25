@@ -99,6 +99,20 @@ function runMigrations(db: Database.Database): void {
       PRIMARY KEY(user_id, player_id)
     );
 
+    CREATE TABLE IF NOT EXISTS member_follows (
+      guild_id TEXT,
+      follower_id TEXT,
+      target_id TEXT,
+      created_at TEXT,
+      PRIMARY KEY(guild_id, follower_id, target_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS follow_opt_outs (
+      guild_id TEXT,
+      user_id TEXT,
+      PRIMARY KEY(guild_id, user_id)
+    );
+
     CREATE TABLE IF NOT EXISTS follow_dms_sent (
       user_id TEXT,
       game_id INTEGER,

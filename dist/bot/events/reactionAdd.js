@@ -11,6 +11,7 @@ const discord_js_1 = require("discord.js");
 const queries_js_1 = require("../../db/queries.js");
 const hofScan_js_1 = require("../../services/hofScan.js");
 Object.defineProperty(exports, "HOF_EMOJIS", { enumerable: true, get: function () { return hofScan_js_1.HOF_EMOJIS; } });
+const follows_js_1 = require("../../services/follows.js");
 const pino_1 = __importDefault(require("pino"));
 const logger = (0, pino_1.default)({ name: 'hall-of-fame' });
 // Social link patterns: match all variants (original + embed-fix domains), normalize to embed-fix URL
@@ -154,7 +155,7 @@ async function buildHofPost(message, guildId, channelId, messageId) {
  * Returns true when it posted, false if the HoF channel could not be resolved.
  * Shared by the reaction handler and the `!hof scan` backfill command.
  */
-async function inductMessage(message, guildId, config) {
+async function inductMessage(message, guildId, config, options = {}) {
     const channelId = message.channel.id;
     const messageId = message.id;
     // Build the HoF post
@@ -176,6 +177,11 @@ async function inductMessage(message, guildId, config) {
             files,
         });
         (0, queries_js_1.updateHofFollowup)(guildId, messageId, followup.id);
+    }
+    // Live inductions only — `!hof scan` backfills don't DM
+    if (options.notifyFollowers) {
+        const authorName = message.member?.displayName ?? message.author.displayName;
+        await (0, follows_js_1.sendHofFollowDms)(message.client, guildId, message.guild.name, message.author.id, authorName, hofMessage.url);
     }
     return true;
 }
@@ -217,7 +223,7 @@ function registerReactionHandler(client) {
                 return;
             // Fetch the full message
             const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
-            const posted = await inductMessage(message, guildId, config);
+            const posted = await inductMessage(message, guildId, config, { notifyFollowers: true });
             if (posted) {
                 logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
             }

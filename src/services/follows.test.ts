@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { matchRosterPlayer, buildFollowDm, buildFirstStarDm } from './follows.js';
+import { matchRosterPlayer, buildFollowDm, buildFirstStarDm, checkMemberFollow, buildHofFollowDm, MAX_FOLLOWS } from './follows.js';
 import type { FollowablePlayer } from './follows.js';
 import type { LandingGoal } from '../nhl/types.js';
 
@@ -127,5 +127,43 @@ describe('buildFirstStarDm', () => {
 
   test('goalie, no stats or link', () => {
     assert.equal(buildFirstStarDm('Vejmelka', '', 'EDM', 'UTA'), '⭐ **Vejmelka** was named first star! EDM @ UTA');
+  });
+});
+
+describe('checkMemberFollow', () => {
+  const ok = { followerId: 'a', targetId: 'b', targetIsBot: false, targetOptedOut: false, alreadyFollowing: false, currentCount: 0 };
+
+  test('allowed', () => {
+    assert.equal(checkMemberFollow(ok), 'ok');
+  });
+
+  test('cannot follow yourself', () => {
+    assert.equal(checkMemberFollow({ ...ok, targetId: 'a' }), 'self');
+  });
+
+  test('cannot follow a bot', () => {
+    assert.equal(checkMemberFollow({ ...ok, targetIsBot: true }), 'bot');
+  });
+
+  test('opted-out member', () => {
+    assert.equal(checkMemberFollow({ ...ok, targetOptedOut: true }), 'opted_out');
+  });
+
+  test('already following', () => {
+    assert.equal(checkMemberFollow({ ...ok, alreadyFollowing: true }), 'already');
+  });
+
+  test('limit reached', () => {
+    assert.equal(checkMemberFollow({ ...ok, currentCount: MAX_FOLLOWS }), 'limit');
+    assert.equal(checkMemberFollow({ ...ok, currentCount: MAX_FOLLOWS - 1 }), 'ok');
+  });
+});
+
+describe('buildHofFollowDm', () => {
+  test('names the member and links the HoF post', () => {
+    assert.equal(
+      buildHofFollowDm('Chad', 'Clean Hits Hockey', 'https://discord.com/channels/1/2/3'),
+      "🏆 **Chad**'s post made the Hall of Fame in Clean Hits Hockey! [See it](https://discord.com/channels/1/2/3)"
+    );
   });
 });

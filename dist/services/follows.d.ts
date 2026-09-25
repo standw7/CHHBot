@@ -45,4 +45,16 @@ export declare function sendFollowDms(client: Client, gameId: number, input: Omi
 export declare function buildFirstStarDm(lastName: string, stats: string, awayAbbrev: string, homeAbbrev: string, cardUrl?: string): string;
 /** DM followers of the game's first star. Deduped per user+game across guild trackers. */
 export declare function sendFirstStarDms(client: Client, gameId: number, playerId: number, lastName: string, stats: string, awayAbbrev: string, homeAbbrev: string, cardUrl?: string): Promise<void>;
+export type MemberFollowCheck = 'ok' | 'self' | 'bot' | 'opted_out' | 'already' | 'limit';
+export declare function checkMemberFollow(input: {
+    followerId: string;
+    targetId: string;
+    targetIsBot: boolean;
+    targetOptedOut: boolean;
+    alreadyFollowing: boolean;
+    currentCount: number;
+}): MemberFollowCheck;
+export declare function buildHofFollowDm(memberName: string, guildName: string, hofUrl: string): string;
+/** DM everyone in this guild who follows the author of a newly inducted HoF post. */
+export declare function sendHofFollowDms(client: Client, guildId: string, guildName: string, authorId: string, authorName: string, hofUrl: string): Promise<void>;
 //# sourceMappingURL=follows.d.ts.map

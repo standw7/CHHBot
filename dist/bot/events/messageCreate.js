@@ -72,6 +72,9 @@ function registerMessageHandler(client) {
                 case 'following':
                     await handlePrefixFollowing(message);
                     break;
+                case 'followers':
+                    await handlePrefixFollowers(message);
+                    break;
                 case 'player':
                     await handlePrefixPlayer(message, args.slice(1));
                     break;
@@ -126,7 +129,7 @@ function buildHelpPages(gifKeysText) {
     pages.push(new discord_js_1.EmbedBuilder()
         .setTitle('Tusky Commands — Game Info & Stats')
         .setColor(0x006847)
-        .addFields({ name: 'Game Info', value: '`!next` - Next game\n`!watch` - Where to watch\n`!replay` - Latest goal replay\n`!schedule [n]` - Upcoming games (default 7, max 15)', inline: false }, { name: 'Stats', value: '`!stats [category]` - Team stat leaders (top 5)\n`!stats [category] on [date]` - Game-specific leaders\n`!stats help` - List all stat categories', inline: false }, { name: 'Player Lookup', value: '`!player <name>` - Player stats, bio, and last 5 games', inline: false }, { name: 'Standings', value: '`!standings` - Your conference playoff picture\n`!standings league` - Top 16 NHL teams\n`!standings west` / `!standings east` - By conference', inline: false }, { name: 'Notifications', value: '`!gameday` - Toggle gameday ping role\n`!rewards` - Toggle rewards check-in reminders (private #rewards channel)\n`!follow <player>` - DM me when a Utah player scores or assists\n`!unfollow <player>` / `!following` - Manage who you follow', inline: false }, { name: 'Reminders', value: '`!remind <time> <message>` — Set a reminder\n`!remind <time> <message> --dm` — Remind via DM\n`!reminders` — List your reminders\n`!remind cancel <id>` — Cancel a reminder', inline: false })
+        .addFields({ name: 'Game Info', value: '`!next` - Next game\n`!watch` - Where to watch\n`!replay` - Latest goal replay\n`!schedule [n]` - Upcoming games (default 7, max 15)', inline: false }, { name: 'Stats', value: '`!stats [category]` - Team stat leaders (top 5)\n`!stats [category] on [date]` - Game-specific leaders\n`!stats help` - List all stat categories', inline: false }, { name: 'Player Lookup', value: '`!player <name>` - Player stats, bio, and last 5 games', inline: false }, { name: 'Standings', value: '`!standings` - Your conference playoff picture\n`!standings league` - Top 16 NHL teams\n`!standings west` / `!standings east` - By conference', inline: false }, { name: 'Notifications', value: '`!gameday` - Toggle gameday ping role\n`!rewards` - Toggle rewards check-in reminders (private #rewards channel)\n`!follow <player>` - DM me when a Utah player scores, assists, or is first star\n`!follow @member` - DM me when their post makes the Hall of Fame\n`!unfollow` / `!following` / `!followers` - Manage follows (`!follow off` to block followers)', inline: false }, { name: 'Reminders', value: '`!remind <time> <message>` — Set a reminder\n`!remind <time> <message> --dm` — Remind via DM\n`!reminders` — List your reminders\n`!remind cancel <id>` — Cancel a reminder', inline: false })
         .setFooter({ text: 'Page 1/3 — Use buttons to navigate' }));
     // Page 2: Media & Fun
     pages.push(new discord_js_1.EmbedBuilder()
@@ -884,8 +887,19 @@ function describeCandidates(players) {
 async function handlePrefixFollow(message, query) {
     const { matchRosterPlayer, loadFollowablePlayers, MAX_FOLLOWS } = await import('../../services/follows.js');
     const { addFollow, listFollows } = await import('../../db/queries.js');
+    const mode = query.trim().toLowerCase();
+    if (mode === 'off' || mode === 'on') {
+        await handleFollowOptOut(message, mode === 'off');
+        return;
+    }
+    const mentioned = await mentionedUser(message, query);
+    if (mentioned) {
+        await handleFollowMember(message, mentioned);
+        return;
+    }
     if (!query.trim()) {
-        await message.reply('Usage: `!follow <player>`, e.g. `!follow keller` or `!follow 9`. I\'ll DM you when he scores or gets an assist.');
+        await message.reply('Usage:\n`!follow <player>` (e.g. `!follow keller` or `!follow 9`): DM when a Utah player scores, assists, or is first star\n' +
+            '`!follow @member`: DM when their post makes the Hall of Fame\n`!follow off` / `!follow on`: stop or allow people following you');
         return;
     }
     const teamCode = (0, queries_js_1.getGuildConfig)(message.guild.id)?.primary_team ?? 'UTA';
@@ -920,9 +934,19 @@ async function handlePrefixFollow(message, query) {
 async function handlePrefixUnfollow(message, query) {
     const { matchRosterPlayer } = await import('../../services/follows.js');
     const { listFollows, removeFollow } = await import('../../db/queries.js');
+    const target = await mentionedUser(message, query);
+    if (target) {
+        const { removeMemberFollow } = await import('../../db/queries.js');
+        const removed = removeMemberFollow(message.guild.id, message.author.id, target.id);
+        await message.reply({
+            content: removed ? `Unfollowed <@${target.id}>.` : `You don't follow <@${target.id}>.`,
+            allowedMentions: { parse: [] },
+        });
+        return;
+    }
     const follows = listFollows(message.author.id);
     if (follows.length === 0) {
-        await message.reply("You're not following anyone.");
+        await message.reply("You're not following any players.");
         return;
     }
     // Match against the user's own follows, so players who left the roster can still be removed
@@ -943,11 +967,76 @@ async function handlePrefixUnfollow(message, query) {
     await message.reply(`Unfollowed **${result.player.firstName} ${result.player.lastName}**.`);
 }
 async function handlePrefixFollowing(message) {
-    const { listFollows } = await import('../../db/queries.js');
-    const follows = listFollows(message.author.id);
-    await message.reply(follows.length === 0
-        ? "You're not following anyone. Use `!follow <player>` to start."
-        : `You follow: ${follows.map(f => `**${f.playerName}**`).join(', ')}`);
+    const { listFollows, listMemberFollows } = await import('../../db/queries.js');
+    const players = listFollows(message.author.id);
+    const members = listMemberFollows(message.guild.id, message.author.id);
+    if (players.length === 0 && members.length === 0) {
+        await message.reply("You're not following anyone. Use `!follow <player>` or `!follow @member` to start.");
+        return;
+    }
+    const lines = [];
+    if (players.length > 0)
+        lines.push(`**Players:** ${players.map(f => f.playerName).join(', ')}`);
+    if (members.length > 0)
+        lines.push(`**Members:** ${members.map(id => `<@${id}>`).join(', ')}`);
+    await message.reply({ content: lines.join('\n'), allowedMentions: { parse: [] } });
+}
+// The command's argument must itself be an @mention — message.mentions also includes the
+// author of a message being replied to, which would hijack e.g. a `!follow keller` reply.
+async function mentionedUser(message, query) {
+    const id = query.trim().match(/^<@!?(\d+)>$/)?.[1];
+    if (!id)
+        return null;
+    return message.mentions.users.get(id) ?? (await message.client.users.fetch(id).catch(() => null));
+}
+async function handleFollowMember(message, target) {
+    const { checkMemberFollow } = await import('../../services/follows.js');
+    const { addMemberFollow, listMemberFollows, isFollowOptedOut } = await import('../../db/queries.js');
+    const guildId = message.guild.id;
+    const current = listMemberFollows(guildId, message.author.id);
+    const check = checkMemberFollow({
+        followerId: message.author.id,
+        targetId: target.id,
+        targetIsBot: target.bot,
+        targetOptedOut: isFollowOptedOut(guildId, target.id),
+        alreadyFollowing: current.includes(target.id),
+        currentCount: current.length,
+    });
+    const replies = {
+        self: "You can't follow yourself.",
+        bot: "You can't follow a bot.",
+        opted_out: "You can't follow this member.",
+        already: `You already follow <@${target.id}>.`,
+        limit: 'You can follow up to 5 members. Use `!unfollow @member` first.',
+        ok: `Following <@${target.id}>. I'll DM you when one of their posts makes the Hall of Fame. They can see who follows them with \`!followers\`.`,
+    };
+    if (check === 'ok')
+        addMemberFollow(guildId, message.author.id, target.id);
+    await message.reply({ content: replies[check], allowedMentions: { parse: [] } });
+}
+async function handleFollowOptOut(message, optOut) {
+    const { setFollowOptOut, getMemberFollowers } = await import('../../db/queries.js');
+    const guildId = message.guild.id;
+    if (optOut) {
+        const removed = getMemberFollowers(guildId, message.author.id).length;
+        setFollowOptOut(guildId, message.author.id, true);
+        await message.reply(`Nobody can follow you now${removed > 0 ? `, and your ${removed} follower${removed === 1 ? '' : 's'} were removed` : ''}. Use \`!follow on\` to allow it again.`);
+    }
+    else {
+        setFollowOptOut(guildId, message.author.id, false);
+        await message.reply('People can follow you again.');
+    }
+}
+async function handlePrefixFollowers(message) {
+    const { getMemberFollowers, isFollowOptedOut } = await import('../../db/queries.js');
+    const guildId = message.guild.id;
+    const followers = getMemberFollowers(guildId, message.author.id);
+    const optedOut = isFollowOptedOut(guildId, message.author.id);
+    let content = followers.length === 0
+        ? 'Nobody follows you.'
+        : `**${followers.length}** follower${followers.length === 1 ? '' : 's'}: ${followers.map(id => `<@${id}>`).join(', ')}`;
+    content += optedOut ? '\nFollowing is turned off for you (`!follow on` to allow it).' : '\nUse `!follow off` to stop people following you.';
+    await message.reply({ content, allowedMentions: { parse: [] } });
 }
 async function handlePrefixHof(message, args) {
     const { PermissionFlagsBits } = await import('discord.js');

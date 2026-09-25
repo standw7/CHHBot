@@ -19,6 +19,8 @@ export declare function buildHofPost(message: Message, guildId: string, channelI
  * Returns true when it posted, false if the HoF channel could not be resolved.
  * Shared by the reaction handler and the `!hof scan` backfill command.
  */
-export declare function inductMessage(message: Message, guildId: string, config: GuildConfig): Promise<boolean>;
+export declare function inductMessage(message: Message, guildId: string, config: GuildConfig, options?: {
+    notifyFollowers?: boolean;
+}): Promise<boolean>;
 export declare function registerReactionHandler(client: Client): void;
 //# sourceMappingURL=reactionAdd.d.ts.map

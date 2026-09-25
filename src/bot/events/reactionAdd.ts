@@ -2,6 +2,7 @@ import { Client, EmbedBuilder, Message, MessageReaction, PartialMessageReaction,
 import { getGuildConfig, hasMessageBeenInducted, markMessageInducted, updateHofFollowup } from '../../db/queries.js';
 import type { GuildConfig } from '../../db/models.js';
 import { HOF_EMOJIS, DEFAULT_THRESHOLD } from '../../services/hofScan.js';
+import { sendHofFollowDms } from '../../services/follows.js';
 import pino from 'pino';
 
 const logger = pino({ name: 'hall-of-fame' });
@@ -176,7 +177,12 @@ export async function buildHofPost(
  * Returns true when it posted, false if the HoF channel could not be resolved.
  * Shared by the reaction handler and the `!hof scan` backfill command.
  */
-export async function inductMessage(message: Message, guildId: string, config: GuildConfig): Promise<boolean> {
+export async function inductMessage(
+  message: Message,
+  guildId: string,
+  config: GuildConfig,
+  options: { notifyFollowers?: boolean } = {}
+): Promise<boolean> {
   const channelId = message.channel.id;
   const messageId = message.id;
 
@@ -203,6 +209,12 @@ export async function inductMessage(message: Message, guildId: string, config: G
       files,
     });
     updateHofFollowup(guildId, messageId, followup.id);
+  }
+
+  // Live inductions only — `!hof scan` backfills don't DM
+  if (options.notifyFollowers) {
+    const authorName = message.member?.displayName ?? message.author.displayName;
+    await sendHofFollowDms(message.client, guildId, message.guild!.name, message.author.id, authorName, hofMessage.url);
   }
 
   return true;
@@ -249,7 +261,7 @@ export function registerReactionHandler(client: Client): void {
       // Fetch the full message
       const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
 
-      const posted = await inductMessage(message, guildId, config);
+      const posted = await inductMessage(message, guildId, config, { notifyFollowers: true });
       if (posted) {
         logger.info({ guildId, messageId, channelId, emoji: emojiName, reactionCount: count }, 'Message inducted to Hall of Fame');
       }

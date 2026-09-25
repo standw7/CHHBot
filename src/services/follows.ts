@@ -1,7 +1,7 @@
 import { Client } from 'discord.js';
 import pino from 'pino';
 import * as nhlClient from '../nhl/client.js';
-import { getFollowersOf, claimFollowDm } from '../db/queries.js';
+import { getFollowersOf, claimFollowDm, getMemberFollowers } from '../db/queries.js';
 import type { LandingGoal } from '../nhl/types.js';
 
 const logger = pino({ name: 'follows' });
@@ -165,6 +165,51 @@ export async function sendFirstStarDms(
       logger.info({ userId, gameId }, 'First star DM sent');
     } catch (error) {
       logger.warn({ error, userId, gameId }, 'Could not DM follower (DMs closed?)');
+    }
+  }
+}
+
+// --- Member follows (Hall of Fame DMs) ---
+
+export type MemberFollowCheck = 'ok' | 'self' | 'bot' | 'opted_out' | 'already' | 'limit';
+
+export function checkMemberFollow(input: {
+  followerId: string;
+  targetId: string;
+  targetIsBot: boolean;
+  targetOptedOut: boolean;
+  alreadyFollowing: boolean;
+  currentCount: number;
+}): MemberFollowCheck {
+  if (input.followerId === input.targetId) return 'self';
+  if (input.targetIsBot) return 'bot';
+  if (input.targetOptedOut) return 'opted_out';
+  if (input.alreadyFollowing) return 'already';
+  if (input.currentCount >= MAX_FOLLOWS) return 'limit';
+  return 'ok';
+}
+
+export function buildHofFollowDm(memberName: string, guildName: string, hofUrl: string): string {
+  return `🏆 **${memberName}**'s post made the Hall of Fame in ${guildName}! [See it](${hofUrl})`;
+}
+
+/** DM everyone in this guild who follows the author of a newly inducted HoF post. */
+export async function sendHofFollowDms(
+  client: Client,
+  guildId: string,
+  guildName: string,
+  authorId: string,
+  authorName: string,
+  hofUrl: string
+): Promise<void> {
+  const text = buildHofFollowDm(authorName, guildName, hofUrl);
+  for (const userId of getMemberFollowers(guildId, authorId)) {
+    try {
+      const user = await client.users.fetch(userId);
+      await user.send(text);
+      logger.info({ userId, guildId, authorId }, 'HoF follow DM sent');
+    } catch (error) {
+      logger.warn({ error, userId, guildId }, 'Could not DM follower (DMs closed?)');
     }
   }
 }

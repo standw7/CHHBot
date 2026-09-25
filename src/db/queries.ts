@@ -241,6 +241,46 @@ export function claimFollowDm(userId: string, gameId: number, eventId: number): 
   return getDb().prepare('INSERT OR IGNORE INTO follow_dms_sent (user_id, game_id, event_id) VALUES (?, ?, ?)').run(userId, gameId, eventId).changes > 0;
 }
 
+export function addMemberFollow(guildId: string, followerId: string, targetId: string): void {
+  getDb().prepare(`
+    INSERT OR IGNORE INTO member_follows (guild_id, follower_id, target_id, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(guildId, followerId, targetId, new Date().toISOString());
+}
+
+export function removeMemberFollow(guildId: string, followerId: string, targetId: string): boolean {
+  return getDb().prepare('DELETE FROM member_follows WHERE guild_id = ? AND follower_id = ? AND target_id = ?').run(guildId, followerId, targetId).changes > 0;
+}
+
+/** Members this user follows in this guild (user IDs). */
+export function listMemberFollows(guildId: string, followerId: string): string[] {
+  const rows = getDb().prepare('SELECT target_id FROM member_follows WHERE guild_id = ? AND follower_id = ? ORDER BY created_at').all(guildId, followerId) as { target_id: string }[];
+  return rows.map(r => r.target_id);
+}
+
+/** Users following this member in this guild (user IDs). */
+export function getMemberFollowers(guildId: string, targetId: string): string[] {
+  const rows = getDb().prepare('SELECT follower_id FROM member_follows WHERE guild_id = ? AND target_id = ? ORDER BY created_at').all(guildId, targetId) as { follower_id: string }[];
+  return rows.map(r => r.follower_id);
+}
+
+export function isFollowOptedOut(guildId: string, userId: string): boolean {
+  return !!getDb().prepare('SELECT 1 FROM follow_opt_outs WHERE guild_id = ? AND user_id = ?').get(guildId, userId);
+}
+
+/** Opting out also removes everyone currently following this member. */
+export function setFollowOptOut(guildId: string, userId: string, optedOut: boolean): void {
+  const db = getDb();
+  if (optedOut) {
+    db.transaction(() => {
+      db.prepare('INSERT OR IGNORE INTO follow_opt_outs (guild_id, user_id) VALUES (?, ?)').run(guildId, userId);
+      db.prepare('DELETE FROM member_follows WHERE guild_id = ? AND target_id = ?').run(guildId, userId);
+    })();
+  } else {
+    db.prepare('DELETE FROM follow_opt_outs WHERE guild_id = ? AND user_id = ?').run(guildId, userId);
+  }
+}
+
 export function resetGameStart(guildId: string, gameId: number): void {
   getDb().prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, gameId);
 }

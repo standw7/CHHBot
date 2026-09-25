@@ -43,6 +43,9 @@ exports.buildFollowDm = buildFollowDm;
 exports.sendFollowDms = sendFollowDms;
 exports.buildFirstStarDm = buildFirstStarDm;
 exports.sendFirstStarDms = sendFirstStarDms;
+exports.checkMemberFollow = checkMemberFollow;
+exports.buildHofFollowDm = buildHofFollowDm;
+exports.sendHofFollowDms = sendHofFollowDms;
 const pino_1 = __importDefault(require("pino"));
 const nhlClient = __importStar(require("../nhl/client.js"));
 const queries_js_1 = require("../db/queries.js");
@@ -168,6 +171,36 @@ async function sendFirstStarDms(client, gameId, playerId, lastName, stats, awayA
         }
         catch (error) {
             logger.warn({ error, userId, gameId }, 'Could not DM follower (DMs closed?)');
+        }
+    }
+}
+function checkMemberFollow(input) {
+    if (input.followerId === input.targetId)
+        return 'self';
+    if (input.targetIsBot)
+        return 'bot';
+    if (input.targetOptedOut)
+        return 'opted_out';
+    if (input.alreadyFollowing)
+        return 'already';
+    if (input.currentCount >= exports.MAX_FOLLOWS)
+        return 'limit';
+    return 'ok';
+}
+function buildHofFollowDm(memberName, guildName, hofUrl) {
+    return `🏆 **${memberName}**'s post made the Hall of Fame in ${guildName}! [See it](${hofUrl})`;
+}
+/** DM everyone in this guild who follows the author of a newly inducted HoF post. */
+async function sendHofFollowDms(client, guildId, guildName, authorId, authorName, hofUrl) {
+    const text = buildHofFollowDm(authorName, guildName, hofUrl);
+    for (const userId of (0, queries_js_1.getMemberFollowers)(guildId, authorId)) {
+        try {
+            const user = await client.users.fetch(userId);
+            await user.send(text);
+            logger.info({ userId, guildId, authorId }, 'HoF follow DM sent');
+        }
+        catch (error) {
+            logger.warn({ error, userId, guildId }, 'Could not DM follower (DMs closed?)');
         }
     }
 }

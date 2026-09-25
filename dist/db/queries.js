@@ -34,6 +34,12 @@ exports.removeFollow = removeFollow;
 exports.listFollows = listFollows;
 exports.getFollowersOf = getFollowersOf;
 exports.claimFollowDm = claimFollowDm;
+exports.addMemberFollow = addMemberFollow;
+exports.removeMemberFollow = removeMemberFollow;
+exports.listMemberFollows = listMemberFollows;
+exports.getMemberFollowers = getMemberFollowers;
+exports.isFollowOptedOut = isFollowOptedOut;
+exports.setFollowOptOut = setFollowOptOut;
 exports.resetGameStart = resetGameStart;
 exports.hasFeedItemBeenPosted = hasFeedItemBeenPosted;
 exports.markFeedItemPosted = markFeedItemPosted;
@@ -225,6 +231,41 @@ function getFollowersOf(playerIds) {
 /** Claims the DM for this user + goal. False if another tracker already sent it. */
 function claimFollowDm(userId, gameId, eventId) {
     return (0, database_js_1.getDb)().prepare('INSERT OR IGNORE INTO follow_dms_sent (user_id, game_id, event_id) VALUES (?, ?, ?)').run(userId, gameId, eventId).changes > 0;
+}
+function addMemberFollow(guildId, followerId, targetId) {
+    (0, database_js_1.getDb)().prepare(`
+    INSERT OR IGNORE INTO member_follows (guild_id, follower_id, target_id, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(guildId, followerId, targetId, new Date().toISOString());
+}
+function removeMemberFollow(guildId, followerId, targetId) {
+    return (0, database_js_1.getDb)().prepare('DELETE FROM member_follows WHERE guild_id = ? AND follower_id = ? AND target_id = ?').run(guildId, followerId, targetId).changes > 0;
+}
+/** Members this user follows in this guild (user IDs). */
+function listMemberFollows(guildId, followerId) {
+    const rows = (0, database_js_1.getDb)().prepare('SELECT target_id FROM member_follows WHERE guild_id = ? AND follower_id = ? ORDER BY created_at').all(guildId, followerId);
+    return rows.map(r => r.target_id);
+}
+/** Users following this member in this guild (user IDs). */
+function getMemberFollowers(guildId, targetId) {
+    const rows = (0, database_js_1.getDb)().prepare('SELECT follower_id FROM member_follows WHERE guild_id = ? AND target_id = ? ORDER BY created_at').all(guildId, targetId);
+    return rows.map(r => r.follower_id);
+}
+function isFollowOptedOut(guildId, userId) {
+    return !!(0, database_js_1.getDb)().prepare('SELECT 1 FROM follow_opt_outs WHERE guild_id = ? AND user_id = ?').get(guildId, userId);
+}
+/** Opting out also removes everyone currently following this member. */
+function setFollowOptOut(guildId, userId, optedOut) {
+    const db = (0, database_js_1.getDb)();
+    if (optedOut) {
+        db.transaction(() => {
+            db.prepare('INSERT OR IGNORE INTO follow_opt_outs (guild_id, user_id) VALUES (?, ?)').run(guildId, userId);
+            db.prepare('DELETE FROM member_follows WHERE guild_id = ? AND target_id = ?').run(guildId, userId);
+        })();
+    }
+    else {
+        db.prepare('DELETE FROM follow_opt_outs WHERE guild_id = ? AND user_id = ?').run(guildId, userId);
+    }
 }
 function resetGameStart(guildId, gameId) {
     (0, database_js_1.getDb)().prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, gameId);
