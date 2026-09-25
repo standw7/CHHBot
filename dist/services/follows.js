@@ -41,6 +41,8 @@ exports.matchRosterPlayer = matchRosterPlayer;
 exports.loadFollowablePlayers = loadFollowablePlayers;
 exports.buildFollowDm = buildFollowDm;
 exports.sendFollowDms = sendFollowDms;
+exports.buildFirstStarDm = buildFirstStarDm;
+exports.sendFirstStarDms = sendFirstStarDms;
 const pino_1 = __importDefault(require("pino"));
 const nhlClient = __importStar(require("../nhl/client.js"));
 const queries_js_1 = require("../db/queries.js");
@@ -135,6 +137,34 @@ async function sendFollowDms(client, gameId, input) {
             const user = await client.users.fetch(userId);
             await user.send(text);
             logger.info({ userId, gameId, eventId: input.goal.eventId }, 'Follow DM sent');
+        }
+        catch (error) {
+            logger.warn({ error, userId, gameId }, 'Could not DM follower (DMs closed?)');
+        }
+    }
+}
+/** e.g. "⭐ **Keller** was named first star! UTA @ VGK · 2G 1A · [Three stars](url)". */
+function buildFirstStarDm(lastName, stats, awayAbbrev, homeAbbrev, cardUrl) {
+    let text = `⭐ **${lastName}** was named first star! ${awayAbbrev} @ ${homeAbbrev}`;
+    if (stats)
+        text += ` · ${stats}`;
+    if (cardUrl)
+        text += ` · [Three stars](${cardUrl})`;
+    return text;
+}
+// follow_dms_sent key for a game's first-star DM (goal DMs use the goal's positive eventId)
+const FIRST_STAR_EVENT_ID = -1;
+/** DM followers of the game's first star. Deduped per user+game across guild trackers. */
+async function sendFirstStarDms(client, gameId, playerId, lastName, stats, awayAbbrev, homeAbbrev, cardUrl) {
+    const followers = (0, queries_js_1.getFollowersOf)([playerId]);
+    const text = buildFirstStarDm(lastName, stats, awayAbbrev, homeAbbrev, cardUrl);
+    for (const userId of followers.keys()) {
+        if (!(0, queries_js_1.claimFollowDm)(userId, gameId, FIRST_STAR_EVENT_ID))
+            continue;
+        try {
+            const user = await client.users.fetch(userId);
+            await user.send(text);
+            logger.info({ userId, gameId }, 'First star DM sent');
         }
         catch (error) {
             logger.warn({ error, userId, gameId }, 'Could not DM follower (DMs closed?)');

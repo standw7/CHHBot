@@ -131,7 +131,7 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 - Morning-card milestone watch (thresholds, distances, wording) → `src/services/milestoneWatch.ts` (`findUpcomingMilestones`, `loadWatchPlayers`); added in `dailyCard.ts` `loadMilestoneLines` (regular season only); shares thresholds with `milestones.ts`
 - Three stars card / final-card standings line → `src/services/postGame.ts` (`buildThreeStarsCard`, `formatStandingsLine`, `startPostGameFollowUp`); started from `gameTracker.ts` `handleFinal`; pre-game standings snapshot in `TrackerContext.standingsBefore` (taken on LIVE)
 - Records/standings shown anywhere → pass through `standingsForSeason()` (`src/services/standings.ts`) so preseason never shows last season
-- Player follows / goal+assist DMs → `src/services/follows.ts` (`matchRosterPlayer`, `buildFollowDm`, `sendFollowDms`, `MAX_FOLLOWS`); tables `player_follows` + `follow_dms_sent` (dedupes across guild trackers); called after the goal card posts in `gameTracker.ts` `handleLive`; commands `handlePrefixFollow/Unfollow/Following` in `messageCreate.ts`
+- Player follows / goal+assist DMs + first star DM (`sendFirstStarDms`, sent from `postGame.ts` after the three stars card) → `src/services/follows.ts` (`matchRosterPlayer`, `buildFollowDm`, `sendFollowDms`, `MAX_FOLLOWS`); tables `player_follows` + `follow_dms_sent` (dedupes across guild trackers); called after the goal card posts in `gameTracker.ts` `handleLive`; commands `handlePrefixFollow/Unfollow/Following` in `messageCreate.ts`
 - Tests → `npm test` (`node --test` via tsx, `src/services/*.test.ts`)
 
 | Change | Files to edit |

@@ -2,6 +2,7 @@ import { Client, EmbedBuilder, Guild, Message, TextChannel } from 'discord.js';
 import pino from 'pino';
 import * as nhlClient from '../nhl/client.js';
 import { getTeamEmoji } from './goalCard.js';
+import { sendFirstStarDms } from './follows.js';
 import type { TeamStanding, ThreeStar } from '../nhl/types.js';
 
 const logger = pino({ name: 'post-game' });
@@ -52,19 +53,25 @@ export function formatStandingsLine(before: TeamStanding[] | null, after: TeamSt
   return parts.join(' · ');
 }
 
-/** e.g. "⭐ C. Keller (UTA): 2G 1A" or "⭐⭐⭐ K. Vejmelka (UTA): .957 SV%, 1.01 GAA". */
-export function formatStarLine(star: ThreeStar): string {
-  const name = star.name?.default ?? `${star.firstName?.default ?? ''} ${star.lastName?.default ?? ''}`.trim();
-  const team = star.teamAbbrev ? ` (${star.teamAbbrev})` : '';
-  let stats: string;
+/** e.g. "2G 1A" for skaters, ".957 SV%, 1.01 GAA" for goalies. */
+export function formatStarStats(star: ThreeStar): string {
   if (star.position === 'G') {
     const sv = star.savePctg !== undefined ? `${star.savePctg.toFixed(3).replace(/^0/, '')} SV%` : '';
     const gaa = star.goalsAgainstAverage !== undefined ? `${star.goalsAgainstAverage.toFixed(2)} GAA` : '';
-    stats = [sv, gaa].filter(Boolean).join(', ');
-  } else {
-    stats = `${star.goals ?? 0}G ${star.assists ?? 0}A`;
+    return [sv, gaa].filter(Boolean).join(', ');
   }
-  return `${'⭐'.repeat(star.star)} ${name}${team}${stats ? `: ${stats}` : ''}`;
+  return `${star.goals ?? 0}G ${star.assists ?? 0}A`;
+}
+
+function starName(star: ThreeStar): string {
+  return star.name?.default ?? `${star.firstName?.default ?? ''} ${star.lastName?.default ?? ''}`.trim();
+}
+
+/** e.g. "⭐ C. Keller (UTA): 2G 1A" or "⭐⭐⭐ K. Vejmelka (UTA): .957 SV%, 1.01 GAA". */
+export function formatStarLine(star: ThreeStar): string {
+  const team = star.teamAbbrev ? ` (${star.teamAbbrev})` : '';
+  const stats = formatStarStats(star);
+  return `${'⭐'.repeat(star.star)} ${starName(star)}${team}${stats ? `: ${stats}` : ''}`;
 }
 
 export function buildThreeStarsCard(stars: ThreeStar[], awayAbbrev: string, homeAbbrev: string, guild?: Guild): EmbedBuilder {
@@ -115,8 +122,14 @@ export function startPostGameFollowUp(f: PostGameFollowUp): void {
           const channel = await f.client.channels.fetch(f.channelId);
           if (channel?.isTextBased()) {
             const guild = f.client.guilds.cache.get(f.guildId);
-            await (channel as TextChannel).send({ embeds: [buildThreeStarsCard(stars, f.awayAbbrev, f.homeAbbrev, guild)] });
+            const card = await (channel as TextChannel).send({ embeds: [buildThreeStarsCard(stars, f.awayAbbrev, f.homeAbbrev, guild)] });
             logger.info({ guildId: f.guildId, gameId: f.gameId }, 'Three stars card posted');
+
+            const first = stars.find(s => s.star === 1);
+            if (first?.playerId) {
+              const lastName = first.lastName?.default ?? starName(first).replace(/^\S+\.\s+/, '');
+              await sendFirstStarDms(f.client, f.gameId, first.playerId, lastName, formatStarStats(first), f.awayAbbrev, f.homeAbbrev, card.url);
+            }
           }
         }
       }

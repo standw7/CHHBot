@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { matchRosterPlayer, buildFollowDm } from './follows.js';
+import { matchRosterPlayer, buildFollowDm, buildFirstStarDm } from './follows.js';
 import type { FollowablePlayer } from './follows.js';
 import type { LandingGoal } from '../nhl/types.js';
 
@@ -114,5 +114,18 @@ describe('buildFollowDm', () => {
       buildFollowDm({ ...base, homeAbbrev: 'UTA', awayAbbrev: 'EDM', periodNumber: 4, periodType: 'OT', cardUrl: undefined, goal: goal({ homeScore: 3, awayScore: 2, timeInPeriod: '01:05' }), followed: new Set([1]) }),
       '🚨 **Keller** scored!\nUTA 3-2 EDM · OT 1:05'
     );
+  });
+});
+
+describe('buildFirstStarDm', () => {
+  test('skater with card link', () => {
+    assert.equal(
+      buildFirstStarDm('Keller', '2G 1A', 'UTA', 'VGK', 'https://discord.com/channels/1/2/4'),
+      '⭐ **Keller** was named first star! UTA @ VGK · 2G 1A · [Three stars](https://discord.com/channels/1/2/4)'
+    );
+  });
+
+  test('goalie, no stats or link', () => {
+    assert.equal(buildFirstStarDm('Vejmelka', '', 'EDM', 'UTA'), '⭐ **Vejmelka** was named first star! EDM @ UTA');
   });
 });

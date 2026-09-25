@@ -1065,7 +1065,7 @@ async function handlePrefixFollow(message: Message, query: string): Promise<void
   }
 
   addFollow(message.author.id, player.id, name);
-  await message.reply(`Following **${name}**. I'll DM you when he scores or gets an assist (make sure DMs from server members are on).`);
+  await message.reply(`Following **${name}**. I'll DM you when he scores, gets an assist, or is named first star (make sure DMs from server members are on).`);
 }
 
 async function handlePrefixUnfollow(message: Message, query: string): Promise<void> {

@@ -41,4 +41,8 @@ export declare function buildFollowDm(input: FollowDmInput): string | null;
  * Users with DMs closed are logged and skipped.
  */
 export declare function sendFollowDms(client: Client, gameId: number, input: Omit<FollowDmInput, 'followed'>): Promise<void>;
+/** e.g. "⭐ **Keller** was named first star! UTA @ VGK · 2G 1A · [Three stars](url)". */
+export declare function buildFirstStarDm(lastName: string, stats: string, awayAbbrev: string, homeAbbrev: string, cardUrl?: string): string;
+/** DM followers of the game's first star. Deduped per user+game across guild trackers. */
+export declare function sendFirstStarDms(client: Client, gameId: number, playerId: number, lastName: string, stats: string, awayAbbrev: string, homeAbbrev: string, cardUrl?: string): Promise<void>;
 //# sourceMappingURL=follows.d.ts.map

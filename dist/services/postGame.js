@@ -37,6 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.formatStandingsLine = formatStandingsLine;
+exports.formatStarStats = formatStarStats;
 exports.formatStarLine = formatStarLine;
 exports.buildThreeStarsCard = buildThreeStarsCard;
 exports.startPostGameFollowUp = startPostGameFollowUp;
@@ -44,6 +45,7 @@ const discord_js_1 = require("discord.js");
 const pino_1 = __importDefault(require("pino"));
 const nhlClient = __importStar(require("../nhl/client.js"));
 const goalCard_js_1 = require("./goalCard.js");
+const follows_js_1 = require("./follows.js");
 const logger = (0, pino_1.default)({ name: 'post-game' });
 // After the final card, re-check the NHL every minute for up to an hour for
 // updated standings and the published three stars.
@@ -89,20 +91,23 @@ function formatStandingsLine(before, after, team) {
     }
     return parts.join(' · ');
 }
-/** e.g. "⭐ C. Keller (UTA): 2G 1A" or "⭐⭐⭐ K. Vejmelka (UTA): .957 SV%, 1.01 GAA". */
-function formatStarLine(star) {
-    const name = star.name?.default ?? `${star.firstName?.default ?? ''} ${star.lastName?.default ?? ''}`.trim();
-    const team = star.teamAbbrev ? ` (${star.teamAbbrev})` : '';
-    let stats;
+/** e.g. "2G 1A" for skaters, ".957 SV%, 1.01 GAA" for goalies. */
+function formatStarStats(star) {
     if (star.position === 'G') {
         const sv = star.savePctg !== undefined ? `${star.savePctg.toFixed(3).replace(/^0/, '')} SV%` : '';
         const gaa = star.goalsAgainstAverage !== undefined ? `${star.goalsAgainstAverage.toFixed(2)} GAA` : '';
-        stats = [sv, gaa].filter(Boolean).join(', ');
+        return [sv, gaa].filter(Boolean).join(', ');
     }
-    else {
-        stats = `${star.goals ?? 0}G ${star.assists ?? 0}A`;
-    }
-    return `${'⭐'.repeat(star.star)} ${name}${team}${stats ? `: ${stats}` : ''}`;
+    return `${star.goals ?? 0}G ${star.assists ?? 0}A`;
+}
+function starName(star) {
+    return star.name?.default ?? `${star.firstName?.default ?? ''} ${star.lastName?.default ?? ''}`.trim();
+}
+/** e.g. "⭐ C. Keller (UTA): 2G 1A" or "⭐⭐⭐ K. Vejmelka (UTA): .957 SV%, 1.01 GAA". */
+function formatStarLine(star) {
+    const team = star.teamAbbrev ? ` (${star.teamAbbrev})` : '';
+    const stats = formatStarStats(star);
+    return `${'⭐'.repeat(star.star)} ${starName(star)}${team}${stats ? `: ${stats}` : ''}`;
 }
 function buildThreeStarsCard(stars, awayAbbrev, homeAbbrev, guild) {
     const sorted = [...stars].sort((a, b) => a.star - b.star);
@@ -137,8 +142,13 @@ function startPostGameFollowUp(f) {
                     const channel = await f.client.channels.fetch(f.channelId);
                     if (channel?.isTextBased()) {
                         const guild = f.client.guilds.cache.get(f.guildId);
-                        await channel.send({ embeds: [buildThreeStarsCard(stars, f.awayAbbrev, f.homeAbbrev, guild)] });
+                        const card = await channel.send({ embeds: [buildThreeStarsCard(stars, f.awayAbbrev, f.homeAbbrev, guild)] });
                         logger.info({ guildId: f.guildId, gameId: f.gameId }, 'Three stars card posted');
+                        const first = stars.find(s => s.star === 1);
+                        if (first?.playerId) {
+                            const lastName = first.lastName?.default ?? starName(first).replace(/^\S+\.\s+/, '');
+                            await (0, follows_js_1.sendFirstStarDms)(f.client, f.gameId, first.playerId, lastName, formatStarStats(first), f.awayAbbrev, f.homeAbbrev, card.url);
+                        }
                     }
                 }
             }

@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatStandingsLine, formatStarLine, buildThreeStarsCard } from './postGame.js';
+import { formatStandingsLine, formatStarLine, formatStarStats, buildThreeStarsCard } from './postGame.js';
 import type { TeamStanding, ThreeStar } from '../nhl/types.js';
 
 function team(abbrev: string, overrides: Partial<TeamStanding>): TeamStanding {
@@ -84,6 +84,11 @@ describe('three stars', () => {
 
   test('skater line', () => {
     assert.equal(formatStarLine(skater), '⭐ C. Keller (UTA): 2G 1A');
+  });
+
+  test('stats only', () => {
+    assert.equal(formatStarStats(skater), '2G 1A');
+    assert.equal(formatStarStats(goalie), '.957 SV%, 1.01 GAA');
   });
 
   test('goalie line', () => {

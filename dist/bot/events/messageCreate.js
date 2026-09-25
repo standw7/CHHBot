@@ -915,7 +915,7 @@ async function handlePrefixFollow(message, query) {
         return;
     }
     addFollow(message.author.id, player.id, name);
-    await message.reply(`Following **${name}**. I'll DM you when he scores or gets an assist (make sure DMs from server members are on).`);
+    await message.reply(`Following **${name}**. I'll DM you when he scores, gets an assist, or is named first star (make sure DMs from server members are on).`);
 }
 async function handlePrefixUnfollow(message, query) {
     const { matchRosterPlayer } = await import('../../services/follows.js');

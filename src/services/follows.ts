@@ -132,3 +132,39 @@ export async function sendFollowDms(
     }
   }
 }
+
+/** e.g. "⭐ **Keller** was named first star! UTA @ VGK · 2G 1A · [Three stars](url)". */
+export function buildFirstStarDm(lastName: string, stats: string, awayAbbrev: string, homeAbbrev: string, cardUrl?: string): string {
+  let text = `⭐ **${lastName}** was named first star! ${awayAbbrev} @ ${homeAbbrev}`;
+  if (stats) text += ` · ${stats}`;
+  if (cardUrl) text += ` · [Three stars](${cardUrl})`;
+  return text;
+}
+
+// follow_dms_sent key for a game's first-star DM (goal DMs use the goal's positive eventId)
+const FIRST_STAR_EVENT_ID = -1;
+
+/** DM followers of the game's first star. Deduped per user+game across guild trackers. */
+export async function sendFirstStarDms(
+  client: Client,
+  gameId: number,
+  playerId: number,
+  lastName: string,
+  stats: string,
+  awayAbbrev: string,
+  homeAbbrev: string,
+  cardUrl?: string
+): Promise<void> {
+  const followers = getFollowersOf([playerId]);
+  const text = buildFirstStarDm(lastName, stats, awayAbbrev, homeAbbrev, cardUrl);
+  for (const userId of followers.keys()) {
+    if (!claimFollowDm(userId, gameId, FIRST_STAR_EVENT_ID)) continue;
+    try {
+      const user = await client.users.fetch(userId);
+      await user.send(text);
+      logger.info({ userId, gameId }, 'First star DM sent');
+    } catch (error) {
+      logger.warn({ error, userId, gameId }, 'Could not DM follower (DMs closed?)');
+    }
+  }
+}
