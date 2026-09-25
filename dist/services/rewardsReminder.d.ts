@@ -25,8 +25,24 @@ export declare function dueRewardsSlot(schedule: RewardsSchedule, now: number): 
  */
 export declare function resolveRewardsRole(guild: Guild, create: boolean): Promise<Role | null>;
 /**
+ * Read-only for the Rewards role, hidden from everyone else. Tusky and mod roles
+ * (Manage Messages, excluding bot-managed roles) can see and post; admins bypass overwrites.
+ */
+export declare function rewardsChannelOverwrites(guild: Guild, role: Role): ({
+    id: string;
+    allow: bigint[];
+} | {
+    id: string;
+    deny: bigint[];
+    allow?: undefined;
+} | {
+    id: string;
+    allow: bigint[];
+    deny: bigint[];
+})[];
+/**
  * Find the #rewards channel (saved ID first, then by name). If missing, creates it
- * visible only to the Rewards role and the bot. An existing channel is used as-is.
+ * with rewardsChannelOverwrites(). An existing channel is used as-is.
  */
 export declare function resolveRewardsChannel(guild: Guild, role: Role): Promise<TextChannel | null>;
 /**

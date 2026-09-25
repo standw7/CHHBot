@@ -7,6 +7,7 @@ exports.REWARDS_PING_INTERVAL_MS = exports.REWARDS_CHANNEL_NAME = exports.REWARD
 exports.initialRewardsSchedule = initialRewardsSchedule;
 exports.dueRewardsSlot = dueRewardsSlot;
 exports.resolveRewardsRole = resolveRewardsRole;
+exports.rewardsChannelOverwrites = rewardsChannelOverwrites;
 exports.resolveRewardsChannel = resolveRewardsChannel;
 exports.maybeSendRewardsReminder = maybeSendRewardsReminder;
 const discord_js_1 = require("discord.js");
@@ -61,9 +62,29 @@ async function resolveRewardsRole(guild, create) {
     }
     return role;
 }
+const POSTING = [
+    discord_js_1.PermissionFlagsBits.SendMessages,
+    discord_js_1.PermissionFlagsBits.SendMessagesInThreads,
+    discord_js_1.PermissionFlagsBits.CreatePublicThreads,
+    discord_js_1.PermissionFlagsBits.CreatePrivateThreads,
+];
+/**
+ * Read-only for the Rewards role, hidden from everyone else. Tusky and mod roles
+ * (Manage Messages, excluding bot-managed roles) can see and post; admins bypass overwrites.
+ */
+function rewardsChannelOverwrites(guild, role) {
+    const view = [discord_js_1.PermissionFlagsBits.ViewChannel, discord_js_1.PermissionFlagsBits.ReadMessageHistory];
+    const modRoles = guild.roles.cache.filter(r => !r.managed && r.permissions.has(discord_js_1.PermissionFlagsBits.ManageMessages) && !r.permissions.has(discord_js_1.PermissionFlagsBits.Administrator));
+    return [
+        { id: guild.roles.everyone.id, deny: [discord_js_1.PermissionFlagsBits.ViewChannel] },
+        { id: role.id, allow: view, deny: POSTING },
+        ...modRoles.map(r => ({ id: r.id, allow: [...view, discord_js_1.PermissionFlagsBits.SendMessages] })),
+        { id: guild.client.user.id, allow: [discord_js_1.PermissionFlagsBits.ViewChannel, discord_js_1.PermissionFlagsBits.SendMessages] },
+    ];
+}
 /**
  * Find the #rewards channel (saved ID first, then by name). If missing, creates it
- * visible only to the Rewards role and the bot. An existing channel is used as-is.
+ * with rewardsChannelOverwrites(). An existing channel is used as-is.
  */
 async function resolveRewardsChannel(guild, role) {
     const config = (0, queries_js_1.getGuildConfig)(guild.id);
@@ -75,11 +96,7 @@ async function resolveRewardsChannel(guild, role) {
             type: discord_js_1.ChannelType.GuildText,
             topic: 'Check-in reminders during games. Use !rewards to opt in or out.',
             reason: 'Created for rewards check-in reminders',
-            permissionOverwrites: [
-                { id: guild.roles.everyone.id, deny: [discord_js_1.PermissionFlagsBits.ViewChannel] },
-                { id: role.id, allow: [discord_js_1.PermissionFlagsBits.ViewChannel, discord_js_1.PermissionFlagsBits.ReadMessageHistory] },
-                { id: guild.client.user.id, allow: [discord_js_1.PermissionFlagsBits.ViewChannel, discord_js_1.PermissionFlagsBits.SendMessages] },
-            ],
+            permissionOverwrites: rewardsChannelOverwrites(guild, role),
         });
         logger.info({ guildId: guild.id, channelId: channel.id }, 'Created #rewards channel');
     }

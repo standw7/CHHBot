@@ -63,9 +63,33 @@ export async function resolveRewardsRole(guild: Guild, create: boolean): Promise
   return role;
 }
 
+const POSTING = [
+  PermissionFlagsBits.SendMessages,
+  PermissionFlagsBits.SendMessagesInThreads,
+  PermissionFlagsBits.CreatePublicThreads,
+  PermissionFlagsBits.CreatePrivateThreads,
+];
+
+/**
+ * Read-only for the Rewards role, hidden from everyone else. Tusky and mod roles
+ * (Manage Messages, excluding bot-managed roles) can see and post; admins bypass overwrites.
+ */
+export function rewardsChannelOverwrites(guild: Guild, role: Role) {
+  const view = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory];
+  const modRoles = guild.roles.cache.filter(r =>
+    !r.managed && r.permissions.has(PermissionFlagsBits.ManageMessages) && !r.permissions.has(PermissionFlagsBits.Administrator)
+  );
+  return [
+    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    { id: role.id, allow: view, deny: POSTING },
+    ...modRoles.map(r => ({ id: r.id, allow: [...view, PermissionFlagsBits.SendMessages] })),
+    { id: guild.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+  ];
+}
+
 /**
  * Find the #rewards channel (saved ID first, then by name). If missing, creates it
- * visible only to the Rewards role and the bot. An existing channel is used as-is.
+ * with rewardsChannelOverwrites(). An existing channel is used as-is.
  */
 export async function resolveRewardsChannel(guild: Guild, role: Role): Promise<TextChannel | null> {
   const config = getGuildConfig(guild.id);
@@ -80,11 +104,7 @@ export async function resolveRewardsChannel(guild: Guild, role: Role): Promise<T
       type: ChannelType.GuildText,
       topic: 'Check-in reminders during games. Use !rewards to opt in or out.',
       reason: 'Created for rewards check-in reminders',
-      permissionOverwrites: [
-        { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-        { id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory] },
-        { id: guild.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-      ],
+      permissionOverwrites: rewardsChannelOverwrites(guild, role),
     });
     logger.info({ guildId: guild.id, channelId: channel.id }, 'Created #rewards channel');
   }
