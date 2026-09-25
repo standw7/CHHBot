@@ -47,7 +47,6 @@ const goalCard_js_1 = require("./goalCard.js");
 const finalCard_js_1 = require("./finalCard.js");
 const milestones_js_1 = require("./milestones.js");
 const rewardsReminder_js_1 = require("./rewardsReminder.js");
-const presence_js_1 = require("./presence.js");
 const logger = (0, pino_1.default)({ name: 'game-tracker' });
 // Replay-link polling: how often to re-check the landing endpoint for a goal's
 // highlight clip, and how many times to try before giving up.
@@ -150,12 +149,9 @@ async function handleIdle(client, ctx) {
         .sort((a, b) => new Date(a.startTimeUTC).getTime() - new Date(b.startTimeUTC).getTime());
     const nextGame = upcoming[0];
     if (!nextGame) {
-        (0, presence_js_1.setStatus)(client, null);
         scheduleNext(client, ctx, 30 * 60_000);
         return;
     }
-    const zone = (0, queries_js_1.getGuildConfig)(ctx.guildId)?.timezone || 'America/Denver';
-    (0, presence_js_1.setStatus)(client, (0, presence_js_1.formatNextGameStatus)(ctx.teamCode, nextGame.homeTeam, nextGame.awayTeam, nextGame.startTimeUTC, zone));
     const gameStart = new Date(nextGame.startTimeUTC).getTime();
     const timeUntilGame = gameStart - now;
     if (timeUntilGame <= 24 * 60 * 60_000) {
@@ -221,7 +217,6 @@ async function handleLive(client, ctx) {
         scheduleNext(client, ctx, 0);
         return;
     }
-    (0, presence_js_1.setStatus)(client, (0, presence_js_1.formatLiveStatus)({ ...pbp, teamCode: ctx.teamCode }));
     // Rewards check-in ping at each 45-min mark until FINAL
     await (0, rewardsReminder_js_1.maybeSendRewardsReminder)(client, ctx.guildId, ctx.currentGame.id, ctx.watchedFromStart, new Date(ctx.currentGame.startTimeUTC).getTime());
     // Check for period changes and post period start notification (no ping, no delay)
