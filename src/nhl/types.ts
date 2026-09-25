@@ -32,6 +32,7 @@ export interface PlayByPlayResponse {
   id: number;
   gameState: string;
   period: number;
+  periodDescriptor?: { number: number; periodType: string; maxRegulationPeriods?: number };
   clock: {
     timeRemaining: string;
     inIntermission: boolean;

@@ -7,6 +7,7 @@ import type { GoalCardData } from './goalCard.js';
 import { buildFinalCard } from './finalCard.js';
 import { detectMilestones } from './milestones.js';
 import { maybeSendRewardsReminder } from './rewardsReminder.js';
+import { formatLiveStatus, formatNextGameStatus, setStatus } from './presence.js';
 import type { SpoilerMode } from './spoiler.js';
 import type { ScheduleGame, Play, PbpTeam, LandingGoal } from '../nhl/types.js';
 
@@ -142,9 +143,13 @@ async function handleIdle(client: Client, ctx: TrackerContext): Promise<void> {
 
   const nextGame = upcoming[0];
   if (!nextGame) {
+    setStatus(client, null);
     scheduleNext(client, ctx, 30 * 60_000);
     return;
   }
+
+  const zone = getGuildConfig(ctx.guildId)?.timezone || 'America/Denver';
+  setStatus(client, formatNextGameStatus(ctx.teamCode, nextGame.homeTeam, nextGame.awayTeam, nextGame.startTimeUTC, zone));
 
   const gameStart = new Date(nextGame.startTimeUTC).getTime();
   const timeUntilGame = gameStart - now;
@@ -220,6 +225,8 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
     scheduleNext(client, ctx, 0);
     return;
   }
+
+  setStatus(client, formatLiveStatus({ ...pbp, teamCode: ctx.teamCode }));
 
   // Rewards check-in ping at each 45-min mark until FINAL
   await maybeSendRewardsReminder(
