@@ -27,8 +27,8 @@ exports.updateFeedLastItem = updateFeedLastItem;
 exports.resetFeedLastItem = resetFeedLastItem;
 exports.hasGameStartBeenPosted = hasGameStartBeenPosted;
 exports.markGameStartPosted = markGameStartPosted;
-exports.getLastRewardsPing = getLastRewardsPing;
-exports.markRewardsPing = markRewardsPing;
+exports.getRewardsSchedule = getRewardsSchedule;
+exports.saveRewardsSchedule = saveRewardsSchedule;
 exports.resetGameStart = resetGameStart;
 exports.hasFeedItemBeenPosted = hasFeedItemBeenPosted;
 exports.markFeedItemPosted = markFeedItemPosted;
@@ -179,16 +179,16 @@ function markGameStartPosted(guildId, gameId) {
     VALUES (?, ?, ?)
   `).run(guildId, gameId, new Date().toISOString());
 }
-function getLastRewardsPing(guildId, gameId) {
-    const row = (0, database_js_1.getDb)().prepare('SELECT last_ping_at FROM rewards_pings WHERE guild_id = ? AND game_id = ?').get(guildId, gameId);
-    return row?.last_ping_at ?? null;
+function getRewardsSchedule(guildId, gameId) {
+    const row = (0, database_js_1.getDb)().prepare('SELECT anchor_at, last_slot FROM rewards_schedule WHERE guild_id = ? AND game_id = ?').get(guildId, gameId);
+    return row ? { anchorAt: row.anchor_at, lastSlot: row.last_slot } : null;
 }
-function markRewardsPing(guildId, gameId, pingedAt) {
+function saveRewardsSchedule(guildId, gameId, schedule) {
     (0, database_js_1.getDb)().prepare(`
-    INSERT INTO rewards_pings (guild_id, game_id, last_ping_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(guild_id, game_id) DO UPDATE SET last_ping_at = excluded.last_ping_at
-  `).run(guildId, gameId, pingedAt);
+    INSERT INTO rewards_schedule (guild_id, game_id, anchor_at, last_slot)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(guild_id, game_id) DO UPDATE SET anchor_at = excluded.anchor_at, last_slot = excluded.last_slot
+  `).run(guildId, gameId, schedule.anchorAt, schedule.lastSlot);
 }
 function resetGameStart(guildId, gameId) {
     (0, database_js_1.getDb)().prepare('DELETE FROM posted_game_starts WHERE guild_id = ? AND game_id = ?').run(guildId, gameId);

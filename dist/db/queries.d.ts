@@ -26,8 +26,14 @@ export declare function updateFeedLastItem(feedId: number, lastItemId: string): 
 export declare function resetFeedLastItem(guildId: string, label: string): boolean;
 export declare function hasGameStartBeenPosted(guildId: string, gameId: number): boolean;
 export declare function markGameStartPosted(guildId: string, gameId: number): void;
-export declare function getLastRewardsPing(guildId: string, gameId: number): number | null;
-export declare function markRewardsPing(guildId: string, gameId: number, pingedAt: number): void;
+export declare function getRewardsSchedule(guildId: string, gameId: number): {
+    anchorAt: number;
+    lastSlot: number;
+} | null;
+export declare function saveRewardsSchedule(guildId: string, gameId: number, schedule: {
+    anchorAt: number;
+    lastSlot: number;
+}): void;
 export declare function resetGameStart(guildId: string, gameId: number): void;
 export declare function hasFeedItemBeenPosted(guildId: string, feedId: number, itemId: string): boolean;
 export declare function markFeedItemPosted(guildId: string, feedId: number, itemId: string): void;

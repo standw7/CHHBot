@@ -70,6 +70,7 @@ function startTracker(client, guildId) {
         teamCode: config.primary_team,
         pollTimer: null,
         lastAnnouncedPeriod: 0,
+        watchedFromStart: false,
         careerCache: new Map(),
         replayPollTimers: new Set(),
     };
@@ -137,6 +138,7 @@ async function handleIdle(client, ctx) {
         ctx.currentGame = liveGame;
         ctx.state = 'LIVE';
         ctx.careerCache.clear();
+        ctx.watchedFromStart = false;
         logger.info({ guildId: ctx.guildId, gameId: liveGame.id }, 'Found live game, switching to LIVE');
         scheduleNext(client, ctx, 0);
         return;
@@ -173,6 +175,7 @@ async function handlePreGame(client, ctx) {
     if (pbp?.gameState === 'LIVE' || pbp?.gameState === 'CRIT') {
         ctx.state = 'LIVE';
         ctx.careerCache.clear();
+        ctx.watchedFromStart = true;
         logger.info({ guildId: ctx.guildId, gameId: ctx.currentGame.id }, 'Game is now LIVE');
         // Post game start notification if not already posted
         await postGameStartNotification(client, ctx, pbp.homeTeam, pbp.awayTeam);
@@ -214,8 +217,8 @@ async function handleLive(client, ctx) {
         scheduleNext(client, ctx, 0);
         return;
     }
-    // Rewards check-in ping: at puck drop, then every 45 min until FINAL
-    await (0, rewardsReminder_js_1.maybeSendRewardsReminder)(client, ctx.guildId, ctx.currentGame.id);
+    // Rewards check-in ping at each 45-min mark until FINAL
+    await (0, rewardsReminder_js_1.maybeSendRewardsReminder)(client, ctx.guildId, ctx.currentGame.id, ctx.watchedFromStart, new Date(ctx.currentGame.startTimeUTC).getTime());
     // Check for period changes and post period start notification (no ping, no delay)
     // Skip period 1 since "Game is starting!" already covers that
     const currentPeriod = pbp.period;

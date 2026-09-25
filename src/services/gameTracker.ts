@@ -26,6 +26,8 @@ interface TrackerContext {
   teamCode: string;
   pollTimer: ReturnType<typeof setTimeout> | null;
   lastAnnouncedPeriod: number;
+  // True if this tracker saw the PRE_GAME → LIVE transition (puck drop), false if it found the game already live.
+  watchedFromStart: boolean;
   // Regular-season career totals (goals/points) as of before the current game, keyed by playerId.
   // Cleared on every transition into LIVE since the NHL API only updates career totals after a game.
   careerCache: Map<number, { goals: number; points: number }>;
@@ -54,6 +56,7 @@ export function startTracker(client: Client, guildId: string): void {
     teamCode: config.primary_team,
     pollTimer: null,
     lastAnnouncedPeriod: 0,
+    watchedFromStart: false,
     careerCache: new Map(),
     replayPollTimers: new Set(),
   };
@@ -126,6 +129,7 @@ async function handleIdle(client: Client, ctx: TrackerContext): Promise<void> {
     ctx.currentGame = liveGame;
     ctx.state = 'LIVE';
     ctx.careerCache.clear();
+    ctx.watchedFromStart = false;
     logger.info({ guildId: ctx.guildId, gameId: liveGame.id }, 'Found live game, switching to LIVE');
     scheduleNext(client, ctx, 0);
     return;
@@ -167,6 +171,7 @@ async function handlePreGame(client: Client, ctx: TrackerContext): Promise<void>
   if (pbp?.gameState === 'LIVE' || pbp?.gameState === 'CRIT') {
     ctx.state = 'LIVE';
     ctx.careerCache.clear();
+    ctx.watchedFromStart = true;
     logger.info({ guildId: ctx.guildId, gameId: ctx.currentGame.id }, 'Game is now LIVE');
 
     // Post game start notification if not already posted
@@ -216,8 +221,11 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
     return;
   }
 
-  // Rewards check-in ping: at puck drop, then every 45 min until FINAL
-  await maybeSendRewardsReminder(client, ctx.guildId, ctx.currentGame.id);
+  // Rewards check-in ping at each 45-min mark until FINAL
+  await maybeSendRewardsReminder(
+    client, ctx.guildId, ctx.currentGame.id,
+    ctx.watchedFromStart, new Date(ctx.currentGame.startTimeUTC).getTime()
+  );
 
   // Check for period changes and post period start notification (no ping, no delay)
   // Skip period 1 since "Game is starting!" already covers that

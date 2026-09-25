@@ -1,6 +1,6 @@
 import { ChannelType, Client, Guild, PermissionFlagsBits, Role, TextChannel } from 'discord.js';
 import pino from 'pino';
-import { getGuildConfig, upsertGuildConfig, getLastRewardsPing, markRewardsPing } from '../db/queries.js';
+import { getGuildConfig, upsertGuildConfig, getRewardsSchedule, saveRewardsSchedule } from '../db/queries.js';
 
 const logger = pino({ name: 'rewards-reminder' });
 
@@ -10,14 +10,30 @@ export const REWARDS_CHANNEL_NAME = 'rewards';
 // How often to re-ping the Rewards role while a game is live.
 export const REWARDS_PING_INTERVAL_MS = 45 * 60_000;
 
+export interface RewardsSchedule {
+  anchorAt: number; // ms timestamp treated as 0:00 for the 45-minute marks
+  lastSlot: number; // last mark already handled (-1 = none); mark n is at anchorAt + n * interval
+}
+
 /**
- * Pure timing rule: a ping is due if none has been sent for this game yet,
- * or if at least REWARDS_PING_INTERVAL_MS has passed since the last one.
+ * Starting schedule for a game with no pings recorded yet.
+ * Watched from the start: 0:00 is now (puck drop), and mark 0 pings immediately.
+ * Joined late (bot restarted mid-game): 0:00 is the scheduled start and marks
+ * already passed are skipped, so the next ping waits for the next mark.
+ */
+export function initialRewardsSchedule(watchedFromStart: boolean, scheduledStart: number, now: number): RewardsSchedule {
+  if (watchedFromStart) return { anchorAt: now, lastSlot: -1 };
+  return { anchorAt: scheduledStart, lastSlot: Math.floor((now - scheduledStart) / REWARDS_PING_INTERVAL_MS) };
+}
+
+/**
+ * Returns the mark to ping now, or null if none is due. If several marks passed
+ * (e.g. during downtime) only the latest is returned, so it pings once.
  * Callers only invoke this while the game is LIVE, so nothing fires after FINAL.
  */
-export function isRewardsPingDue(lastPingAt: number | null, now: number): boolean {
-  if (lastPingAt === null) return true;
-  return now - lastPingAt >= REWARDS_PING_INTERVAL_MS;
+export function dueRewardsSlot(schedule: RewardsSchedule, now: number): number | null {
+  const current = Math.floor((now - schedule.anchorAt) / REWARDS_PING_INTERVAL_MS);
+  return current > schedule.lastSlot ? current : null;
 }
 
 /**
@@ -81,23 +97,35 @@ export async function resolveRewardsChannel(guild: Guild, role: Role): Promise<T
 }
 
 /**
- * Called on every LIVE tick. Pings the Rewards role in #rewards at puck drop and
- * every 45 minutes after. The last ping time is persisted per game so a bot
- * restart resumes the same schedule instead of re-pinging.
+ * Called on every LIVE tick. Pings the Rewards role in #rewards at each 45-minute
+ * mark (see initialRewardsSchedule for where 0:00 is). The schedule is persisted
+ * per game so a bot restart resumes it instead of re-pinging.
  */
-export async function maybeSendRewardsReminder(client: Client, guildId: string, gameId: number): Promise<void> {
-  const lastPingAt = getLastRewardsPing(guildId, gameId);
+export async function maybeSendRewardsReminder(
+  client: Client,
+  guildId: string,
+  gameId: number,
+  watchedFromStart: boolean,
+  scheduledStart: number
+): Promise<void> {
   const now = Date.now();
-  if (!isRewardsPingDue(lastPingAt, now)) return;
+  let schedule = getRewardsSchedule(guildId, gameId);
+  if (!schedule) {
+    schedule = initialRewardsSchedule(watchedFromStart, scheduledStart, now);
+    saveRewardsSchedule(guildId, gameId, schedule);
+    logger.info({ guildId, gameId, watchedFromStart, ...schedule }, 'Rewards schedule started');
+  }
+
+  const slot = dueRewardsSlot(schedule, now);
+  if (slot === null) return;
 
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return;
 
-  // Claim the slot before any async work so a slow send can't cause a double ping
-  markRewardsPing(guildId, gameId, now);
+  // Claim the mark before any async work so a slow send can't cause a double ping
+  saveRewardsSchedule(guildId, gameId, { ...schedule, lastSlot: slot });
 
-  const isFirst = lastPingAt === null;
-  const text = isFirst
+  const text = slot === 0
     ? "🦣 Puck's dropped! Don't forget to check in to earn your points."
     : "🦣 Reminder: check in if you haven't yet to earn your points!";
 
@@ -110,7 +138,7 @@ export async function maybeSendRewardsReminder(client: Client, guildId: string, 
       return;
     }
     await channel.send(`<@&${role.id}> ${text}`);
-    logger.info({ guildId, gameId, isFirst }, 'Rewards reminder posted');
+    logger.info({ guildId, gameId, slot }, 'Rewards reminder posted');
   } catch (error) {
     logger.error({ error, guildId, gameId }, 'Failed to post rewards reminder');
   }

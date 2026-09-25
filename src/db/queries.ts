@@ -194,17 +194,17 @@ export function markGameStartPosted(guildId: string, gameId: number): void {
   `).run(guildId, gameId, new Date().toISOString());
 }
 
-export function getLastRewardsPing(guildId: string, gameId: number): number | null {
-  const row = getDb().prepare('SELECT last_ping_at FROM rewards_pings WHERE guild_id = ? AND game_id = ?').get(guildId, gameId) as { last_ping_at: number } | undefined;
-  return row?.last_ping_at ?? null;
+export function getRewardsSchedule(guildId: string, gameId: number): { anchorAt: number; lastSlot: number } | null {
+  const row = getDb().prepare('SELECT anchor_at, last_slot FROM rewards_schedule WHERE guild_id = ? AND game_id = ?').get(guildId, gameId) as { anchor_at: number; last_slot: number } | undefined;
+  return row ? { anchorAt: row.anchor_at, lastSlot: row.last_slot } : null;
 }
 
-export function markRewardsPing(guildId: string, gameId: number, pingedAt: number): void {
+export function saveRewardsSchedule(guildId: string, gameId: number, schedule: { anchorAt: number; lastSlot: number }): void {
   getDb().prepare(`
-    INSERT INTO rewards_pings (guild_id, game_id, last_ping_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(guild_id, game_id) DO UPDATE SET last_ping_at = excluded.last_ping_at
-  `).run(guildId, gameId, pingedAt);
+    INSERT INTO rewards_schedule (guild_id, game_id, anchor_at, last_slot)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(guild_id, game_id) DO UPDATE SET anchor_at = excluded.anchor_at, last_slot = excluded.last_slot
+  `).run(guildId, gameId, schedule.anchorAt, schedule.lastSlot);
 }
 
 export function resetGameStart(guildId: string, gameId: number): void {

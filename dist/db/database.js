@@ -94,10 +94,12 @@ function runMigrations(db) {
       PRIMARY KEY(guild_id, game_id)
     );
 
-    CREATE TABLE IF NOT EXISTS rewards_pings (
+    DROP TABLE IF EXISTS rewards_pings;
+    CREATE TABLE IF NOT EXISTS rewards_schedule (
       guild_id TEXT,
       game_id INTEGER,
-      last_ping_at INTEGER,
+      anchor_at INTEGER,
+      last_slot INTEGER,
       PRIMARY KEY(guild_id, game_id)
     );
 
