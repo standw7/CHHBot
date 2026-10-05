@@ -3,7 +3,8 @@ import {
   SlashCommandBuilder,
   PermissionFlagsBits,
 } from 'discord.js';
-import { getGifUrls, addGifUrl, removeGifUrl, listGifKeys, listGifUrlsForKey } from '../../db/queries.js';
+import { getGifEntries, listGifKeys, listGifUrlsForKey } from '../../db/queries.js';
+import { addGifEntry, removeGifEntry, buildMediaMessage, MediaError } from '../../services/media.js';
 
 export const data = new SlashCommandBuilder()
   .setName('gif')
@@ -17,9 +18,10 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(sub =>
     sub
       .setName('add')
-      .setDescription('Add a media URL to a key (admin only)')
+      .setDescription('Add media to a key: a link, or attach a file (admin only)')
       .addStringOption(opt => opt.setName('key').setDescription('The gif key').setRequired(true))
-      .addStringOption(opt => opt.setName('url').setDescription('The media URL').setRequired(true))
+      .addStringOption(opt => opt.setName('url').setDescription('The media URL (Tenor/Klipy stay links; files are saved)'))
+      .addAttachmentOption(opt => opt.setName('file').setDescription('Or attach an image, gif, video or audio clip (max 10 MB)'))
   )
   .addSubcommand(sub =>
     sub
@@ -81,15 +83,15 @@ async function handlePlay(interaction: ChatInputCommandInteraction, guildId: str
     return;
   }
 
-  const urls = getGifUrls(guildId, key);
-  if (urls.length === 0) {
+  const entries = getGifEntries(guildId, key);
+  if (entries.length === 0) {
     await interaction.reply({ content: `No media found for "${key}".`, ephemeral: true });
     return;
   }
 
-  const url = urls[Math.floor(Math.random() * urls.length)];
+  const entry = entries[Math.floor(Math.random() * entries.length)];
   cooldowns.set(cooldownKey, Date.now());
-  await interaction.reply(url);
+  await interaction.reply(buildMediaMessage(entry));
 }
 
 async function handleAdd(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
@@ -99,9 +101,20 @@ async function handleAdd(interaction: ChatInputCommandInteraction, guildId: stri
   }
 
   const key = interaction.options.getString('key', true).toLowerCase();
-  const url = interaction.options.getString('url', true);
-  addGifUrl(guildId, key, url, interaction.user.id);
-  await interaction.reply({ content: `Added media to **${key}**.`, ephemeral: true });
+  const url = interaction.options.getString('url') ?? interaction.options.getAttachment('file')?.url;
+  if (!url) {
+    await interaction.reply({ content: 'Give a `url` or attach a `file`.', ephemeral: true });
+    return;
+  }
+
+  // Downloading can take longer than Discord's 3s reply window
+  await interaction.deferReply({ ephemeral: true });
+  try {
+    const result = await addGifEntry(interaction.client.rest, guildId, key, url, interaction.user.id);
+    await interaction.editReply(result === 'saved' ? `Saved a copy and added it to **${key}**.` : `Added link to **${key}**.`);
+  } catch (err) {
+    await interaction.editReply(err instanceof MediaError ? err.message : 'Something went wrong saving that file.');
+  }
 }
 
 async function handleRemove(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
@@ -112,7 +125,7 @@ async function handleRemove(interaction: ChatInputCommandInteraction, guildId: s
 
   const key = interaction.options.getString('key', true).toLowerCase();
   const url = interaction.options.getString('url', true);
-  const removed = removeGifUrl(guildId, key, url);
+  const removed = await removeGifEntry(guildId, key, url);
   if (removed) {
     await interaction.reply({ content: `Removed media from **${key}**.`, ephemeral: true });
   } else {
@@ -128,8 +141,8 @@ async function handleList(interaction: ChatInputCommandInteraction, guildId: str
     return;
   }
 
-  const list = entries.map((e, i) => `${i + 1}. ${e.url}`).join('\n');
-  await interaction.reply({ content: `**${key}** (${entries.length} items):\n${list}`, ephemeral: true });
+  const list = entries.map((e, i) => `${i + 1}. ${e.file_path ? '📁 ' : ''}${e.url}`).join('\n');
+  await interaction.reply({ content: `**${key}** (${entries.length} items, 📁 = saved copy):\n${list}`, ephemeral: true });
 }
 
 async function handleKeys(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {

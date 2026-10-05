@@ -204,6 +204,12 @@ function runMigrations(db: Database.Database): void {
     db.exec("ALTER TABLE guild_config ADD COLUMN season_end TEXT DEFAULT '2027-04-10'");
   }
 
+  // Saved copies of linked files for gif commands
+  const gifColumns = db.prepare("PRAGMA table_info(gif_commands)").all() as { name: string }[];
+  if (!gifColumns.some(c => c.name === 'file_path')) {
+    db.exec('ALTER TABLE gif_commands ADD COLUMN file_path TEXT');
+  }
+
   // Check hof_messages columns for HoF message tracking
   const hofColumns = db.prepare("PRAGMA table_info(hof_messages)").all() as { name: string }[];
   const hofColNames = hofColumns.map(c => c.name);

@@ -37,6 +37,7 @@ export interface GifCommand {
   url: string;
   added_by: string;
   created_at: string;
+  file_path: string | null; // saved copy under media/ (null = posted as a link)
 }
 
 export interface PostedGoal {

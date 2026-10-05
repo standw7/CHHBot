@@ -4,6 +4,7 @@ exports.data = void 0;
 exports.execute = execute;
 const discord_js_1 = require("discord.js");
 const queries_js_1 = require("../../db/queries.js");
+const media_js_1 = require("../../services/media.js");
 exports.data = new discord_js_1.SlashCommandBuilder()
     .setName('gif')
     .setDescription('Media commands for goal gifs, player memes, etc.')
@@ -13,9 +14,10 @@ exports.data = new discord_js_1.SlashCommandBuilder()
     .addStringOption(opt => opt.setName('name').setDescription('The gif key (e.g. goal, yams)').setRequired(true)))
     .addSubcommand(sub => sub
     .setName('add')
-    .setDescription('Add a media URL to a key (admin only)')
+    .setDescription('Add media to a key: a link, or attach a file (admin only)')
     .addStringOption(opt => opt.setName('key').setDescription('The gif key').setRequired(true))
-    .addStringOption(opt => opt.setName('url').setDescription('The media URL').setRequired(true)))
+    .addStringOption(opt => opt.setName('url').setDescription('The media URL (Tenor/Klipy stay links; files are saved)'))
+    .addAttachmentOption(opt => opt.setName('file').setDescription('Or attach an image, gif, video or audio clip (max 10 MB)')))
     .addSubcommand(sub => sub
     .setName('remove')
     .setDescription('Remove a media URL from a key (admin only)')
@@ -63,14 +65,14 @@ async function handlePlay(interaction, guildId) {
         await interaction.reply({ content: `Cooldown: wait ${remaining}s before using this again.`, ephemeral: true });
         return;
     }
-    const urls = (0, queries_js_1.getGifUrls)(guildId, key);
-    if (urls.length === 0) {
+    const entries = (0, queries_js_1.getGifEntries)(guildId, key);
+    if (entries.length === 0) {
         await interaction.reply({ content: `No media found for "${key}".`, ephemeral: true });
         return;
     }
-    const url = urls[Math.floor(Math.random() * urls.length)];
+    const entry = entries[Math.floor(Math.random() * entries.length)];
     cooldowns.set(cooldownKey, Date.now());
-    await interaction.reply(url);
+    await interaction.reply((0, media_js_1.buildMediaMessage)(entry));
 }
 async function handleAdd(interaction, guildId) {
     if (!interaction.memberPermissions?.has(discord_js_1.PermissionFlagsBits.ManageGuild)) {
@@ -78,9 +80,20 @@ async function handleAdd(interaction, guildId) {
         return;
     }
     const key = interaction.options.getString('key', true).toLowerCase();
-    const url = interaction.options.getString('url', true);
-    (0, queries_js_1.addGifUrl)(guildId, key, url, interaction.user.id);
-    await interaction.reply({ content: `Added media to **${key}**.`, ephemeral: true });
+    const url = interaction.options.getString('url') ?? interaction.options.getAttachment('file')?.url;
+    if (!url) {
+        await interaction.reply({ content: 'Give a `url` or attach a `file`.', ephemeral: true });
+        return;
+    }
+    // Downloading can take longer than Discord's 3s reply window
+    await interaction.deferReply({ ephemeral: true });
+    try {
+        const result = await (0, media_js_1.addGifEntry)(interaction.client.rest, guildId, key, url, interaction.user.id);
+        await interaction.editReply(result === 'saved' ? `Saved a copy and added it to **${key}**.` : `Added link to **${key}**.`);
+    }
+    catch (err) {
+        await interaction.editReply(err instanceof media_js_1.MediaError ? err.message : 'Something went wrong saving that file.');
+    }
 }
 async function handleRemove(interaction, guildId) {
     if (!interaction.memberPermissions?.has(discord_js_1.PermissionFlagsBits.ManageGuild)) {
@@ -89,7 +102,7 @@ async function handleRemove(interaction, guildId) {
     }
     const key = interaction.options.getString('key', true).toLowerCase();
     const url = interaction.options.getString('url', true);
-    const removed = (0, queries_js_1.removeGifUrl)(guildId, key, url);
+    const removed = await (0, media_js_1.removeGifEntry)(guildId, key, url);
     if (removed) {
         await interaction.reply({ content: `Removed media from **${key}**.`, ephemeral: true });
     }
@@ -104,8 +117,8 @@ async function handleList(interaction, guildId) {
         await interaction.reply({ content: `No media registered for **${key}**.`, ephemeral: true });
         return;
     }
-    const list = entries.map((e, i) => `${i + 1}. ${e.url}`).join('\n');
-    await interaction.reply({ content: `**${key}** (${entries.length} items):\n${list}`, ephemeral: true });
+    const list = entries.map((e, i) => `${i + 1}. ${e.file_path ? '📁 ' : ''}${e.url}`).join('\n');
+    await interaction.reply({ content: `**${key}** (${entries.length} items, 📁 = saved copy):\n${list}`, ephemeral: true });
 }
 async function handleKeys(interaction, guildId) {
     const keys = (0, queries_js_1.listGifKeys)(guildId);

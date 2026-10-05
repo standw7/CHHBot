@@ -35,6 +35,7 @@ export interface GifCommand {
     url: string;
     added_by: string;
     created_at: string;
+    file_path: string | null;
 }
 export interface PostedGoal {
     id: number;

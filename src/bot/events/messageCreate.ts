@@ -1,6 +1,6 @@
 import { Message, TextChannel, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from 'discord.js';
 import type { Client, User } from 'discord.js';
-import { getGuildConfig, getGifUrls, createReminder, cancelReminder, countUserReminders, getUserReminders } from '../../db/queries.js';
+import { getGuildConfig, getGifEntries, createReminder, cancelReminder, countUserReminders, getUserReminders } from '../../db/queries.js';
 import { parseTime } from '../../services/parseTime.js';
 import { DateTime } from 'luxon';
 import * as nextCmd from '../commands/next.js';
@@ -1481,15 +1481,16 @@ async function handlePrefixGif(message: Message, key: string): Promise<void> {
     return; // Silent cooldown for prefix commands
   }
 
-  const urls = getGifUrls(guildId, key);
-  if (urls.length === 0) {
+  const entries = getGifEntries(guildId, key);
+  if (entries.length === 0) {
     return; // Silent - unknown key, do nothing per PRD
   }
 
-  const url = urls[Math.floor(Math.random() * urls.length)];
+  const entry = entries[Math.floor(Math.random() * entries.length)];
   cooldowns.set(cooldownKey, Date.now());
   if (message.channel.isSendable()) {
-    await message.channel.send(url);
+    const { buildMediaMessage } = await import('../../services/media.js');
+    await message.channel.send(buildMediaMessage(entry));
   }
 }
 
@@ -1499,13 +1500,14 @@ async function handlePrefixGifAdmin(message: Message, args: string[]): Promise<v
   // or: !gif list key:<key>
   // or: !gif keys
   const { PermissionFlagsBits } = await import('discord.js');
-  const { addGifUrl, removeGifUrl, listGifKeys, listGifUrlsForKey } = await import('../../db/queries.js');
+  const { listGifKeys, listGifUrlsForKey } = await import('../../db/queries.js');
+  const { addGifEntry, removeGifEntry, deleteGifKeyAndMedia, MediaError } = await import('../../services/media.js');
 
   const guildId = message.guild!.id;
   const sub = args[0]?.toLowerCase();
 
   if (!sub) {
-    await message.reply('Usage: `!gif add key:<key> url:<url>` | `!gif remove key:<key> url:<url>` | `!gif list key:<key>` | `!gif keys`');
+    await message.reply('Usage: `!gif add key:<key> url:<url>` (or attach a file instead of url) | `!gif remove key:<key> url:<url>` | `!gif list key:<key>` | `!gif keys`');
     return;
   }
 
@@ -1532,8 +1534,7 @@ async function handlePrefixGifAdmin(message: Message, args: string[]): Promise<v
       await message.reply('Usage: `!gif delete <keyname>` - Deletes ALL URLs for a key\nExample: `!gif delete key:veggie`');
       return;
     }
-    const { deleteGifKey } = await import('../../db/queries.js');
-    const count = deleteGifKey(guildId, deleteKey);
+    const count = await deleteGifKeyAndMedia(guildId, deleteKey);
     await message.reply(count > 0 ? `Deleted **${deleteKey}** (${count} URLs removed).` : `Key **${deleteKey}** not found.`);
     return;
   }
@@ -1579,8 +1580,8 @@ async function handlePrefixGifAdmin(message: Message, args: string[]): Promise<v
       await message.reply(`No media for **${key}**.`);
       return;
     }
-    const list = entries.map((e, i) => `${i + 1}. ${e.url}`).join('\n');
-    await message.reply(`**${key}** (${entries.length}):\n${list}`);
+    const list = entries.map((e, i) => `${i + 1}. ${e.file_path ? '📁 ' : ''}${e.url}`).join('\n');
+    await message.reply(`**${key}** (${entries.length}, 📁 = saved copy):\n${list}`);
     return;
   }
 
@@ -1594,18 +1595,24 @@ async function handlePrefixGifAdmin(message: Message, args: string[]): Promise<v
   const url = urlMatch?.[1];
 
   if (sub === 'add') {
-    if (!key || !url) {
-      await message.reply('Usage: `!gif add key:<key> url:<url>`');
+    // A file attached to the command message works instead of url:
+    const addUrl = url ?? message.attachments.first()?.url;
+    if (!key || !addUrl) {
+      await message.reply('Usage: `!gif add key:<key> url:<url>`, or `!gif add key:<key>` with a file attached');
       return;
     }
-    addGifUrl(guildId, key, url, message.author.id);
-    await message.reply(`Added media to **${key}**.`);
+    try {
+      const result = await addGifEntry(message.client.rest, guildId, key, addUrl, message.author.id);
+      await message.reply(result === 'saved' ? `Saved a copy and added it to **${key}**.` : `Added link to **${key}**.`);
+    } catch (err) {
+      await message.reply(err instanceof MediaError ? err.message : 'Something went wrong saving that file.');
+    }
   } else if (sub === 'remove') {
     if (!key || !url) {
       await message.reply('Usage: `!gif remove key:<key> url:<url>`');
       return;
     }
-    const removed = removeGifUrl(guildId, key, url);
+    const removed = await removeGifEntry(guildId, key, url);
     await message.reply(removed ? `Removed from **${key}**.` : `URL not found for **${key}**.`);
   }
 }

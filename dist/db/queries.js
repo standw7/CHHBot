@@ -2,9 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getGuildConfig = getGuildConfig;
 exports.upsertGuildConfig = upsertGuildConfig;
-exports.getGifUrls = getGifUrls;
+exports.getGifEntries = getGifEntries;
 exports.addGifUrl = addGifUrl;
 exports.removeGifUrl = removeGifUrl;
+exports.setGifFilePath = setGifFilePath;
+exports.deleteGifEntryById = deleteGifEntryById;
+exports.listAllGifEntries = listAllGifEntries;
 exports.listGifKeys = listGifKeys;
 exports.deleteGifKey = deleteGifKey;
 exports.renameGifKey = renameGifKey;
@@ -78,27 +81,41 @@ function upsertGuildConfig(guildId, updates) {
     }
 }
 // --- Gif Commands ---
-function getGifUrls(guildId, key) {
-    const rows = (0, database_js_1.getDb)().prepare('SELECT url FROM gif_commands WHERE guild_id = ? AND key = ?').all(guildId, key);
-    return rows.map(r => r.url);
+function getGifEntries(guildId, key) {
+    return (0, database_js_1.getDb)().prepare('SELECT url, file_path FROM gif_commands WHERE guild_id = ? AND key = ?').all(guildId, key);
 }
-function addGifUrl(guildId, key, url, addedBy) {
+function addGifUrl(guildId, key, url, addedBy, filePath = null) {
     (0, database_js_1.getDb)().prepare(`
-    INSERT INTO gif_commands (guild_id, key, url, added_by, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(guildId, key, url, addedBy, new Date().toISOString());
+    INSERT INTO gif_commands (guild_id, key, url, added_by, created_at, file_path)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(guildId, key, url, addedBy, new Date().toISOString(), filePath);
 }
+/** Removes matching entries; returns the saved file paths of what was removed (so callers can delete them). */
 function removeGifUrl(guildId, key, url) {
-    const result = (0, database_js_1.getDb)().prepare('DELETE FROM gif_commands WHERE guild_id = ? AND key = ? AND url = ?').run(guildId, key, url);
-    return result.changes > 0;
+    const db = (0, database_js_1.getDb)();
+    const rows = db.prepare('SELECT file_path FROM gif_commands WHERE guild_id = ? AND key = ? AND url = ?').all(guildId, key, url);
+    const removed = db.prepare('DELETE FROM gif_commands WHERE guild_id = ? AND key = ? AND url = ?').run(guildId, key, url).changes;
+    return { removed, filePaths: rows.flatMap(r => (r.file_path ? [r.file_path] : [])) };
+}
+function setGifFilePath(id, filePath) {
+    (0, database_js_1.getDb)().prepare('UPDATE gif_commands SET file_path = ? WHERE id = ?').run(filePath, id);
+}
+function deleteGifEntryById(id) {
+    (0, database_js_1.getDb)().prepare('DELETE FROM gif_commands WHERE id = ?').run(id);
+}
+/** All gif entries across guilds (for the one-off media backfill). */
+function listAllGifEntries() {
+    return (0, database_js_1.getDb)().prepare('SELECT id, guild_id, key, url, file_path FROM gif_commands ORDER BY id').all();
 }
 function listGifKeys(guildId) {
     const rows = (0, database_js_1.getDb)().prepare('SELECT DISTINCT key FROM gif_commands WHERE guild_id = ? ORDER BY key').all(guildId);
     return rows.map(r => r.key);
 }
 function deleteGifKey(guildId, key) {
-    const result = (0, database_js_1.getDb)().prepare('DELETE FROM gif_commands WHERE guild_id = ? AND key = ?').run(guildId, key);
-    return result.changes;
+    const db = (0, database_js_1.getDb)();
+    const rows = db.prepare('SELECT file_path FROM gif_commands WHERE guild_id = ? AND key = ?').all(guildId, key);
+    const removed = db.prepare('DELETE FROM gif_commands WHERE guild_id = ? AND key = ?').run(guildId, key).changes;
+    return { removed, filePaths: rows.flatMap(r => (r.file_path ? [r.file_path] : [])) };
 }
 function renameGifKey(guildId, oldKey, newKey) {
     const result = (0, database_js_1.getDb)().prepare('UPDATE gif_commands SET key = ? WHERE guild_id = ? AND key = ?').run(newKey, guildId, oldKey);

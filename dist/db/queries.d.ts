@@ -1,11 +1,31 @@
 import type { GuildConfig, GifCommand, HofMessage, FeedSource, Reminder } from './models.js';
 export declare function getGuildConfig(guildId: string): GuildConfig | undefined;
 export declare function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildConfig, 'guild_id'>>): void;
-export declare function getGifUrls(guildId: string, key: string): string[];
-export declare function addGifUrl(guildId: string, key: string, url: string, addedBy: string): void;
-export declare function removeGifUrl(guildId: string, key: string, url: string): boolean;
+export declare function getGifEntries(guildId: string, key: string): {
+    url: string;
+    file_path: string | null;
+}[];
+export declare function addGifUrl(guildId: string, key: string, url: string, addedBy: string, filePath?: string | null): void;
+/** Removes matching entries; returns the saved file paths of what was removed (so callers can delete them). */
+export declare function removeGifUrl(guildId: string, key: string, url: string): {
+    removed: number;
+    filePaths: string[];
+};
+export declare function setGifFilePath(id: number, filePath: string): void;
+export declare function deleteGifEntryById(id: number): void;
+/** All gif entries across guilds (for the one-off media backfill). */
+export declare function listAllGifEntries(): {
+    id: number;
+    guild_id: string;
+    key: string;
+    url: string;
+    file_path: string | null;
+}[];
 export declare function listGifKeys(guildId: string): string[];
-export declare function deleteGifKey(guildId: string, key: string): number;
+export declare function deleteGifKey(guildId: string, key: string): {
+    removed: number;
+    filePaths: string[];
+};
 export declare function renameGifKey(guildId: string, oldKey: string, newKey: string): number;
 export declare function listGifUrlsForKey(guildId: string, key: string): GifCommand[];
 export declare function hasGoalBeenPosted(guildId: string, gameId: number, eventId: number): boolean;
