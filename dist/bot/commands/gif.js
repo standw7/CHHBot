@@ -72,7 +72,12 @@ async function handlePlay(interaction, guildId) {
     }
     const entry = entries[Math.floor(Math.random() * entries.length)];
     cooldowns.set(cooldownKey, Date.now());
-    await interaction.reply((0, media_js_1.buildMediaMessage)(entry));
+    try {
+        await interaction.reply((0, media_js_1.buildMediaMessage)(entry));
+    }
+    catch {
+        await interaction.reply(entry.url); // e.g. upload rejected after a boost lapsed
+    }
 }
 async function handleAdd(interaction, guildId) {
     if (!interaction.memberPermissions?.has(discord_js_1.PermissionFlagsBits.ManageGuild)) {
@@ -88,7 +93,8 @@ async function handleAdd(interaction, guildId) {
     // Downloading can take longer than Discord's 3s reply window
     await interaction.deferReply({ ephemeral: true });
     try {
-        const result = await (0, media_js_1.addGifEntry)(interaction.client.rest, guildId, key, url, interaction.user.id);
+        const limit = (0, media_js_1.uploadLimitBytes)(interaction.guild?.premiumTier ?? 0);
+        const result = await (0, media_js_1.addGifEntry)(interaction.client.rest, guildId, key, url, interaction.user.id, limit);
         await interaction.editReply(result === 'saved' ? `Saved a copy and added it to **${key}**.` : `Added link to **${key}**.`);
     }
     catch (err) {

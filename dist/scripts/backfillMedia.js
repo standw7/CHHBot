@@ -28,12 +28,18 @@ async function main() {
             console.log(`  !${e.key}\t${e.url.split('?')[0]}`);
         return;
     }
+    // Upload limit depends on each server's boost tier
+    const limits = new Map();
+    for (const guildId of new Set(todo.map(e => e.guild_id))) {
+        const guild = (await rest.get(discord_js_1.Routes.guild(guildId)));
+        limits.set(guildId, (0, media_js_1.uploadLimitBytes)(guild.premium_tier));
+    }
     let saved = 0;
     const dead = [];
     const failed = [];
     for (const e of todo) {
         try {
-            (0, queries_js_1.setGifFilePath)(e.id, await (0, media_js_1.downloadMedia)(rest, e.guild_id, e.url));
+            (0, queries_js_1.setGifFilePath)(e.id, await (0, media_js_1.downloadMedia)(rest, e.guild_id, e.url, limits.get(e.guild_id)));
             saved++;
         }
         catch (err) {

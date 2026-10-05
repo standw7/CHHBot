@@ -1490,7 +1490,11 @@ async function handlePrefixGif(message: Message, key: string): Promise<void> {
   cooldowns.set(cooldownKey, Date.now());
   if (message.channel.isSendable()) {
     const { buildMediaMessage } = await import('../../services/media.js');
-    await message.channel.send(buildMediaMessage(entry));
+    try {
+      await message.channel.send(buildMediaMessage(entry));
+    } catch {
+      await message.channel.send(entry.url); // e.g. upload rejected after a boost lapsed
+    }
   }
 }
 
@@ -1501,7 +1505,7 @@ async function handlePrefixGifAdmin(message: Message, args: string[]): Promise<v
   // or: !gif keys
   const { PermissionFlagsBits } = await import('discord.js');
   const { listGifKeys, listGifUrlsForKey } = await import('../../db/queries.js');
-  const { addGifEntry, removeGifEntry, deleteGifKeyAndMedia, MediaError } = await import('../../services/media.js');
+  const { addGifEntry, removeGifEntry, deleteGifKeyAndMedia, uploadLimitBytes, MediaError } = await import('../../services/media.js');
 
   const guildId = message.guild!.id;
   const sub = args[0]?.toLowerCase();
@@ -1602,7 +1606,8 @@ async function handlePrefixGifAdmin(message: Message, args: string[]): Promise<v
       return;
     }
     try {
-      const result = await addGifEntry(message.client.rest, guildId, key, addUrl, message.author.id);
+      const limit = uploadLimitBytes(message.guild!.premiumTier);
+      const result = await addGifEntry(message.client.rest, guildId, key, addUrl, message.author.id, limit);
       await message.reply(result === 'saved' ? `Saved a copy and added it to **${key}**.` : `Added link to **${key}**.`);
     } catch (err) {
       await message.reply(err instanceof MediaError ? err.message : 'Something went wrong saving that file.');

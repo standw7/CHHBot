@@ -10,8 +10,15 @@ const logger = pino({ name: 'media' });
 // Saved copies of gif-command files live here (gitignored). Paths in the DB are relative to it.
 export const MEDIA_DIR = process.env.MEDIA_DIR || path.join(process.cwd(), 'media');
 
-// Discord's upload limit for bots in an unboosted server.
+// Discord's upload limit in an unboosted server; boosting raises it for bots too.
 export const MAX_MEDIA_BYTES = 10 * 1024 * 1024;
+
+/** Upload limit for a server's boost tier (Guild.premiumTier / premium_tier). */
+export function uploadLimitBytes(premiumTier: number): number {
+  if (premiumTier >= 3) return 100 * 1024 * 1024;
+  if (premiumTier === 2) return 50 * 1024 * 1024;
+  return MAX_MEDIA_BYTES;
+}
 
 // Services whose links Discord embeds itself — always posted as links, never downloaded.
 const KEEP_AS_LINK_HOSTS = ['tenor.com', 'klipy.com', 'fxtwitter.com'];
@@ -51,11 +58,12 @@ export function isDownloadableFile(url: string): boolean {
 }
 
 /** Null if acceptable, otherwise a user-facing reason. */
-export function validateMedia(contentType: string | null, size: number): string | null {
+export function validateMedia(contentType: string | null, size: number, maxBytes: number = MAX_MEDIA_BYTES): string | null {
   const type = contentType?.split(';')[0].trim().toLowerCase() ?? '';
   if (!/^(image|video|audio)\//.test(type)) return "That link isn't an image, video or audio file.";
-  if (size > MAX_MEDIA_BYTES) {
-    return `That file is too big (${(size / 1024 / 1024).toFixed(1)} MB). Discord lets bots upload up to 10 MB.`;
+  if (size > maxBytes) {
+    const mb = (n: number) => (n / 1024 / 1024).toFixed(1);
+    return `That file is too big (${mb(size)} MB). Discord lets bots upload up to ${Math.round(maxBytes / 1024 / 1024)} MB in this server.`;
   }
   return null;
 }
@@ -83,7 +91,7 @@ async function refreshDiscordUrl(rest: REST, url: string): Promise<string> {
  * Downloads a file link into MEDIA_DIR/<guildId>/ and returns its stored relative path.
  * Throws MediaError with a user-facing message if it can't be fetched or isn't acceptable.
  */
-export async function downloadMedia(rest: REST, guildId: string, url: string): Promise<string> {
+export async function downloadMedia(rest: REST, guildId: string, url: string, maxBytes: number = MAX_MEDIA_BYTES): Promise<string> {
   const fetchUrl = isDiscordAttachment(url) ? await refreshDiscordUrl(rest, url) : url;
 
   const res = await fetch(fetchUrl, { headers: { 'User-Agent': 'Tusky-Discord-Bot/1.0' } });
@@ -97,11 +105,11 @@ export async function downloadMedia(rest: REST, guildId: string, url: string): P
   }
 
   const declared = Number(res.headers.get('content-length') ?? 0);
-  const early = validateMedia(res.headers.get('content-type'), declared);
+  const early = validateMedia(res.headers.get('content-type'), declared, maxBytes);
   if (early) throw new MediaError(early);
 
   const data = Buffer.from(await res.arrayBuffer());
-  const problem = validateMedia(res.headers.get('content-type'), data.length);
+  const problem = validateMedia(res.headers.get('content-type'), data.length, maxBytes);
   if (problem) throw new MediaError(problem);
 
   const originalName = decodeURIComponent(new URL(url).pathname.split('/').pop() || 'media');
@@ -141,12 +149,19 @@ export function buildMediaMessage(entry: { url: string; file_path: string | null
  * Adds a gif-command entry. File links are downloaded and saved ('saved'); Tenor/Klipy
  * and page links are stored as links ('link'). Throws MediaError if a file can't be saved.
  */
-export async function addGifEntry(rest: REST, guildId: string, key: string, url: string, addedBy: string): Promise<'saved' | 'link'> {
+export async function addGifEntry(
+  rest: REST,
+  guildId: string,
+  key: string,
+  url: string,
+  addedBy: string,
+  maxBytes: number = MAX_MEDIA_BYTES
+): Promise<'saved' | 'link'> {
   if (!isDownloadableFile(url)) {
     addGifUrl(guildId, key, url, addedBy);
     return 'link';
   }
-  const filePath = await downloadMedia(rest, guildId, url);
+  const filePath = await downloadMedia(rest, guildId, url, maxBytes);
   addGifUrl(guildId, key, url, addedBy, filePath);
   return 'saved';
 }

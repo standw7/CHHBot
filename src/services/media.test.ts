@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { isDownloadableFile, isDiscordAttachment, validateMedia, displayFileName, MAX_MEDIA_BYTES } from './media.js';
+import { isDownloadableFile, isDiscordAttachment, validateMedia, displayFileName, MAX_MEDIA_BYTES, uploadLimitBytes } from './media.js';
 
 describe('isDownloadableFile', () => {
   test('Discord attachment links are downloaded (any domain variant, with or without params)', () => {
@@ -46,8 +46,14 @@ describe('validateMedia', () => {
     assert.equal(validateMedia('video/mp4', MAX_MEDIA_BYTES), null);
   });
 
-  test('too big is rejected with the size', () => {
-    assert.match(validateMedia('image/gif', MAX_MEDIA_BYTES + 1) ?? '', /too big \(10\.0 MB\)/);
+  test('too big is rejected with the size and the limit', () => {
+    assert.match(validateMedia('image/gif', MAX_MEDIA_BYTES + 1) ?? '', /too big \(10\.0 MB\).*up to 10 MB/);
+  });
+
+  test('a boosted server limit allows bigger files', () => {
+    const limit = uploadLimitBytes(2);
+    assert.equal(validateMedia('image/gif', 44.5 * 1024 * 1024, limit), null);
+    assert.match(validateMedia('image/gif', limit + 1, limit) ?? '', /up to 50 MB/);
   });
 
   test('non-media content (e.g. an HTML page) is rejected', () => {
@@ -59,5 +65,14 @@ describe('validateMedia', () => {
 describe('displayFileName', () => {
   test('strips the stored id prefix', () => {
     assert.equal(displayFileName('1247333121515585556/1759700000000-horn.mp3'), 'horn.mp3');
+  });
+});
+
+describe('uploadLimitBytes', () => {
+  test('follows the server boost tier', () => {
+    assert.equal(uploadLimitBytes(0), 10 * 1024 * 1024);
+    assert.equal(uploadLimitBytes(1), 10 * 1024 * 1024);
+    assert.equal(uploadLimitBytes(2), 50 * 1024 * 1024);
+    assert.equal(uploadLimitBytes(3), 100 * 1024 * 1024);
   });
 });

@@ -9,9 +9,9 @@
  * Run from the repo root on the VM (uses .env DISCORD_TOKEN and ./tusky.db).
  */
 import 'dotenv/config';
-import { REST } from 'discord.js';
+import { REST, Routes } from 'discord.js';
 import { listAllGifEntries, setGifFilePath, deleteGifEntryById } from '../db/queries.js';
-import { isDownloadableFile, downloadMedia, MediaError } from '../services/media.js';
+import { isDownloadableFile, downloadMedia, uploadLimitBytes, MediaError } from '../services/media.js';
 
 const go = process.argv.includes('--go');
 const removeDead = process.argv.includes('--remove-dead');
@@ -28,12 +28,19 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Upload limit depends on each server's boost tier
+  const limits = new Map<string, number>();
+  for (const guildId of new Set(todo.map(e => e.guild_id))) {
+    const guild = (await rest.get(Routes.guild(guildId))) as { premium_tier: number };
+    limits.set(guildId, uploadLimitBytes(guild.premium_tier));
+  }
+
   let saved = 0;
   const dead: string[] = [];
   const failed: string[] = [];
   for (const e of todo) {
     try {
-      setGifFilePath(e.id, await downloadMedia(rest, e.guild_id, e.url));
+      setGifFilePath(e.id, await downloadMedia(rest, e.guild_id, e.url, limits.get(e.guild_id)));
       saved++;
     } catch (err) {
       const label = `!${e.key} (${e.url.split('?')[0].split('/').pop()})`;

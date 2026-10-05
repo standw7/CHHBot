@@ -4,7 +4,7 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import { getGifEntries, listGifKeys, listGifUrlsForKey } from '../../db/queries.js';
-import { addGifEntry, removeGifEntry, buildMediaMessage, MediaError } from '../../services/media.js';
+import { addGifEntry, removeGifEntry, buildMediaMessage, uploadLimitBytes, MediaError } from '../../services/media.js';
 
 export const data = new SlashCommandBuilder()
   .setName('gif')
@@ -91,7 +91,11 @@ async function handlePlay(interaction: ChatInputCommandInteraction, guildId: str
 
   const entry = entries[Math.floor(Math.random() * entries.length)];
   cooldowns.set(cooldownKey, Date.now());
-  await interaction.reply(buildMediaMessage(entry));
+  try {
+    await interaction.reply(buildMediaMessage(entry));
+  } catch {
+    await interaction.reply(entry.url); // e.g. upload rejected after a boost lapsed
+  }
 }
 
 async function handleAdd(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
@@ -110,7 +114,8 @@ async function handleAdd(interaction: ChatInputCommandInteraction, guildId: stri
   // Downloading can take longer than Discord's 3s reply window
   await interaction.deferReply({ ephemeral: true });
   try {
-    const result = await addGifEntry(interaction.client.rest, guildId, key, url, interaction.user.id);
+    const limit = uploadLimitBytes(interaction.guild?.premiumTier ?? 0);
+    const result = await addGifEntry(interaction.client.rest, guildId, key, url, interaction.user.id, limit);
     await interaction.editReply(result === 'saved' ? `Saved a copy and added it to **${key}**.` : `Added link to **${key}**.`);
   } catch (err) {
     await interaction.editReply(err instanceof MediaError ? err.message : 'Something went wrong saving that file.');
