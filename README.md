@@ -259,9 +259,12 @@ There's a 5-second cooldown per person per command to prevent spam.
 | Command | What it does |
 |---------|-------------|
 | `/gif add key:goal url:https://example.com/goal.gif` | Add a GIF URL to a key |
+| `/gif add key:horn file:<attach horn.mp3>` | Add an uploaded file (image, gif, video or audio) to a key |
 | `/gif remove key:goal url:https://example.com/goal.gif` | Remove a specific URL from a key |
 | `/gif list key:goal` | See all URLs registered for a key |
 | `/gif keys` | See all registered keys |
+
+**Saved copies:** Tenor and Klipy links are posted as links. Anything that's an actual file (a Discord upload, or a direct link to an image, gif, video or audio file) is downloaded when added and posted as an attachment, so it never expires and audio clips get Discord's audio player. Files can be up to 10 MB (50 MB in a level 2 boosted server, 100 MB at level 3). In `/gif list`, 📁 marks saved copies.
 
 Prefix versions also work:
 ```
@@ -311,7 +314,7 @@ These require the **Manage Server** permission in Discord.
 |---------|-------------|
 | `/config set setting:<name> value:<value>` | Change a bot setting |
 | `/config show` | View all current settings |
-| `!gif add key:<key> url:<url>` | Add media to a command |
+| `!gif add key:<key> url:<url>` | Add media to a command (or attach a file instead of `url:`) |
 | `!gif remove key:<key> url:<url>` | Remove media from a command |
 | `!feed add <url>` | Add a news feed |
 | `!feed remove <label>` | Remove a news feed |

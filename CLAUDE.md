@@ -33,6 +33,10 @@ ssh ... 'cd ~/CHHBot && git pull && pm2 restart tusky'       # on VM
 
 Install/refresh all of it on the VM: `cd ~/CHHBot && sudo bash ops/install.sh`.
 
+### Saved media
+
+Gif commands that point at files (Discord uploads, direct image/video/audio links) are saved under `~/CHHBot/media/` on the VM and posted as attachments; Tenor/Klipy/fxtwitter stay links. `media/` is gitignored, so it is **not** backed up by git, same as `tusky.db`. Back up both together if moving VMs. To save copies for any entries still stored as links: `node dist/scripts/backfillMedia.js` (dry run), then `--go` (add `--remove-dead` to delete entries whose file is gone).
+
 ### Runbook
 
 - Bot down / `pm2 list` empty → `sudo systemctl restart pm2-ubuntu`. **Never** run `pm2 resurrect`/`pm2 start` from a shell when the daemon is dead — that creates an unsupervised daemon outside systemd (this is how the Aug 28 2026 outage went unnoticed for 2 weeks).
