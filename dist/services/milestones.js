@@ -66,6 +66,16 @@ function detectMilestones(input) {
             }
         }
     }
+    // Assisters reaching a hundred career points (e.g. Keller's 600th was an assist)
+    for (const a of goal.assists) {
+        const before = input.assistersCareerBefore?.get(a.playerId);
+        if (!before)
+            continue;
+        const pointsAfter = before.points + realGoalsBy(a.playerId, goalsSoFar).length + assistsBy(a.playerId, goalsSoFar);
+        if (pointsAfter % 100 === 0) {
+            milestones.push({ kind: 'career_points', label: `${a.lastName.default}: career point #${pointsAfter} (assist)`, celebrate: isPrimaryTeam });
+        }
+    }
     return milestones;
 }
 //# sourceMappingURL=milestones.js.map

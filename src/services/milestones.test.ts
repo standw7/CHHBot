@@ -292,3 +292,48 @@ describe('detectMilestones - non-primary team', () => {
     assert.deepEqual(milestones, []);
   });
 });
+
+describe('detectMilestones - assister career points', () => {
+  const assist = (playerId: number, last: string) => ({
+    playerId, firstName: { default: 'X' }, lastName: { default: last }, name: { default: `X. ${last}` }, assistsToDate: 1,
+  });
+
+  test("assist that reaches a hundred gets its own line", () => {
+    const g = goal({ playerId: 900, eventId: 30, goalsToDate: 2, assists: [assist(901, 'Keller'), assist(902, 'Cooley')] });
+    const milestones = detectMilestones(baseInput({
+      goal: g, goalsSoFar: [g], gameType: 2,
+      careerBefore: { goals: 10, points: 20 },
+      assistersCareerBefore: new Map([[901, { goals: 222, points: 599 }], [902, { goals: 69, points: 150 }]]),
+    }));
+    const lines = milestones.filter(m => m.kind === 'career_points').map(m => m.label);
+    assert.deepEqual(lines, ['Keller: career point #600 (assist)']);
+  });
+
+  test('counts the assister\'s earlier points in the same game', () => {
+    const earlier = goal({ playerId: 901, eventId: 31, goalsToDate: 1 }); // Keller scored earlier
+    const g = goal({ playerId: 900, eventId: 32, goalsToDate: 2, assists: [assist(901, 'Keller')] });
+    const milestones = detectMilestones(baseInput({
+      goal: g, goalsSoFar: [earlier, g], gameType: 2,
+      careerBefore: { goals: 10, points: 20 },
+      assistersCareerBefore: new Map([[901, { goals: 222, points: 598 }]]),
+    }));
+    assert.equal(milestones.find(m => m.label.startsWith('Keller'))?.label, 'Keller: career point #600 (assist)');
+  });
+
+  test('no assister lines outside the regular season or for the opponent', () => {
+    const g = goal({ playerId: 900, eventId: 33, goalsToDate: 2, assists: [assist(901, 'Keller')] });
+    const before = new Map([[901, { goals: 222, points: 599 }]]);
+    for (const input of [
+      baseInput({ goal: g, goalsSoFar: [g], gameType: 1, assistersCareerBefore: before }),
+      baseInput({ goal: g, goalsSoFar: [g], gameType: 2, isPrimaryTeam: false, assistersCareerBefore: before }),
+    ]) {
+      assert.equal(detectMilestones(input).find(m => m.label.startsWith('Keller')), undefined);
+    }
+  });
+
+  test('unknown assister career → no line', () => {
+    const g = goal({ playerId: 900, eventId: 34, goalsToDate: 2, assists: [assist(901, 'Keller')] });
+    const milestones = detectMilestones(baseInput({ goal: g, goalsSoFar: [g], gameType: 2, careerBefore: { goals: 10, points: 20 } }));
+    assert.equal(milestones.find(m => m.label.startsWith('Keller')), undefined);
+  });
+});

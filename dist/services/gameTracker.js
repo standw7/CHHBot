@@ -299,28 +299,15 @@ async function handleLive(client, ctx) {
                 catch (err) {
                     logger.warn({ err, gameId, eventId }, 'Failed to fetch landing for goal details');
                 }
-                // Career totals lookup (regular season only, primary team scorers only), cached per game
+                // Career totals for the scorer and assisters (regular season, primary team only), cached per game
                 let careerBefore;
+                const assistersCareerBefore = new Map();
                 if (landingGoal && isPrimaryTeam && gameType === 2) {
-                    const playerId = landingGoal.playerId;
-                    if (ctx.careerCache.has(playerId)) {
-                        careerBefore = ctx.careerCache.get(playerId);
-                    }
-                    else {
-                        try {
-                            const playerStats = await nhlClient.getPlayerStats(playerId);
-                            const career = playerStats?.careerTotals?.regularSeason;
-                            if (career && typeof career.goals === 'number' && typeof career.points === 'number') {
-                                careerBefore = { goals: career.goals, points: career.points };
-                                ctx.careerCache.set(playerId, careerBefore);
-                            }
-                            else {
-                                logger.warn({ playerId }, 'Career totals missing from player stats response, skipping career milestones');
-                            }
-                        }
-                        catch (err) {
-                            logger.warn({ err, playerId }, 'Failed to fetch player stats for career milestones');
-                        }
+                    careerBefore = await getCareerBefore(ctx, landingGoal.playerId);
+                    for (const a of landingGoal.assists) {
+                        const career = await getCareerBefore(ctx, a.playerId);
+                        if (career)
+                            assistersCareerBefore.set(a.playerId, career);
                     }
                 }
                 const milestones = landingGoal
@@ -331,6 +318,7 @@ async function handleLive(client, ctx) {
                         gameType,
                         isPrimaryTeam,
                         careerBefore,
+                        assistersCareerBefore,
                     })
                     : undefined;
                 const guild = client.guilds.cache.get(ctx.guildId);
@@ -377,6 +365,26 @@ async function handleLive(client, ctx) {
         }, delayMs);
     }
     scheduleNext(client, ctx, 10_000); // Poll every 10s during live game
+}
+// Regular-season career totals as of before this game, cached per game (the NHL API
+// only updates career totals after a game). Undefined if unavailable.
+async function getCareerBefore(ctx, playerId) {
+    if (ctx.careerCache.has(playerId))
+        return ctx.careerCache.get(playerId);
+    try {
+        const playerStats = await nhlClient.getPlayerStats(playerId);
+        const career = playerStats?.careerTotals?.regularSeason;
+        if (career && typeof career.goals === 'number' && typeof career.points === 'number') {
+            const totals = { goals: career.goals, points: career.points };
+            ctx.careerCache.set(playerId, totals);
+            return totals;
+        }
+        logger.warn({ playerId }, 'Career totals missing from player stats response, skipping career milestones');
+    }
+    catch (err) {
+        logger.warn({ err, playerId }, 'Failed to fetch player stats for career milestones');
+    }
+    return undefined;
 }
 // Poll the landing endpoint for a goal's highlight clip and edit the already-posted
 // card in place once it appears. Stops on success, after REPLAY_POLL_MAX_ATTEMPTS

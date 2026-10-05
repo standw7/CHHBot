@@ -9,6 +9,10 @@ export interface MilestoneInput {
         goals: number;
         points: number;
     };
+    assistersCareerBefore?: Map<number, {
+        goals: number;
+        points: number;
+    }>;
 }
 export interface Milestone {
     kind: 'hat_trick' | 'four_goal' | 'ot_winner' | 'first_nhl_goal' | 'season_goals' | 'career_goals' | 'career_points';
