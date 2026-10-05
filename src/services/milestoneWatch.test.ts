@@ -32,13 +32,14 @@ describe('findUpcomingMilestones', () => {
   });
 
   test('career points: 2 away and 1 away shown, 3 away not', () => {
-    assert.deepEqual(findUpcomingMilestones([player({ careerPoints: 248 })]), ['Keller: 2 points from 250 career points']);
-    assert.deepEqual(findUpcomingMilestones([player({ careerPoints: 249 })]), ['Keller: 1 point from 250 career points']);
-    assert.deepEqual(findUpcomingMilestones([player({ careerPoints: 247 })]), []);
+    assert.deepEqual(findUpcomingMilestones([player({ careerPoints: 598 })]), ['Keller: 2 points from 600 career points']);
+    assert.deepEqual(findUpcomingMilestones([player({ careerPoints: 599 })]), ['Keller: 1 point from 600 career points']);
+    assert.deepEqual(findUpcomingMilestones([player({ careerPoints: 597 })]), []);
   });
 
-  test('career points only at the named thresholds (not every hundred)', () => {
-    assert.deepEqual(findUpcomingMilestones([player({ careerPoints: 599 })]), []);
+  test('career points every hundred, not 250/750', () => {
+    assert.deepEqual(findUpcomingMilestones([player({ careerPoints: 249 })]), []);
+    assert.deepEqual(findUpcomingMilestones([player({ careerPoints: 99 })]), ['Keller: 1 point from 100 career points']);
   });
 
   test('next game is a hundredth game', () => {

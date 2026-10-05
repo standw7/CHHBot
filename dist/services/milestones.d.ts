@@ -16,6 +16,5 @@ export interface Milestone {
     celebrate: boolean;
 }
 export declare const SEASON_GOAL_THRESHOLDS: number[];
-export declare const CAREER_POINT_THRESHOLDS: number[];
 export declare function detectMilestones(input: MilestoneInput): Milestone[];
 //# sourceMappingURL=milestones.d.ts.map

@@ -221,6 +221,16 @@ describe('detectMilestones - career milestones', () => {
     assert.equal(careerPoint?.label, 'Career point #500');
   });
 
+  test('career points every hundred: 600 counts, 250 does not', () => {
+    const at600 = goal({ playerId: 650, eventId: 20, goalsToDate: 5 });
+    const m600 = detectMilestones(baseInput({ goal: at600, goalsSoFar: [at600], gameType: 2, careerBefore: { goals: 222, points: 599 } }));
+    assert.equal(m600.find(m => m.kind === 'career_points')?.label, 'Career point #600');
+
+    const at250 = goal({ playerId: 651, eventId: 21, goalsToDate: 5 });
+    const m250 = detectMilestones(baseInput({ goal: at250, goalsSoFar: [at250], gameType: 2, careerBefore: { goals: 90, points: 249 } }));
+    assert.equal(m250.find(m => m.kind === 'career_points'), undefined);
+  });
+
   test('career milestones require careerBefore to be known', () => {
     const g = goal({ playerId: 700, eventId: 13, goalsToDate: 1 });
     const input = baseInput({ goal: g, goalsSoFar: [g], gameType: 2, careerBefore: undefined });

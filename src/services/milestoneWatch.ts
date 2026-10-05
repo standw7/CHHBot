@@ -1,6 +1,6 @@
 import pino from 'pino';
 import * as nhlClient from '../nhl/client.js';
-import { SEASON_GOAL_THRESHOLDS, CAREER_POINT_THRESHOLDS } from './milestones.js';
+import { SEASON_GOAL_THRESHOLDS } from './milestones.js';
 
 const logger = pino({ name: 'milestone-watch' });
 
@@ -19,7 +19,7 @@ const KIND_ORDER: Kind[] = ['debut', 'career_goals', 'career_points', 'season_go
 
 /**
  * Milestones a player could reach tonight: 1 goal from a season/career goal mark,
- * within 2 points of a career point mark, a hundredth game, or an NHL debut.
+ * within 2 points of the next hundred career points, a hundredth game, or an NHL debut.
  * Uses the same thresholds as the goal-card milestones.
  */
 export function findUpcomingMilestones(players: WatchPlayer[]): string[] {
@@ -35,9 +35,9 @@ export function findUpcomingMilestones(players: WatchPlayer[]): string[] {
       found.push({ kind: 'career_goals', line: `${p.name}: 1 goal from ${p.careerGoals + 1} career goals` });
     }
 
-    const pointMark = CAREER_POINT_THRESHOLDS.find(t => t - p.careerPoints >= 1 && t - p.careerPoints <= 2);
-    if (pointMark !== undefined) {
-      const away = pointMark - p.careerPoints;
+    const pointMark = (Math.floor(p.careerPoints / 100) + 1) * 100;
+    const away = pointMark - p.careerPoints;
+    if (away <= 2) {
       found.push({
         kind: 'career_points',
         line: `${p.name}: ${away} point${away === 1 ? '' : 's'} from ${pointMark} career points`,

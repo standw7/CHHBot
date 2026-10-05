@@ -16,7 +16,6 @@ export interface Milestone {
 }
 
 export const SEASON_GOAL_THRESHOLDS = [20, 30, 40, 50, 60, 70];
-export const CAREER_POINT_THRESHOLDS = [100, 250, 500, 750, 1000, 1500];
 
 function scorerName(goal: LandingGoal): string {
   return `${goal.firstName.default} ${goal.lastName.default}`;
@@ -86,7 +85,7 @@ export function detectMilestones(input: MilestoneInput): Milestone[] {
       if (careerAfterGoals % 100 === 0) {
         milestones.push({ kind: 'career_goals', label: `Career goal #${careerAfterGoals}`, celebrate: isPrimaryTeam });
       }
-      if (CAREER_POINT_THRESHOLDS.includes(careerAfterPoints)) {
+      if (careerAfterPoints % 100 === 0) {
         milestones.push({ kind: 'career_points', label: `Career point #${careerAfterPoints}`, celebrate: isPrimaryTeam });
       }
     }
