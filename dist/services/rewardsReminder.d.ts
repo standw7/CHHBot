@@ -51,4 +51,16 @@ export declare function resolveRewardsChannel(guild: Guild, role: Role): Promise
  * per game so a bot restart resumes it instead of re-pinging.
  */
 export declare function maybeSendRewardsReminder(client: Client, guildId: string, gameId: number, watchedFromStart: boolean, scheduledStart: number): Promise<void>;
+export declare const DAILY_CHECKIN_HOUR = 17;
+/**
+ * Pure: whether today's 5pm reminder is due. In the configured season window it is due
+ * from 5pm until midnight (a bot that was down at 5pm still posts later that day).
+ * Outside the window the caller must check for remaining playoff games.
+ */
+export declare function dailyCheckInStatus(localHour: number, todayISO: string, window: {
+    start: string;
+    end: string;
+}): 'not_yet' | 'due' | 'check_playoffs';
+export declare function startDailyCheckInService(client: Client): void;
+export declare function stopDailyCheckInService(): void;
 //# sourceMappingURL=rewardsReminder.d.ts.map

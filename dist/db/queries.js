@@ -46,6 +46,8 @@ exports.markFeedItemPosted = markFeedItemPosted;
 exports.cleanupOldFeedItems = cleanupOldFeedItems;
 exports.hasDailyCardBeenPosted = hasDailyCardBeenPosted;
 exports.markDailyCardPosted = markDailyCardPosted;
+exports.hasDailyCheckInBeenPosted = hasDailyCheckInBeenPosted;
+exports.markDailyCheckInPosted = markDailyCheckInPosted;
 exports.createReminder = createReminder;
 exports.getDueReminders = getDueReminders;
 exports.getUserReminders = getUserReminders;
@@ -298,6 +300,13 @@ function markDailyCardPosted(guildId, date) {
     VALUES (?, ?)
   `).run(guildId, date);
     return info.changes > 0;
+}
+function hasDailyCheckInBeenPosted(guildId, date) {
+    return !!(0, database_js_1.getDb)().prepare('SELECT 1 FROM rewards_daily_posted WHERE guild_id = ? AND date = ?').get(guildId, date);
+}
+/** Returns true if this call claimed the (guild, date) pair; false if it was already claimed. */
+function markDailyCheckInPosted(guildId, date) {
+    return (0, database_js_1.getDb)().prepare('INSERT OR IGNORE INTO rewards_daily_posted (guild_id, date) VALUES (?, ?)').run(guildId, date).changes > 0;
 }
 // --- Reminders ---
 function createReminder(guildId, channelId, userId, message, fireAt, dm) {

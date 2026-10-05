@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { initialRewardsSchedule, dueRewardsSlot, REWARDS_PING_INTERVAL_MS } from './rewardsReminder.js';
+import { initialRewardsSchedule, dueRewardsSlot, REWARDS_PING_INTERVAL_MS, dailyCheckInStatus, DAILY_CHECKIN_HOUR } from './rewardsReminder.js';
 
 const MIN = 60_000;
 const SCHEDULED = Date.parse('2026-10-10T01:00:00Z');
@@ -69,5 +69,32 @@ describe('dueRewardsSlot', () => {
 
   test('interval is 45 minutes', () => {
     assert.equal(REWARDS_PING_INTERVAL_MS, 45 * MIN);
+  });
+});
+
+describe('dailyCheckInStatus', () => {
+  const WINDOW = { start: '2026-09-29', end: '2027-04-10' };
+
+  test('reminder hour is 5pm', () => {
+    assert.equal(DAILY_CHECKIN_HOUR, 17);
+  });
+
+  test('before 5pm local → not yet', () => {
+    assert.equal(dailyCheckInStatus(16, '2026-10-05', WINDOW), 'not_yet');
+  });
+
+  test('5pm or later in the season window → due', () => {
+    assert.equal(dailyCheckInStatus(17, '2026-10-05', WINDOW), 'due');
+    assert.equal(dailyCheckInStatus(23, '2026-10-05', WINDOW), 'due');
+  });
+
+  test('window edges are inclusive', () => {
+    assert.equal(dailyCheckInStatus(17, '2026-09-29', WINDOW), 'due');
+    assert.equal(dailyCheckInStatus(17, '2027-04-10', WINDOW), 'due');
+  });
+
+  test('outside the window → needs a playoff check', () => {
+    assert.equal(dailyCheckInStatus(17, '2027-04-20', WINDOW), 'check_playoffs');
+    assert.equal(dailyCheckInStatus(17, '2026-07-01', WINDOW), 'check_playoffs');
   });
 });

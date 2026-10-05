@@ -321,6 +321,15 @@ export function markDailyCardPosted(guildId: string, date: string): boolean {
   return info.changes > 0;
 }
 
+export function hasDailyCheckInBeenPosted(guildId: string, date: string): boolean {
+  return !!getDb().prepare('SELECT 1 FROM rewards_daily_posted WHERE guild_id = ? AND date = ?').get(guildId, date);
+}
+
+/** Returns true if this call claimed the (guild, date) pair; false if it was already claimed. */
+export function markDailyCheckInPosted(guildId: string, date: string): boolean {
+  return getDb().prepare('INSERT OR IGNORE INTO rewards_daily_posted (guild_id, date) VALUES (?, ?)').run(guildId, date).changes > 0;
+}
+
 // --- Reminders ---
 
 export function createReminder(guildId: string, channelId: string, userId: string, message: string, fireAt: string, dm: boolean): number {

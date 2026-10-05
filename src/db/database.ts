@@ -157,6 +157,12 @@ function runMigrations(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_reminders_fire_at ON reminders(fire_at);
     CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders(guild_id, user_id);
 
+    CREATE TABLE IF NOT EXISTS rewards_daily_posted (
+      guild_id TEXT,
+      date TEXT,
+      PRIMARY KEY (guild_id, date)
+    );
+
     CREATE TABLE IF NOT EXISTS daily_cards_posted (
       guild_id TEXT,
       date TEXT,

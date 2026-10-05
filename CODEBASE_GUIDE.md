@@ -127,6 +127,7 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 - Daily pre-game / off-day card, phrases, posting hour → `src/services/dailyCard.ts` (`OFF_DAY_PHRASES`, `selectDailyCard`), config columns `daily_card_enabled`/`daily_card_hour`
 - Special goal cards (hat trick, milestones, thresholds) → `src/services/milestones.ts`; styling in `goalCard.ts` (`milestones` in `GoalCardData`); career cache in `gameTracker.ts` `TrackerContext`
 - Auto replay link on goal cards → `gameTracker.ts` `pollForReplay` + `goalCard.ts` `findReplayUrl`
+- Daily 5pm check-in reminder → `rewardsReminder.ts` (`dailyCheckInStatus`, `startDailyCheckInService`, `DAILY_CHECKIN_HOUR`); season window + playoffs; table `rewards_daily_posted`; started in `index.ts`
 - Rewards check-in reminders → `src/services/rewardsReminder.ts` (`REWARDS_PING_INTERVAL_MS`, message text, channel perms); called from `gameTracker.ts` `handleLive`; last ping per game in `rewards_pings` table; `!rewards` toggle in `messageCreate.ts` `handlePrefixRewards()`
 - Morning-card milestone watch (thresholds, distances, wording) → `src/services/milestoneWatch.ts` (`findUpcomingMilestones`, `loadWatchPlayers`); added in `dailyCard.ts` `loadMilestoneLines` (regular season only); shares thresholds with `milestones.ts`
 - Three stars card / final-card standings line → `src/services/postGame.ts` (`buildThreeStarsCard`, `formatStandingsLine`, `startPostGameFollowUp`); started from `gameTracker.ts` `handleFinal`; pre-game standings snapshot in `TrackerContext.standingsBefore` (taken on LIVE)

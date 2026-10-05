@@ -8,6 +8,7 @@ import { registerLinkFixer } from './bot/events/linkFixer.js';
 import { startFeedWatcher, stopFeedWatcher } from './services/feedWatcher.js';
 import { startReminderService, stopReminderService } from './services/reminderService.js';
 import { startDailyCardService, stopDailyCardService } from './services/dailyCard.js';
+import { startDailyCheckInService, stopDailyCheckInService } from './services/rewardsReminder.js';
 import { startHealthMonitor, stopHealthMonitor } from './services/healthMonitor.js';
 import { getGuildConfig, upsertGuildConfig } from './db/queries.js';
 import pino from 'pino';
@@ -52,6 +53,7 @@ async function main(): Promise<void> {
 
     // Start daily card service
     startDailyCardService(client);
+    startDailyCheckInService(client);
 
     // Ensure config exists for all guilds the bot is in, then start trackers
     for (const [guildId] of client.guilds.cache) {
@@ -86,6 +88,7 @@ async function main(): Promise<void> {
     stopFeedWatcher();
     stopReminderService();
     stopDailyCardService();
+    stopDailyCheckInService();
     stopHealthMonitor();
     client.destroy();
     closeDb();

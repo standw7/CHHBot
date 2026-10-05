@@ -1,6 +1,9 @@
 import { ChannelType, Client, Guild, PermissionFlagsBits, Role, TextChannel } from 'discord.js';
 import pino from 'pino';
-import { getGuildConfig, upsertGuildConfig, getRewardsSchedule, saveRewardsSchedule } from '../db/queries.js';
+import { DateTime } from 'luxon';
+import * as nhlClient from '../nhl/client.js';
+import { getGuildConfig, upsertGuildConfig, getRewardsSchedule, saveRewardsSchedule, hasDailyCheckInBeenPosted, markDailyCheckInPosted } from '../db/queries.js';
+import { DEFAULT_SEASON_START, DEFAULT_SEASON_END } from './dailyCard.js';
 
 const logger = pino({ name: 'rewards-reminder' });
 
@@ -162,4 +165,78 @@ export async function maybeSendRewardsReminder(
   } catch (error) {
     logger.error({ error, guildId, gameId }, 'Failed to post rewards reminder');
   }
+}
+
+// --- Daily check-in reminder (5pm local, every day in season) ---
+
+export const DAILY_CHECKIN_HOUR = 17;
+const DAILY_CHECKIN_POLL_MS = 60_000;
+
+/**
+ * Pure: whether today's 5pm reminder is due. In the configured season window it is due
+ * from 5pm until midnight (a bot that was down at 5pm still posts later that day).
+ * Outside the window the caller must check for remaining playoff games.
+ */
+export function dailyCheckInStatus(
+  localHour: number,
+  todayISO: string,
+  window: { start: string; end: string }
+): 'not_yet' | 'due' | 'check_playoffs' {
+  if (localHour < DAILY_CHECKIN_HOUR) return 'not_yet';
+  return window.start <= todayISO && todayISO <= window.end ? 'due' : 'check_playoffs';
+}
+
+let dailyTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startDailyCheckInService(client: Client): void {
+  if (dailyTimer) return;
+  dailyTimer = setInterval(() => {
+    for (const [guildId, guild] of client.guilds.cache) {
+      processDailyCheckIn(guild).catch(err => logger.error({ err, guildId }, 'Daily check-in reminder error'));
+    }
+  }, DAILY_CHECKIN_POLL_MS);
+  logger.info('Daily check-in reminder service started');
+}
+
+export function stopDailyCheckInService(): void {
+  if (dailyTimer) clearInterval(dailyTimer);
+  dailyTimer = null;
+}
+
+async function processDailyCheckIn(guild: Guild): Promise<void> {
+  const config = getGuildConfig(guild.id);
+  if (!config) return;
+
+  // 5pm on the guild's local clock, so it survives daylight saving
+  const now = DateTime.now().setZone(config.timezone || 'America/Denver');
+  const todayISO = now.toISODate();
+  if (!todayISO || hasDailyCheckInBeenPosted(guild.id, todayISO)) return;
+
+  const window = { start: config.season_start || DEFAULT_SEASON_START, end: config.season_end || DEFAULT_SEASON_END };
+  const status = dailyCheckInStatus(now.hour, todayISO, window);
+  if (status === 'not_yet') return;
+
+  const role = await resolveRewardsRole(guild, false);
+  if (!role) return; // no Rewards role in this guild
+
+  if (status === 'check_playoffs') {
+    const schedule = await nhlClient.getSchedule(config.primary_team);
+    if (!schedule) return; // transient API failure: retry next tick
+    const playoffsLeft = schedule.games?.some(g => g.gameType === 3 && g.gameDate >= todayISO);
+    if (!playoffsLeft) {
+      markDailyCheckInPosted(guild.id, todayISO); // off-season: settle today without posting
+      return;
+    }
+  }
+
+  // Claim before posting so overlapping ticks can't double-post
+  if (!markDailyCheckInPosted(guild.id, todayISO)) return;
+
+  const channel = await resolveRewardsChannel(guild, role);
+  if (!channel) {
+    logger.error({ guildId: guild.id }, 'Rewards channel is not a text channel');
+    return;
+  }
+  await channel.send(`<@&${role.id}> 🦣 Daily reminder: don't forget to check in today to earn your points!`);
+  logger.info({ guildId: guild.id, date: todayISO }, 'Daily check-in reminder posted');
 }

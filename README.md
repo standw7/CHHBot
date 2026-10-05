@@ -188,7 +188,7 @@ Look up team stat leaders for the current season or for a specific game.
 
 When you have the **Gameday** role, you'll be pinged when games start. Use `!gameday` again to remove the role and stop getting pinged.
 
-With the **Rewards** role, you get access to a private `#rewards` channel where Tusky pings you to do your check-in at puck drop and every 45 minutes until the game ends. Use `!rewards` again to opt out. Tusky creates the `#rewards` channel (visible only to the role) if it doesn't exist.
+With the **Rewards** role, you get access to a private `#rewards` channel where Tusky pings you to do your check-in at puck drop and every 45 minutes until the game ends. During the season there's also a daily reminder at 5pm Mountain time. Use `!rewards` again to opt out. Tusky creates the `#rewards` channel (visible only to the role) if it doesn't exist.
 
 The bot will automatically create the "Gameday" role if it doesn't exist (requires Manage Roles permission).
 
