@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { isDownloadableFile, isDiscordAttachment, validateMedia, displayFileName, MAX_MEDIA_BYTES, uploadLimitBytes } from './media.js';
+import { isDownloadableFile, isDiscordAttachment, validateMedia, displayFileName, MAX_MEDIA_BYTES, uploadLimitBytes, canFallBackToLink } from './media.js';
 
 describe('isDownloadableFile', () => {
   test('Discord attachment links are downloaded (any domain variant, with or without params)', () => {
@@ -74,5 +74,17 @@ describe('uploadLimitBytes', () => {
     assert.equal(uploadLimitBytes(1), 10 * 1024 * 1024);
     assert.equal(uploadLimitBytes(2), 50 * 1024 * 1024);
     assert.equal(uploadLimitBytes(3), 100 * 1024 * 1024);
+  });
+});
+
+describe('canFallBackToLink', () => {
+  test('non-Discord file links fall back to a link when saving fails (e.g. Imgur 429 from the VM)', () => {
+    assert.equal(canFallBackToLink('https://i.imgur.com/ynlv4P5.png'), true);
+    assert.equal(canFallBackToLink('https://pbs.twimg.com/media/abc.jpg'), true);
+  });
+
+  test('Discord attachments must be saved (their links expire)', () => {
+    assert.equal(canFallBackToLink('https://cdn.discordapp.com/attachments/1/2/a.png?ex=1'), false);
+    assert.equal(canFallBackToLink('https://media.discordapp.net/attachments/1/2/a.png'), false);
   });
 });

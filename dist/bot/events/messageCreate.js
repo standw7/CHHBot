@@ -1316,7 +1316,7 @@ async function handlePrefixGifAdmin(message, args) {
     // or: !gif keys
     const { PermissionFlagsBits } = await import('discord.js');
     const { listGifKeys, listGifUrlsForKey } = await import('../../db/queries.js');
-    const { addGifEntry, removeGifEntry, deleteGifKeyAndMedia, uploadLimitBytes, MediaError } = await import('../../services/media.js');
+    const { addGifEntry, removeGifEntry, deleteGifKeyAndMedia, uploadLimitBytes, MediaError, ADD_REPLIES } = await import('../../services/media.js');
     const guildId = message.guild.id;
     const sub = args[0]?.toLowerCase();
     if (!sub) {
@@ -1409,7 +1409,7 @@ async function handlePrefixGifAdmin(message, args) {
         try {
             const limit = uploadLimitBytes(message.guild.premiumTier);
             const result = await addGifEntry(message.client.rest, guildId, key, addUrl, message.author.id, limit);
-            await message.reply(result === 'saved' ? `Saved a copy and added it to **${key}**.` : `Added link to **${key}**.`);
+            await message.reply(ADD_REPLIES[result](key));
         }
         catch (err) {
             await message.reply(err instanceof MediaError ? err.message : 'Something went wrong saving that file.');

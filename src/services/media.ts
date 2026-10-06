@@ -57,6 +57,14 @@ export function isDownloadableFile(url: string): boolean {
   return MEDIA_EXTENSIONS.has(ext);
 }
 
+/**
+ * Only Discord's attachment links expire. Any other file link that can't be saved
+ * (e.g. Imgur blocks the VM's IP with 429s) still works as a plain link.
+ */
+export function canFallBackToLink(url: string): boolean {
+  return !isDiscordAttachment(url);
+}
+
 /** Null if acceptable, otherwise a user-facing reason. */
 export function validateMedia(contentType: string | null, size: number, maxBytes: number = MAX_MEDIA_BYTES): string | null {
   const type = contentType?.split(';')[0].trim().toLowerCase() ?? '';
@@ -147,7 +155,8 @@ export function buildMediaMessage(entry: { url: string; file_path: string | null
 
 /**
  * Adds a gif-command entry. File links are downloaded and saved ('saved'); Tenor/Klipy
- * and page links are stored as links ('link'). Throws MediaError if a file can't be saved.
+ * and page links are stored as links ('link'). A non-Discord file that can't be saved is
+ * stored as a link ('link_fallback'). Throws MediaError if a Discord file can't be saved.
  */
 export async function addGifEntry(
   rest: REST,
@@ -156,14 +165,23 @@ export async function addGifEntry(
   url: string,
   addedBy: string,
   maxBytes: number = MAX_MEDIA_BYTES
-): Promise<'saved' | 'link'> {
+): Promise<'saved' | 'link' | 'link_fallback'> {
   if (!isDownloadableFile(url)) {
     addGifUrl(guildId, key, url, addedBy);
     return 'link';
   }
-  const filePath = await downloadMedia(rest, guildId, url, maxBytes);
-  addGifUrl(guildId, key, url, addedBy, filePath);
-  return 'saved';
+  try {
+    const filePath = await downloadMedia(rest, guildId, url, maxBytes);
+    addGifUrl(guildId, key, url, addedBy, filePath);
+    return 'saved';
+  } catch (err) {
+    logger.warn({ err, guildId, key, url }, 'Could not save media copy');
+    if (err instanceof MediaError && canFallBackToLink(url)) {
+      addGifUrl(guildId, key, url, addedBy);
+      return 'link_fallback';
+    }
+    throw err;
+  }
 }
 
 export async function removeGifEntry(guildId: string, key: string, url: string): Promise<boolean> {
@@ -177,3 +195,9 @@ export async function deleteGifKeyAndMedia(guildId: string, key: string): Promis
   await Promise.all(filePaths.map(deleteMediaFile));
   return removed;
 }
+
+export const ADD_REPLIES: Record<'saved' | 'link' | 'link_fallback', (key: string) => string> = {
+  saved: key => `Saved a copy and added it to **${key}**.`,
+  link: key => `Added link to **${key}**.`,
+  link_fallback: key => `Added to **${key}** as a link (that site wouldn't let Tusky save a copy, but its links don't expire).`,
+};

@@ -4,7 +4,7 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import { getGifEntries, listGifKeys, listGifUrlsForKey } from '../../db/queries.js';
-import { addGifEntry, removeGifEntry, buildMediaMessage, uploadLimitBytes, MediaError } from '../../services/media.js';
+import { addGifEntry, removeGifEntry, buildMediaMessage, uploadLimitBytes, MediaError, ADD_REPLIES } from '../../services/media.js';
 
 export const data = new SlashCommandBuilder()
   .setName('gif')
@@ -116,7 +116,7 @@ async function handleAdd(interaction: ChatInputCommandInteraction, guildId: stri
   try {
     const limit = uploadLimitBytes(interaction.guild?.premiumTier ?? 0);
     const result = await addGifEntry(interaction.client.rest, guildId, key, url, interaction.user.id, limit);
-    await interaction.editReply(result === 'saved' ? `Saved a copy and added it to **${key}**.` : `Added link to **${key}**.`);
+    await interaction.editReply(ADD_REPLIES[result](key));
   } catch (err) {
     await interaction.editReply(err instanceof MediaError ? err.message : 'Something went wrong saving that file.');
   }

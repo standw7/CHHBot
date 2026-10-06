@@ -3,10 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MediaError = exports.MAX_MEDIA_BYTES = exports.MEDIA_DIR = void 0;
+exports.ADD_REPLIES = exports.MediaError = exports.MAX_MEDIA_BYTES = exports.MEDIA_DIR = void 0;
 exports.uploadLimitBytes = uploadLimitBytes;
 exports.isDiscordAttachment = isDiscordAttachment;
 exports.isDownloadableFile = isDownloadableFile;
+exports.canFallBackToLink = canFallBackToLink;
 exports.validateMedia = validateMedia;
 exports.displayFileName = displayFileName;
 exports.downloadMedia = downloadMedia;
@@ -68,6 +69,13 @@ function isDownloadableFile(url) {
         return true;
     const ext = u.pathname.split('.').pop()?.toLowerCase() ?? '';
     return MEDIA_EXTENSIONS.has(ext);
+}
+/**
+ * Only Discord's attachment links expire. Any other file link that can't be saved
+ * (e.g. Imgur blocks the VM's IP with 429s) still works as a plain link.
+ */
+function canFallBackToLink(url) {
+    return !isDiscordAttachment(url);
 }
 /** Null if acceptable, otherwise a user-facing reason. */
 function validateMedia(contentType, size, maxBytes = exports.MAX_MEDIA_BYTES) {
@@ -151,16 +159,27 @@ function buildMediaMessage(entry) {
 }
 /**
  * Adds a gif-command entry. File links are downloaded and saved ('saved'); Tenor/Klipy
- * and page links are stored as links ('link'). Throws MediaError if a file can't be saved.
+ * and page links are stored as links ('link'). A non-Discord file that can't be saved is
+ * stored as a link ('link_fallback'). Throws MediaError if a Discord file can't be saved.
  */
 async function addGifEntry(rest, guildId, key, url, addedBy, maxBytes = exports.MAX_MEDIA_BYTES) {
     if (!isDownloadableFile(url)) {
         (0, queries_js_1.addGifUrl)(guildId, key, url, addedBy);
         return 'link';
     }
-    const filePath = await downloadMedia(rest, guildId, url, maxBytes);
-    (0, queries_js_1.addGifUrl)(guildId, key, url, addedBy, filePath);
-    return 'saved';
+    try {
+        const filePath = await downloadMedia(rest, guildId, url, maxBytes);
+        (0, queries_js_1.addGifUrl)(guildId, key, url, addedBy, filePath);
+        return 'saved';
+    }
+    catch (err) {
+        logger.warn({ err, guildId, key, url }, 'Could not save media copy');
+        if (err instanceof MediaError && canFallBackToLink(url)) {
+            (0, queries_js_1.addGifUrl)(guildId, key, url, addedBy);
+            return 'link_fallback';
+        }
+        throw err;
+    }
 }
 async function removeGifEntry(guildId, key, url) {
     const { removed, filePaths } = (0, queries_js_1.removeGifUrl)(guildId, key, url);
@@ -172,4 +191,9 @@ async function deleteGifKeyAndMedia(guildId, key) {
     await Promise.all(filePaths.map(deleteMediaFile));
     return removed;
 }
+exports.ADD_REPLIES = {
+    saved: key => `Saved a copy and added it to **${key}**.`,
+    link: key => `Added link to **${key}**.`,
+    link_fallback: key => `Added to **${key}** as a link (that site wouldn't let Tusky save a copy, but its links don't expire).`,
+};
 //# sourceMappingURL=media.js.map

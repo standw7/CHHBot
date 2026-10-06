@@ -95,7 +95,7 @@ async function handleAdd(interaction, guildId) {
     try {
         const limit = (0, media_js_1.uploadLimitBytes)(interaction.guild?.premiumTier ?? 0);
         const result = await (0, media_js_1.addGifEntry)(interaction.client.rest, guildId, key, url, interaction.user.id, limit);
-        await interaction.editReply(result === 'saved' ? `Saved a copy and added it to **${key}**.` : `Added link to **${key}**.`);
+        await interaction.editReply(media_js_1.ADD_REPLIES[result](key));
     }
     catch (err) {
         await interaction.editReply(err instanceof media_js_1.MediaError ? err.message : 'Something went wrong saving that file.');
