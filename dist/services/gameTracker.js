@@ -46,6 +46,7 @@ const queries_js_1 = require("../db/queries.js");
 const goalCard_js_1 = require("./goalCard.js");
 const finalCard_js_1 = require("./finalCard.js");
 const milestones_js_1 = require("./milestones.js");
+const leaders_js_1 = require("./leaders.js");
 const rewardsReminder_js_1 = require("./rewardsReminder.js");
 const postGame_js_1 = require("./postGame.js");
 const follows_js_1 = require("./follows.js");
@@ -77,6 +78,8 @@ function startTracker(client, guildId) {
         watchedFromStart: false,
         standingsBefore: null,
         careerCache: new Map(),
+        seasonCache: new Map(),
+        leadersBefore: null,
         replayPollTimers: new Set(),
     };
     trackers.set(guildId, ctx);
@@ -145,6 +148,8 @@ async function handleIdle(client, ctx) {
         ctx.careerCache.clear();
         ctx.watchedFromStart = false;
         ctx.standingsBefore = (0, standings_js_1.standingsForSeason)(await nhlClient.getStandings(true), ctx.currentGame.season);
+        ctx.seasonCache.clear();
+        ctx.leadersBefore = ctx.currentGame.gameType === 2 ? await (0, leaders_js_1.loadLeaderSnapshot)() : null;
         logger.info({ guildId: ctx.guildId, gameId: liveGame.id }, 'Found live game, switching to LIVE');
         scheduleNext(client, ctx, 0);
         return;
@@ -183,6 +188,8 @@ async function handlePreGame(client, ctx) {
         ctx.careerCache.clear();
         ctx.watchedFromStart = true;
         ctx.standingsBefore = (0, standings_js_1.standingsForSeason)(await nhlClient.getStandings(true), ctx.currentGame.season);
+        ctx.seasonCache.clear();
+        ctx.leadersBefore = ctx.currentGame.gameType === 2 ? await (0, leaders_js_1.loadLeaderSnapshot)() : null;
         logger.info({ guildId: ctx.guildId, gameId: ctx.currentGame.id }, 'Game is now LIVE');
         // Post game start notification if not already posted
         await postGameStartNotification(client, ctx, pbp.homeTeam, pbp.awayTeam);
@@ -267,6 +274,7 @@ async function handleLive(client, ctx) {
         const gameId = ctx.currentGame.id;
         const eventId = goal.eventId;
         const gameType = ctx.currentGame.gameType;
+        const gameSeason = ctx.currentGame.season;
         const periodType = goal.periodDescriptor?.periodType ?? 'REG';
         // Schedule delayed post - fetch landing data at post time for rich info
         setTimeout(async () => {
@@ -303,9 +311,9 @@ async function handleLive(client, ctx) {
                 let careerBefore;
                 const assistersCareerBefore = new Map();
                 if (landingGoal && isPrimaryTeam && gameType === 2) {
-                    careerBefore = await getCareerBefore(ctx, landingGoal.playerId);
+                    careerBefore = await getCareerBefore(ctx, landingGoal.playerId, gameSeason);
                     for (const a of landingGoal.assists) {
-                        const career = await getCareerBefore(ctx, a.playerId);
+                        const career = await getCareerBefore(ctx, a.playerId, gameSeason);
                         if (career)
                             assistersCareerBefore.set(a.playerId, career);
                     }
@@ -321,6 +329,16 @@ async function handleLive(client, ctx) {
                         assistersCareerBefore,
                     })
                     : undefined;
+                // NHL top-3 moves (regular season, primary team, snapshot taken at puck drop)
+                const leaderAlerts = landingGoal && isPrimaryTeam && gameType === 2 && ctx.leadersBefore
+                    ? (0, leaders_js_1.leaderAlertsForGoal)({
+                        goal: landingGoal,
+                        goalsSoFar,
+                        teamCode: ctx.teamCode,
+                        snapshot: ctx.leadersBefore,
+                        seasonBefore: ctx.seasonCache,
+                    })
+                    : undefined;
                 const guild = client.guilds.cache.get(ctx.guildId);
                 const replayUrl = landingGoal?.highlightClipSharingUrl;
                 const cardData = {
@@ -334,6 +352,7 @@ async function handleLive(client, ctx) {
                     primaryTeam: ctx.teamCode,
                     milestones,
                     replayUrl,
+                    leaderAlerts,
                 };
                 const { content, embed } = (0, goalCard_js_1.buildGoalCard)(cardData, spoilerMode);
                 const message = await channel.send({
@@ -367,12 +386,16 @@ async function handleLive(client, ctx) {
     scheduleNext(client, ctx, 10_000); // Poll every 10s during live game
 }
 // Regular-season career totals as of before this game, cached per game (the NHL API
-// only updates career totals after a game). Undefined if unavailable.
-async function getCareerBefore(ctx, playerId) {
+// only updates totals after a game). The same lookup fills ctx.seasonCache with the
+// player's pre-game season totals for the leader alerts. Undefined if unavailable.
+async function getCareerBefore(ctx, playerId, season) {
     if (ctx.careerCache.has(playerId))
         return ctx.careerCache.get(playerId);
     try {
         const playerStats = await nhlClient.getPlayerStats(playerId);
+        const featured = playerStats?.featuredStats;
+        // Before his first game of the season the NHL still reports last season → zeros
+        ctx.seasonCache.set(playerId, (0, leaders_js_1.seasonTotalsFrom)(featured?.season === season ? featured.regularSeason?.subSeason : undefined));
         const career = playerStats?.careerTotals?.regularSeason;
         if (career && typeof career.goals === 'number' && typeof career.points === 'number') {
             const totals = { goals: career.goals, points: career.points, assists: career.assists };
@@ -456,6 +479,7 @@ async function handleFinal(client, ctx) {
     const { teamCode, standingsBefore } = ctx;
     const gameType = ctx.currentGame.gameType;
     ctx.standingsBefore = null;
+    ctx.leadersBefore = null;
     logger.info({ guildId: ctx.guildId, gameId, delay: delayMs }, 'Scheduling final summary post');
     setTimeout(async () => {
         try {

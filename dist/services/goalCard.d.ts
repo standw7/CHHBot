@@ -2,6 +2,7 @@ import { EmbedBuilder, Guild } from 'discord.js';
 import type { LandingGoal, LandingResponse, PbpTeam, Play } from '../nhl/types.js';
 import { type SpoilerMode } from './spoiler.js';
 import type { Milestone } from './milestones.js';
+import type { LeaderAlert } from './leaders.js';
 export interface GoalCardData {
     landingGoal?: LandingGoal;
     play: Play;
@@ -13,6 +14,7 @@ export interface GoalCardData {
     primaryTeam?: string;
     milestones?: Milestone[];
     replayUrl?: string;
+    leaderAlerts?: LeaderAlert[];
 }
 export declare function findReplayUrl(landing: LandingResponse, eventId: number): string | undefined;
 export declare function getTeamEmoji(abbrev: string, guild?: Guild): string;

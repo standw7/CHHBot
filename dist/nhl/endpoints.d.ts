@@ -13,4 +13,5 @@ export declare function playerSearchUrl(query: string): string;
 export declare function playerStatsUrl(playerId: number): string;
 export declare function searchPlayersUrl(query: string): string;
 export declare function rosterUrl(teamCode: string): string;
+export declare function skaterLeadersUrl(categories: string[], limit: number): string;
 //# sourceMappingURL=endpoints.d.ts.map

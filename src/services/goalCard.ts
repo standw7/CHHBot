@@ -2,6 +2,7 @@ import { EmbedBuilder, Guild } from 'discord.js';
 import type { LandingGoal, LandingResponse, PbpTeam, Play } from '../nhl/types.js';
 import { shouldIncludeScoresInEmbed, formatScoreLine, type SpoilerMode } from './spoiler.js';
 import type { Milestone } from './milestones.js';
+import type { LeaderAlert } from './leaders.js';
 
 export interface GoalCardData {
   landingGoal?: LandingGoal;
@@ -14,6 +15,7 @@ export interface GoalCardData {
   primaryTeam?: string;
   milestones?: Milestone[];
   replayUrl?: string;
+  leaderAlerts?: LeaderAlert[]; // NHL top-3 moves caused by this goal
 }
 
 // Find the highlight-clip sharing URL (nhl.com) for a specific goal in a landing
@@ -72,7 +74,7 @@ function getGoalEmoji(scoringTeamAbbrev: string, primaryTeam: string | undefined
 }
 
 export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { content?: string; embed: EmbedBuilder } {
-  const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild, primaryTeam, milestones, replayUrl } = data;
+  const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild, primaryTeam, milestones, replayUrl, leaderAlerts } = data;
 
   // Scorer info
   const scorerFirst = landingGoal?.firstName?.default ?? '';
@@ -157,6 +159,10 @@ export function buildGoalCard(data: GoalCardData, spoilerMode: SpoilerMode): { c
     .setDescription(description)
     .setColor(hasCelebration ? MILESTONE_CELEBRATE_COLOR : GOAL_CARD_COLOR)
     .setThumbnail(scoringTeamLogo);
+
+  for (const alert of leaderAlerts ?? []) {
+    embed.addFields({ name: alert.title, value: alert.lines.join('\n'), inline: false });
+  }
 
   // Spoiler-wrapped score line as separate content above embed
   let content: string | undefined;

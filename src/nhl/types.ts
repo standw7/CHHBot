@@ -363,3 +363,14 @@ export interface RosterResponse {
   defensemen: RosterPlayer[];
   goalies: RosterPlayer[];
 }
+
+// --- Skater stat leaders ---
+
+export interface SkaterLeaderEntry {
+  id: number;
+  lastName: { default: string };
+  teamAbbrev: string;
+  value: number;
+}
+
+export type SkaterLeadersResponse = Record<string, SkaterLeaderEntry[]>;

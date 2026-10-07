@@ -58,7 +58,7 @@ function getGoalEmoji(scoringTeamAbbrev, primaryTeam, guild) {
     return '🚨';
 }
 function buildGoalCard(data, spoilerMode) {
-    const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild, primaryTeam, milestones, replayUrl } = data;
+    const { landingGoal, play, homeTeam, awayTeam, scoringTeamAbbrev, scoringTeamLogo, guild, primaryTeam, milestones, replayUrl, leaderAlerts } = data;
     // Scorer info
     const scorerFirst = landingGoal?.firstName?.default ?? '';
     const scorerLast = landingGoal?.lastName?.default ?? '';
@@ -132,6 +132,9 @@ function buildGoalCard(data, spoilerMode) {
         .setDescription(description)
         .setColor(hasCelebration ? MILESTONE_CELEBRATE_COLOR : GOAL_CARD_COLOR)
         .setThumbnail(scoringTeamLogo);
+    for (const alert of leaderAlerts ?? []) {
+        embed.addFields({ name: alert.title, value: alert.lines.join('\n'), inline: false });
+    }
     // Spoiler-wrapped score line as separate content above embed
     let content;
     const scoreLine = (0, spoiler_js_1.formatScoreLine)(awayTeam.abbrev, awayScore, homeTeam.abbrev, homeScore, awayTeam.sog, homeTeam.sog, spoilerMode);

@@ -59,6 +59,7 @@ CHHBot/
 │       ├── standings.ts          # standingsForSeason(): drop last season's standings (preseason) (+ .test.ts)
 │       ├── follows.ts            # !follow: roster name matching, follow DM text, sendFollowDms() on goal cards (+ .test.ts)
 │       ├── media.ts              # Gif-command files: which links to save, download (Discord URL refresh), post as attachment (+ .test.ts)
+│       ├── leaders.ts            # NHL top-3 alerts on goal cards (goals/assists/points/PP/SH), tie rules, snapshot (+ .test.ts)
 │       ├── milestones.ts         # Pure detectMilestones(): hat trick 🧢🧢🧢, OT winner, season/career marks (+ .test.ts)
 │       └── simulator.ts          # Fake game simulation for testing goal/final cards
 ├── dist/                         # Compiled JS (committed for low-RAM VM deployment)
@@ -136,6 +137,7 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 - Player follows / goal+assist DMs + first star DM (`sendFirstStarDms`, sent from `postGame.ts` after the three stars card) → `src/services/follows.ts` (`matchRosterPlayer`, `buildFollowDm`, `sendFollowDms`, `MAX_FOLLOWS`); tables `player_follows` + `follow_dms_sent` (dedupes across guild trackers); called after the goal card posts in `gameTracker.ts` `handleLive`; commands `handlePrefixFollow/Unfollow/Following` in `messageCreate.ts`
 - Member follows / HoF DMs → `follows.ts` (`checkMemberFollow`, `buildHofFollowDm`, `sendHofFollowDms`); tables `member_follows` + `follow_opt_outs` (per guild); sent from `reactionAdd.ts` `inductMessage(..., { notifyFollowers: true })` for live inductions only (`!hof scan` doesn't DM); commands `handleFollowMember/handleFollowOptOut/handlePrefixFollowers` in `messageCreate.ts`
 - Gif/media commands saving files → `src/services/media.ts` (`isDownloadableFile`, `addGifEntry`, `buildMediaMessage`, `uploadLimitBytes`); `gif_commands.file_path` (relative to `media/`, gitignored, VM only); handlers in `src/bot/commands/gif.ts` and `messageCreate.ts` `handlePrefixGif`/`handlePrefixGifAdmin`; one-off backfill `src/scripts/backfillMedia.ts`
+- NHL top-3 leader alerts → `src/services/leaders.ts` (`evaluateLeaderMove` = trigger/tie rules, `leaderAlertsForGoal`, `MAX_TOP3_ROWS`); snapshot `TrackerContext.leadersBefore` taken on LIVE; season totals in `ctx.seasonCache` filled by `getCareerBefore`; rendered as fields in `goalCard.ts`
 - Tests → `npm test` (`node --test` via tsx, `src/services/*.test.ts`)
 
 | Change | Files to edit |

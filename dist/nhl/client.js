@@ -48,6 +48,7 @@ exports.getStandings = getStandings;
 exports.searchPlayers = searchPlayers;
 exports.getPlayerStats = getPlayerStats;
 exports.getRoster = getRoster;
+exports.getSkaterLeaders = getSkaterLeaders;
 exports.clearCache = clearCache;
 const pino_1 = __importDefault(require("pino"));
 const endpoints = __importStar(require("./endpoints.js"));
@@ -128,6 +129,9 @@ async function getPlayerStats(playerId) {
 }
 async function getRoster(teamCode) {
     return fetchJson(endpoints.rosterUrl(teamCode), SCHEDULE_CACHE_TTL);
+}
+async function getSkaterLeaders(categories, limit) {
+    return fetchJson(endpoints.skaterLeadersUrl(categories, limit), DEFAULT_CACHE_TTL, true);
 }
 function clearCache() {
     cache.clear();

@@ -11,6 +11,7 @@ import type {
   PlayerSearchResult,
   PlayerLandingResponse,
   RosterResponse,
+  SkaterLeadersResponse,
 } from './types.js';
 import type { ClubStatsResponse } from './statsTypes.js';
 
@@ -114,6 +115,10 @@ export async function getPlayerStats(playerId: number): Promise<PlayerLandingRes
 
 export async function getRoster(teamCode: string): Promise<RosterResponse | null> {
   return fetchJson<RosterResponse>(endpoints.rosterUrl(teamCode), SCHEDULE_CACHE_TTL);
+}
+
+export async function getSkaterLeaders(categories: string[], limit: number): Promise<SkaterLeadersResponse | null> {
+  return fetchJson<SkaterLeadersResponse>(endpoints.skaterLeadersUrl(categories, limit), DEFAULT_CACHE_TTL, true);
 }
 
 export function clearCache(): void {

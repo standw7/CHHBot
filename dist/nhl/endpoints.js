@@ -15,6 +15,7 @@ exports.playerSearchUrl = playerSearchUrl;
 exports.playerStatsUrl = playerStatsUrl;
 exports.searchPlayersUrl = searchPlayersUrl;
 exports.rosterUrl = rosterUrl;
+exports.skaterLeadersUrl = skaterLeadersUrl;
 const BASE_URL = 'https://api-web.nhle.com';
 function scheduleUrl(teamCode) {
     return `${BASE_URL}/v1/club-schedule-season/${teamCode}/now`;
@@ -60,5 +61,8 @@ function searchPlayersUrl(query) {
 }
 function rosterUrl(teamCode) {
     return `${BASE_URL}/v1/roster/${teamCode}/current`;
+}
+function skaterLeadersUrl(categories, limit) {
+    return `${BASE_URL}/v1/skater-stats-leaders/current?categories=${categories.join(',')}&limit=${limit}`;
 }
 //# sourceMappingURL=endpoints.js.map

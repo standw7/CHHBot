@@ -59,3 +59,7 @@ export function searchPlayersUrl(query: string): string {
 export function rosterUrl(teamCode: string): string {
   return `${BASE_URL}/v1/roster/${teamCode}/current`;
 }
+
+export function skaterLeadersUrl(categories: string[], limit: number): string {
+  return `${BASE_URL}/v1/skater-stats-leaders/current?categories=${categories.join(',')}&limit=${limit}`;
+}
