@@ -3,11 +3,12 @@ export interface WatchPlayer {
     careerGamesPlayed: number;
     careerGoals: number;
     careerPoints: number;
+    careerAssists: number;
     seasonGoals: number;
 }
 /**
  * Milestones a player could reach tonight: 1 goal from a season/career goal mark,
- * within 2 points of the next hundred career points, a hundredth game, or an NHL debut.
+ * within 2 of the next hundred career points or assists, a hundredth game, or an NHL debut.
  * Uses the same thresholds as the goal-card milestones.
  */
 export declare function findUpcomingMilestones(players: WatchPlayer[]): string[];

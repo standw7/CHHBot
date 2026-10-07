@@ -1,21 +1,20 @@
 import type { LandingGoal } from '../nhl/types.js';
+export interface CareerTotals {
+    goals: number;
+    points: number;
+    assists?: number;
+}
 export interface MilestoneInput {
     goal: LandingGoal;
     goalsSoFar: LandingGoal[];
     periodType: string;
     gameType: number;
     isPrimaryTeam: boolean;
-    careerBefore?: {
-        goals: number;
-        points: number;
-    };
-    assistersCareerBefore?: Map<number, {
-        goals: number;
-        points: number;
-    }>;
+    careerBefore?: CareerTotals;
+    assistersCareerBefore?: Map<number, CareerTotals>;
 }
 export interface Milestone {
-    kind: 'hat_trick' | 'four_goal' | 'ot_winner' | 'first_nhl_goal' | 'season_goals' | 'career_goals' | 'career_points';
+    kind: 'hat_trick' | 'four_goal' | 'ot_winner' | 'first_nhl_goal' | 'season_goals' | 'career_goals' | 'career_points' | 'career_assists';
     label: string;
     celebrate: boolean;
 }

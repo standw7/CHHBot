@@ -9,6 +9,7 @@ function player(overrides: Partial<WatchPlayer>): WatchPlayer {
     careerGamesPlayed: 450,
     careerGoals: 150,
     careerPoints: 330,
+    careerAssists: 180,
     seasonGoals: 5,
     ...overrides,
   };
@@ -42,12 +43,18 @@ describe('findUpcomingMilestones', () => {
     assert.deepEqual(findUpcomingMilestones([player({ careerPoints: 99 })]), ['Keller: 1 point from 100 career points']);
   });
 
+  test('career assists: within 2 of the next hundred', () => {
+    assert.deepEqual(findUpcomingMilestones([player({ careerAssists: 398 })]), ['Keller: 2 assists from 400 career assists']);
+    assert.deepEqual(findUpcomingMilestones([player({ careerAssists: 399 })]), ['Keller: 1 assist from 400 career assists']);
+    assert.deepEqual(findUpcomingMilestones([player({ careerAssists: 397 })]), []);
+  });
+
   test('next game is a hundredth game', () => {
     assert.deepEqual(findUpcomingMilestones([player({ careerGamesPlayed: 699 })]), ['Keller: 700th NHL game if he plays tonight']);
   });
 
   test('NHL debut, with no other lines for a player with zero stats', () => {
-    const p = player({ name: 'But', careerGamesPlayed: 0, careerGoals: 0, careerPoints: 0, seasonGoals: 0 });
+    const p = player({ name: 'But', careerGamesPlayed: 0, careerGoals: 0, careerPoints: 0, careerAssists: 0, seasonGoals: 0 });
     assert.deepEqual(findUpcomingMilestones([p]), ['But: NHL debut if he plays tonight']);
   });
 
@@ -55,7 +62,7 @@ describe('findUpcomingMilestones', () => {
     const lines = findUpcomingMilestones([
       player({ name: 'Cooley', careerGamesPlayed: 199 }),
       player({ name: 'Keller', seasonGoals: 29, careerGoals: 399 }),
-      player({ name: 'But', careerGamesPlayed: 0, careerGoals: 0, careerPoints: 0, seasonGoals: 0 }),
+      player({ name: 'But', careerGamesPlayed: 0, careerGoals: 0, careerPoints: 0, careerAssists: 0, seasonGoals: 0 }),
     ]);
     assert.deepEqual(lines, [
       'But: NHL debut if he plays tonight',

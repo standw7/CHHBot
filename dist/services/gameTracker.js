@@ -375,7 +375,7 @@ async function getCareerBefore(ctx, playerId) {
         const playerStats = await nhlClient.getPlayerStats(playerId);
         const career = playerStats?.careerTotals?.regularSeason;
         if (career && typeof career.goals === 'number' && typeof career.points === 'number') {
-            const totals = { goals: career.goals, points: career.points };
+            const totals = { goals: career.goals, points: career.points, assists: career.assists };
             ctx.careerCache.set(playerId, totals);
             return totals;
         }

@@ -66,7 +66,7 @@ function detectMilestones(input) {
             }
         }
     }
-    // Assisters reaching a hundred career points (e.g. Keller's 600th was an assist)
+    // Assisters reaching a hundred career points (e.g. Keller's 600th was an assist) or assists
     for (const a of goal.assists) {
         const before = input.assistersCareerBefore?.get(a.playerId);
         if (!before)
@@ -74,6 +74,12 @@ function detectMilestones(input) {
         const pointsAfter = before.points + realGoalsBy(a.playerId, goalsSoFar).length + assistsBy(a.playerId, goalsSoFar);
         if (pointsAfter % 100 === 0) {
             milestones.push({ kind: 'career_points', label: `${a.lastName.default}: career point #${pointsAfter} (assist)`, celebrate: isPrimaryTeam });
+        }
+        if (before.assists !== undefined) {
+            const assistsAfter = before.assists + assistsBy(a.playerId, goalsSoFar);
+            if (assistsAfter % 100 === 0) {
+                milestones.push({ kind: 'career_assists', label: `${a.lastName.default}: career assist #${assistsAfter}`, celebrate: isPrimaryTeam });
+            }
         }
     }
     return milestones;

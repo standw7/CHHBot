@@ -6,6 +6,7 @@ import { buildGoalCard, findReplayUrl } from './goalCard.js';
 import type { GoalCardData } from './goalCard.js';
 import { buildFinalCard } from './finalCard.js';
 import { detectMilestones } from './milestones.js';
+import type { CareerTotals } from './milestones.js';
 import { maybeSendRewardsReminder } from './rewardsReminder.js';
 import { startPostGameFollowUp } from './postGame.js';
 import { sendFollowDms } from './follows.js';
@@ -36,7 +37,7 @@ interface TrackerContext {
   standingsBefore: TeamStanding[] | null;
   // Regular-season career totals (goals/points) as of before the current game, keyed by playerId.
   // Cleared on every transition into LIVE since the NHL API only updates career totals after a game.
-  careerCache: Map<number, { goals: number; points: number }>;
+  careerCache: Map<number, CareerTotals>;
   // Active goal-replay poll timers, so they can all be cancelled on stopTracker.
   replayPollTimers: Set<ReturnType<typeof setTimeout>>;
 }
@@ -317,8 +318,8 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
         }
 
         // Career totals for the scorer and assisters (regular season, primary team only), cached per game
-        let careerBefore: { goals: number; points: number } | undefined;
-        const assistersCareerBefore = new Map<number, { goals: number; points: number }>();
+        let careerBefore: CareerTotals | undefined;
+        const assistersCareerBefore = new Map<number, CareerTotals>();
         if (landingGoal && isPrimaryTeam && gameType === 2) {
           careerBefore = await getCareerBefore(ctx, landingGoal.playerId);
           for (const a of landingGoal.assists) {
@@ -390,13 +391,13 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
 
 // Regular-season career totals as of before this game, cached per game (the NHL API
 // only updates career totals after a game). Undefined if unavailable.
-async function getCareerBefore(ctx: TrackerContext, playerId: number): Promise<{ goals: number; points: number } | undefined> {
+async function getCareerBefore(ctx: TrackerContext, playerId: number): Promise<CareerTotals | undefined> {
   if (ctx.careerCache.has(playerId)) return ctx.careerCache.get(playerId);
   try {
     const playerStats = await nhlClient.getPlayerStats(playerId);
     const career = playerStats?.careerTotals?.regularSeason;
     if (career && typeof career.goals === 'number' && typeof career.points === 'number') {
-      const totals = { goals: career.goals, points: career.points };
+      const totals = { goals: career.goals, points: career.points, assists: career.assists };
       ctx.careerCache.set(playerId, totals);
       return totals;
     }

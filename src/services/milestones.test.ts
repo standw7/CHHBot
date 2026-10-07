@@ -337,3 +337,48 @@ describe('detectMilestones - assister career points', () => {
     assert.equal(milestones.find(m => m.label.startsWith('Keller')), undefined);
   });
 });
+
+describe('detectMilestones - career assists', () => {
+  const assist = (playerId: number, last: string) => ({
+    playerId, firstName: { default: 'X' }, lastName: { default: last }, name: { default: `X. ${last}` }, assistsToDate: 1,
+  });
+
+  test('assist that reaches a hundred career assists', () => {
+    const g = goal({ playerId: 900, eventId: 40, goalsToDate: 2, assists: [assist(901, 'Keller')] });
+    const milestones = detectMilestones(baseInput({
+      goal: g, goalsSoFar: [g], gameType: 2,
+      careerBefore: { goals: 10, points: 20, assists: 10 },
+      assistersCareerBefore: new Map([[901, { goals: 222, points: 650, assists: 399 }]]),
+    }));
+    assert.deepEqual(milestones.filter(m => m.kind === 'career_assists').map(m => m.label), ['Keller: career assist #400']);
+  });
+
+  test('assist reaching both a hundred assists and a hundred points shows both', () => {
+    const g = goal({ playerId: 900, eventId: 41, goalsToDate: 2, assists: [assist(901, 'Keller')] });
+    const milestones = detectMilestones(baseInput({
+      goal: g, goalsSoFar: [g], gameType: 2,
+      careerBefore: { goals: 10, points: 20, assists: 10 },
+      assistersCareerBefore: new Map([[901, { goals: 300, points: 699, assists: 399 }]]),
+    }));
+    const labels = milestones.map(m => m.label);
+    assert.ok(labels.includes('Keller: career point #700 (assist)'));
+    assert.ok(labels.includes('Keller: career assist #400'));
+  });
+
+  test('earlier assists in the same game count', () => {
+    const earlier = goal({ playerId: 902, eventId: 42, goalsToDate: 1, assists: [assist(901, 'Keller')] });
+    const g = goal({ playerId: 900, eventId: 43, goalsToDate: 2, assists: [assist(901, 'Keller')] });
+    const milestones = detectMilestones(baseInput({
+      goal: g, goalsSoFar: [earlier, g], gameType: 2,
+      careerBefore: { goals: 10, points: 20, assists: 10 },
+      assistersCareerBefore: new Map([[901, { goals: 222, points: 650, assists: 398 }]]),
+    }));
+    assert.equal(milestones.find(m => m.kind === 'career_assists')?.label, 'Keller: career assist #400');
+  });
+
+  test('scorer never gets an assist milestone for his own goal', () => {
+    const g = goal({ playerId: 900, eventId: 44, goalsToDate: 2 });
+    const milestones = detectMilestones(baseInput({ goal: g, goalsSoFar: [g], gameType: 2, careerBefore: { goals: 10, points: 20, assists: 100 } }));
+    assert.equal(milestones.find(m => m.kind === 'career_assists'), undefined);
+  });
+});

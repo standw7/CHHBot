@@ -1,17 +1,23 @@
 import type { LandingGoal } from '../nhl/types.js';
 
+export interface CareerTotals {
+  goals: number;
+  points: number;
+  assists?: number;
+}
+
 export interface MilestoneInput {
   goal: LandingGoal; // the goal being posted
   goalsSoFar: LandingGoal[]; // all goals in the game up to and including this one, in order
   periodType: string; // 'REG' | 'OT' | 'SO'
   gameType: number; // 1 pre, 2 regular, 3 playoffs
   isPrimaryTeam: boolean;
-  careerBefore?: { goals: number; points: number }; // career totals before THIS GAME, regular season, if known
-  assistersCareerBefore?: Map<number, { goals: number; points: number }>; // same, keyed by assister playerId
+  careerBefore?: CareerTotals; // career totals before THIS GAME, regular season, if known
+  assistersCareerBefore?: Map<number, CareerTotals>; // same, keyed by assister playerId
 }
 
 export interface Milestone {
-  kind: 'hat_trick' | 'four_goal' | 'ot_winner' | 'first_nhl_goal' | 'season_goals' | 'career_goals' | 'career_points';
+  kind: 'hat_trick' | 'four_goal' | 'ot_winner' | 'first_nhl_goal' | 'season_goals' | 'career_goals' | 'career_points' | 'career_assists';
   label: string;
   celebrate: boolean;
 }
@@ -92,13 +98,19 @@ export function detectMilestones(input: MilestoneInput): Milestone[] {
     }
   }
 
-  // Assisters reaching a hundred career points (e.g. Keller's 600th was an assist)
+  // Assisters reaching a hundred career points (e.g. Keller's 600th was an assist) or assists
   for (const a of goal.assists) {
     const before = input.assistersCareerBefore?.get(a.playerId);
     if (!before) continue;
     const pointsAfter = before.points + realGoalsBy(a.playerId, goalsSoFar).length + assistsBy(a.playerId, goalsSoFar);
     if (pointsAfter % 100 === 0) {
       milestones.push({ kind: 'career_points', label: `${a.lastName.default}: career point #${pointsAfter} (assist)`, celebrate: isPrimaryTeam });
+    }
+    if (before.assists !== undefined) {
+      const assistsAfter = before.assists + assistsBy(a.playerId, goalsSoFar);
+      if (assistsAfter % 100 === 0) {
+        milestones.push({ kind: 'career_assists', label: `${a.lastName.default}: career assist #${assistsAfter}`, celebrate: isPrimaryTeam });
+      }
     }
   }
 

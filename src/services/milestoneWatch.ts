@@ -10,16 +10,17 @@ export interface WatchPlayer {
   careerGamesPlayed: number;
   careerGoals: number;
   careerPoints: number;
+  careerAssists: number;
   seasonGoals: number;
 }
 
 // Lines are grouped by kind in this order, then by roster order within a kind.
-type Kind = 'debut' | 'career_goals' | 'career_points' | 'season_goals' | 'games';
-const KIND_ORDER: Kind[] = ['debut', 'career_goals', 'career_points', 'season_goals', 'games'];
+type Kind = 'debut' | 'career_goals' | 'career_points' | 'career_assists' | 'season_goals' | 'games';
+const KIND_ORDER: Kind[] = ['debut', 'career_goals', 'career_points', 'career_assists', 'season_goals', 'games'];
 
 /**
  * Milestones a player could reach tonight: 1 goal from a season/career goal mark,
- * within 2 points of the next hundred career points, a hundredth game, or an NHL debut.
+ * within 2 of the next hundred career points or assists, a hundredth game, or an NHL debut.
  * Uses the same thresholds as the goal-card milestones.
  */
 export function findUpcomingMilestones(players: WatchPlayer[]): string[] {
@@ -41,6 +42,15 @@ export function findUpcomingMilestones(players: WatchPlayer[]): string[] {
       found.push({
         kind: 'career_points',
         line: `${p.name}: ${away} point${away === 1 ? '' : 's'} from ${pointMark} career points`,
+      });
+    }
+
+    const assistMark = (Math.floor(p.careerAssists / 100) + 1) * 100;
+    const assistsAway = assistMark - p.careerAssists;
+    if (assistsAway <= 2) {
+      found.push({
+        kind: 'career_assists',
+        line: `${p.name}: ${assistsAway} assist${assistsAway === 1 ? '' : 's'} from ${assistMark} career assists`,
       });
     }
 
@@ -83,6 +93,7 @@ export async function loadWatchPlayers(teamCode: string, season: number): Promis
       careerGamesPlayed: career?.gamesPlayed ?? 0,
       careerGoals: career?.goals ?? 0,
       careerPoints: career?.points ?? 0,
+      careerAssists: career?.assists ?? 0,
       seasonGoals,
     });
   }

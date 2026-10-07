@@ -42,10 +42,10 @@ const pino_1 = __importDefault(require("pino"));
 const nhlClient = __importStar(require("../nhl/client.js"));
 const milestones_js_1 = require("./milestones.js");
 const logger = (0, pino_1.default)({ name: 'milestone-watch' });
-const KIND_ORDER = ['debut', 'career_goals', 'career_points', 'season_goals', 'games'];
+const KIND_ORDER = ['debut', 'career_goals', 'career_points', 'career_assists', 'season_goals', 'games'];
 /**
  * Milestones a player could reach tonight: 1 goal from a season/career goal mark,
- * within 2 points of the next hundred career points, a hundredth game, or an NHL debut.
+ * within 2 of the next hundred career points or assists, a hundredth game, or an NHL debut.
  * Uses the same thresholds as the goal-card milestones.
  */
 function findUpcomingMilestones(players) {
@@ -64,6 +64,14 @@ function findUpcomingMilestones(players) {
             found.push({
                 kind: 'career_points',
                 line: `${p.name}: ${away} point${away === 1 ? '' : 's'} from ${pointMark} career points`,
+            });
+        }
+        const assistMark = (Math.floor(p.careerAssists / 100) + 1) * 100;
+        const assistsAway = assistMark - p.careerAssists;
+        if (assistsAway <= 2) {
+            found.push({
+                kind: 'career_assists',
+                line: `${p.name}: ${assistsAway} assist${assistsAway === 1 ? '' : 's'} from ${assistMark} career assists`,
             });
         }
         if (milestones_js_1.SEASON_GOAL_THRESHOLDS.includes(p.seasonGoals + 1)) {
@@ -102,6 +110,7 @@ async function loadWatchPlayers(teamCode, season) {
             careerGamesPlayed: career?.gamesPlayed ?? 0,
             careerGoals: career?.goals ?? 0,
             careerPoints: career?.points ?? 0,
+            careerAssists: career?.assists ?? 0,
             seasonGoals,
         });
     }
