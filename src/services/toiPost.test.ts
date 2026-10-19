@@ -1,9 +1,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
-import { toiChartInputFromGame } from './toiPost.js';
+import { toiChartInputFromGame, toiChartTitle, pickLatestCompletedGame } from './toiPost.js';
 import type { BoxTeam } from './toiPost.js';
-import type { ShiftChartRow } from '../nhl/types.js';
+import type { ShiftChartRow, ScheduleGame } from '../nhl/types.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/2026020133.json', import.meta.url), 'utf8')) as {
   shifts: ShiftChartRow[];
@@ -40,5 +40,31 @@ describe('toiChartInputFromGame', () => {
   test('open shifts → incomplete', () => {
     const rows = fixture.shifts.map((r, i) => (i === 0 ? { ...r, duration: null } : r));
     assert.equal(toiChartInputFromGame(rows, home, away, 'UTA'), 'incomplete');
+  });
+});
+
+describe('toiChartTitle', () => {
+  test('away @ home with short date', () => {
+    assert.equal(toiChartTitle('EDM', 'UTA', '2026-10-17'), '⏱️ Time against opponents · EDM @ UTA · Oct 17');
+  });
+});
+
+describe('pickLatestCompletedGame', () => {
+  const g = (id: number, gameType: number, gameState: string, startTimeUTC: string) =>
+    ({ id, gameType, gameState, startTimeUTC }) as ScheduleGame;
+
+  test('latest finished regular-season or playoff game', () => {
+    const games = [
+      g(1, 2, 'OFF', '2026-10-15T02:00:00Z'),
+      g(2, 2, 'FINAL', '2026-10-18T02:00:00Z'),
+      g(3, 2, 'LIVE', '2026-10-20T02:00:00Z'),
+      g(4, 2, 'FUT', '2026-10-22T02:00:00Z'),
+      g(0, 1, 'OFF', '2026-10-19T02:00:00Z'), // preseason
+    ];
+    assert.equal(pickLatestCompletedGame(games), 2);
+  });
+
+  test('no finished games → null', () => {
+    assert.equal(pickLatestCompletedGame([g(4, 2, 'FUT', '2026-10-22T02:00:00Z')]), null);
   });
 });

@@ -16,7 +16,7 @@ exports.data = new discord_js_1.SlashCommandBuilder()
     .setName('setting')
     .setDescription('The setting to change')
     .setRequired(true)
-    .addChoices({ name: 'team', value: 'primary_team' }, { name: 'gameday_channel', value: 'gameday_channel_id' }, { name: 'hof_channel', value: 'hof_channel_id' }, { name: 'bot_channel', value: 'bot_commands_channel_id' }, { name: 'news_channel', value: 'news_channel_id' }, { name: 'delay', value: 'spoiler_delay_seconds' }, { name: 'spoiler_mode', value: 'spoiler_mode' }, { name: 'command_mode', value: 'command_mode' }, { name: 'link_fix', value: 'link_fix_enabled' }, { name: 'hof_threshold', value: 'hof_threshold' }, { name: 'timezone', value: 'timezone' }, { name: 'daily_card', value: 'daily_card_enabled' }, { name: 'daily_card_hour', value: 'daily_card_hour' }, { name: 'season_start', value: 'season_start' }, { name: 'season_end', value: 'season_end' }))
+    .addChoices({ name: 'team', value: 'primary_team' }, { name: 'gameday_channel', value: 'gameday_channel_id' }, { name: 'hof_channel', value: 'hof_channel_id' }, { name: 'bot_channel', value: 'bot_commands_channel_id' }, { name: 'news_channel', value: 'news_channel_id' }, { name: 'delay', value: 'spoiler_delay_seconds' }, { name: 'spoiler_mode', value: 'spoiler_mode' }, { name: 'command_mode', value: 'command_mode' }, { name: 'link_fix', value: 'link_fix_enabled' }, { name: 'hof_threshold', value: 'hof_threshold' }, { name: 'timezone', value: 'timezone' }, { name: 'daily_card', value: 'daily_card_enabled' }, { name: 'daily_card_hour', value: 'daily_card_hour' }, { name: 'season_start', value: 'season_start' }, { name: 'season_end', value: 'season_end' }, { name: 'game_charts', value: 'hsc_charts_enabled' }))
     .addStringOption(opt => opt.setName('value').setDescription('The new value').setRequired(true)))
     .addSubcommand(sub => sub.setName('show').setDescription('Show current configuration'));
 const VALID_SPOILER_MODES = ['off', 'wrap_scores', 'minimal_embed'];
@@ -61,6 +61,7 @@ async function handleShow(interaction, guildId) {
         `**Daily Card Hour:** ${config.daily_card_hour ?? 9}`,
         `**Season Start:** ${config.season_start ?? '2026-09-29'}`,
         `**Season End:** ${config.season_end ?? '2027-04-10'}`,
+        `**Game Charts (impact card + TOI):** ${config.hsc_charts_enabled ? 'on' : 'off'}`,
     ];
     await interaction.reply({ content: `**Tusky Configuration**\n${lines.join('\n')}`, ephemeral: true });
 }
@@ -145,6 +146,15 @@ async function handleSet(interaction, guildId) {
                 return;
             }
             updates.daily_card_enabled = (lower === 'on' || lower === '1') ? 1 : 0;
+            break;
+        }
+        case 'hsc_charts_enabled': {
+            const lower = value.toLowerCase();
+            if (!['on', 'off', '1', '0'].includes(lower)) {
+                await interaction.reply({ content: 'Game charts must be: on or off', ephemeral: true });
+                return;
+            }
+            updates.hsc_charts_enabled = (lower === 'on' || lower === '1') ? 1 : 0;
             break;
         }
         case 'daily_card_hour': {

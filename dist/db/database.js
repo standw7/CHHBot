@@ -190,6 +190,9 @@ function runMigrations(db) {
     if (!colNames.includes('rewards_channel_id')) {
         db.exec('ALTER TABLE guild_config ADD COLUMN rewards_channel_id TEXT');
     }
+    if (!colNames.includes('hsc_charts_enabled')) {
+        db.exec('ALTER TABLE guild_config ADD COLUMN hsc_charts_enabled INTEGER DEFAULT 0');
+    }
     if (!colNames.includes('hof_threshold')) {
         db.exec('ALTER TABLE guild_config ADD COLUMN hof_threshold INTEGER DEFAULT 8');
     }

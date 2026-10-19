@@ -36,6 +36,7 @@ export const data = new SlashCommandBuilder()
             { name: 'daily_card_hour', value: 'daily_card_hour' },
             { name: 'season_start', value: 'season_start' },
             { name: 'season_end', value: 'season_end' },
+            { name: 'game_charts', value: 'hsc_charts_enabled' },
           )
       )
       .addStringOption(opt =>
@@ -93,6 +94,7 @@ async function handleShow(interaction: ChatInputCommandInteraction, guildId: str
     `**Daily Card Hour:** ${config.daily_card_hour ?? 9}`,
     `**Season Start:** ${config.season_start ?? '2026-09-29'}`,
     `**Season End:** ${config.season_end ?? '2027-04-10'}`,
+    `**Game Charts (impact card + TOI):** ${config.hsc_charts_enabled ? 'on' : 'off'}`,
   ];
 
   await interaction.reply({ content: `**Tusky Configuration**\n${lines.join('\n')}`, ephemeral: true });
@@ -181,6 +183,15 @@ async function handleSet(interaction: ChatInputCommandInteraction, guildId: stri
         return;
       }
       updates.daily_card_enabled = (lower === 'on' || lower === '1') ? 1 : 0;
+      break;
+    }
+    case 'hsc_charts_enabled': {
+      const lower = value.toLowerCase();
+      if (!['on', 'off', '1', '0'].includes(lower)) {
+        await interaction.reply({ content: 'Game charts must be: on or off', ephemeral: true });
+        return;
+      }
+      updates.hsc_charts_enabled = (lower === 'on' || lower === '1') ? 1 : 0;
       break;
     }
     case 'daily_card_hour': {
