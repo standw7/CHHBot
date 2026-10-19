@@ -16,6 +16,7 @@ exports.playerStatsUrl = playerStatsUrl;
 exports.searchPlayersUrl = searchPlayersUrl;
 exports.rosterUrl = rosterUrl;
 exports.skaterLeadersUrl = skaterLeadersUrl;
+exports.shiftChartUrl = shiftChartUrl;
 const BASE_URL = 'https://api-web.nhle.com';
 function scheduleUrl(teamCode) {
     return `${BASE_URL}/v1/club-schedule-season/${teamCode}/now`;
@@ -64,5 +65,8 @@ function rosterUrl(teamCode) {
 }
 function skaterLeadersUrl(categories, limit) {
     return `${BASE_URL}/v1/skater-stats-leaders/current?categories=${categories.join(',')}&limit=${limit}`;
+}
+function shiftChartUrl(gameId) {
+    return `https://api.nhle.com/stats/rest/en/shiftcharts?cayenneExp=gameId=${gameId}`;
 }
 //# sourceMappingURL=endpoints.js.map

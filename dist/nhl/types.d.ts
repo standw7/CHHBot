@@ -373,4 +373,18 @@ export interface SkaterLeaderEntry {
     value: number;
 }
 export type SkaterLeadersResponse = Record<string, SkaterLeaderEntry[]>;
+export interface ShiftChartRow {
+    playerId: number;
+    firstName: string;
+    lastName: string;
+    teamAbbrev: string;
+    period: number;
+    startTime: string;
+    endTime: string;
+    duration: string | null;
+    typeCode: number;
+}
+export interface ShiftChartResponse {
+    data: ShiftChartRow[];
+}
 //# sourceMappingURL=types.d.ts.map

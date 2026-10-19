@@ -374,3 +374,21 @@ export interface SkaterLeaderEntry {
 }
 
 export type SkaterLeadersResponse = Record<string, SkaterLeaderEntry[]>;
+
+// --- Shift charts (api.nhle.com/stats) ---
+
+export interface ShiftChartRow {
+  playerId: number;
+  firstName: string;
+  lastName: string;
+  teamAbbrev: string;
+  period: number;
+  startTime: string; // mm:ss into the period
+  endTime: string;
+  duration: string | null; // empty/null while a shift is still open
+  typeCode: number; // 517 = shift
+}
+
+export interface ShiftChartResponse {
+  data: ShiftChartRow[];
+}

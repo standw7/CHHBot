@@ -1,4 +1,4 @@
-import type { ScheduleResponse, PlayByPlayResponse, BoxscoreResponse, LandingResponse, GoalReplayResponse, TvScheduleResponse, StandingsResponse, PlayerSearchResult, PlayerLandingResponse, RosterResponse, SkaterLeadersResponse } from './types.js';
+import type { ScheduleResponse, PlayByPlayResponse, BoxscoreResponse, LandingResponse, GoalReplayResponse, TvScheduleResponse, StandingsResponse, PlayerSearchResult, PlayerLandingResponse, RosterResponse, SkaterLeadersResponse, ShiftChartResponse } from './types.js';
 import type { ClubStatsResponse } from './statsTypes.js';
 export declare function getSchedule(teamCode: string): Promise<ScheduleResponse | null>;
 export declare function getWeekSchedule(teamCode: string): Promise<ScheduleResponse | null>;
@@ -13,5 +13,6 @@ export declare function searchPlayers(query: string): Promise<PlayerSearchResult
 export declare function getPlayerStats(playerId: number): Promise<PlayerLandingResponse | null>;
 export declare function getRoster(teamCode: string): Promise<RosterResponse | null>;
 export declare function getSkaterLeaders(categories: string[], limit: number): Promise<SkaterLeadersResponse | null>;
+export declare function getShiftChart(gameId: number): Promise<ShiftChartResponse | null>;
 export declare function clearCache(): void;
 //# sourceMappingURL=client.d.ts.map

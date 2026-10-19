@@ -63,3 +63,7 @@ export function rosterUrl(teamCode: string): string {
 export function skaterLeadersUrl(categories: string[], limit: number): string {
   return `${BASE_URL}/v1/skater-stats-leaders/current?categories=${categories.join(',')}&limit=${limit}`;
 }
+
+export function shiftChartUrl(gameId: number): string {
+  return `https://api.nhle.com/stats/rest/en/shiftcharts?cayenneExp=gameId=${gameId}`;
+}
