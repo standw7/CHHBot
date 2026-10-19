@@ -3,6 +3,8 @@ import pino from 'pino';
 import * as nhlClient from '../nhl/client.js';
 import { getTeamEmoji } from './goalCard.js';
 import { sendFirstStarDms } from './follows.js';
+import { getGuildConfig } from '../db/queries.js';
+import { loadToiChart, postToChannels, toiMessage } from './toiPost.js';
 import type { TeamStanding, ThreeStar } from '../nhl/types.js';
 
 const logger = pino({ name: 'post-game' });
@@ -98,6 +100,12 @@ export interface PostGameFollowUp {
   // Set to track standings (regular season, scores shown): pre-game standings snapshot.
   standingsBefore: TeamStanding[] | null;
   trackStandings: boolean;
+  gameType: number;
+}
+
+/** TOI chart after regular-season and playoff games, in guilds with game charts on. */
+export function shouldPostToiChart(gameType: number, hscChartsEnabled: number | undefined): boolean {
+  return (gameType === 2 || gameType === 3) && hscChartsEnabled === 1;
 }
 
 /**
@@ -109,6 +117,7 @@ export function startPostGameFollowUp(f: PostGameFollowUp): void {
   const beforeUs = f.standingsBefore ? findTeam(f.standingsBefore, f.teamCode) : undefined;
   let standingsDone = !f.trackStandings || !f.finalMessage || !beforeUs;
   let starsDone = false;
+  let toiDone = !shouldPostToiChart(f.gameType, getGuildConfig(f.guildId)?.hsc_charts_enabled);
   let attempt = 0;
 
   const tick = async () => {
@@ -152,10 +161,25 @@ export function startPostGameFollowUp(f: PostGameFollowUp): void {
       logger.error({ error, guildId: f.guildId, gameId: f.gameId, attempt }, 'Post-game follow-up error');
     }
 
-    if ((!starsDone || !standingsDone) && attempt < FOLLOW_UP_MAX_ATTEMPTS) {
+    // TOI chart: waits until the NHL's shift data is complete
+    if (!toiDone) {
+      try {
+        const chart = await loadToiChart(f.gameId, f.teamCode);
+        if (chart && chart !== 'incomplete') {
+          toiDone = true;
+          await postToChannels(f.client, f.guildId, toiMessage(chart, f.gameId));
+          logger.info({ guildId: f.guildId, gameId: f.gameId }, 'TOI chart posted');
+        }
+      } catch (error) {
+        logger.error({ error, guildId: f.guildId, gameId: f.gameId, attempt }, 'TOI chart error');
+      }
+    }
+
+    const pending = !starsDone || !standingsDone || !toiDone;
+    if (pending && attempt < FOLLOW_UP_MAX_ATTEMPTS) {
       setTimeout(tick, FOLLOW_UP_INTERVAL_MS);
-    } else if (!starsDone || !standingsDone) {
-      logger.warn({ guildId: f.guildId, gameId: f.gameId, starsDone, standingsDone }, 'Post-game follow-up gave up');
+    } else if (pending) {
+      logger.warn({ guildId: f.guildId, gameId: f.gameId, starsDone, standingsDone, toiDone }, 'Post-game follow-up gave up');
     }
   };
 

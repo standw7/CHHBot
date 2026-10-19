@@ -1,6 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { formatStandingsLine, formatStarLine, formatStarStats, buildThreeStarsCard } from './postGame.js';
+import { shouldPostToiChart } from './postGame.js';
 import type { TeamStanding, ThreeStar } from '../nhl/types.js';
 
 function team(abbrev: string, overrides: Partial<TeamStanding>): TeamStanding {
@@ -104,5 +105,18 @@ describe('three stars', () => {
       '⭐ C. Keller (UTA): 2G 1A\n⭐⭐ M. Marner (VGK): 1G 2A\n⭐⭐⭐ K. Vejmelka (UTA): .957 SV%, 1.01 GAA'
     );
     assert.equal(embed.data.thumbnail?.url, 'https://example.com/keller.png');
+  });
+});
+
+describe('shouldPostToiChart', () => {
+  test('regular season and playoffs when enabled', () => {
+    assert.equal(shouldPostToiChart(2, 1), true);
+    assert.equal(shouldPostToiChart(3, 1), true);
+  });
+
+  test('not in preseason, not when disabled', () => {
+    assert.equal(shouldPostToiChart(1, 1), false);
+    assert.equal(shouldPostToiChart(2, 0), false);
+    assert.equal(shouldPostToiChart(2, undefined), false);
   });
 });

@@ -21,7 +21,10 @@ export interface PostGameFollowUp {
     finalMessage: Message | null;
     standingsBefore: TeamStanding[] | null;
     trackStandings: boolean;
+    gameType: number;
 }
+/** TOI chart after regular-season and playoff games, in guilds with game charts on. */
+export declare function shouldPostToiChart(gameType: number, hscChartsEnabled: number | undefined): boolean;
 /**
  * Polls once a minute (up to an hour): edits the standings line into the final card
  * once the team's games played increments, and posts the three stars card once the

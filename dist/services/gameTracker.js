@@ -525,6 +525,7 @@ async function handleFinal(client, ctx) {
                 finalMessage,
                 standingsBefore,
                 trackStandings: gameType === 2 && (0, spoiler_js_1.shouldIncludeScoresInEmbed)(spoilerMode),
+                gameType,
             });
         }
         catch (error) {

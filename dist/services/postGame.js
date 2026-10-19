@@ -40,12 +40,15 @@ exports.formatStandingsLine = formatStandingsLine;
 exports.formatStarStats = formatStarStats;
 exports.formatStarLine = formatStarLine;
 exports.buildThreeStarsCard = buildThreeStarsCard;
+exports.shouldPostToiChart = shouldPostToiChart;
 exports.startPostGameFollowUp = startPostGameFollowUp;
 const discord_js_1 = require("discord.js");
 const pino_1 = __importDefault(require("pino"));
 const nhlClient = __importStar(require("../nhl/client.js"));
 const goalCard_js_1 = require("./goalCard.js");
 const follows_js_1 = require("./follows.js");
+const queries_js_1 = require("../db/queries.js");
+const toiPost_js_1 = require("./toiPost.js");
 const logger = (0, pino_1.default)({ name: 'post-game' });
 // After the final card, re-check the NHL every minute for up to an hour for
 // updated standings and the published three stars.
@@ -121,6 +124,10 @@ function buildThreeStarsCard(stars, awayAbbrev, homeAbbrev, guild) {
         embed.setThumbnail(sorted[0].headshot);
     return embed;
 }
+/** TOI chart after regular-season and playoff games, in guilds with game charts on. */
+function shouldPostToiChart(gameType, hscChartsEnabled) {
+    return (gameType === 2 || gameType === 3) && hscChartsEnabled === 1;
+}
 /**
  * Polls once a minute (up to an hour): edits the standings line into the final card
  * once the team's games played increments, and posts the three stars card once the
@@ -130,6 +137,7 @@ function startPostGameFollowUp(f) {
     const beforeUs = f.standingsBefore ? findTeam(f.standingsBefore, f.teamCode) : undefined;
     let standingsDone = !f.trackStandings || !f.finalMessage || !beforeUs;
     let starsDone = false;
+    let toiDone = !shouldPostToiChart(f.gameType, (0, queries_js_1.getGuildConfig)(f.guildId)?.hsc_charts_enabled);
     let attempt = 0;
     const tick = async () => {
         attempt++;
@@ -170,11 +178,26 @@ function startPostGameFollowUp(f) {
         catch (error) {
             logger.error({ error, guildId: f.guildId, gameId: f.gameId, attempt }, 'Post-game follow-up error');
         }
-        if ((!starsDone || !standingsDone) && attempt < FOLLOW_UP_MAX_ATTEMPTS) {
+        // TOI chart: waits until the NHL's shift data is complete
+        if (!toiDone) {
+            try {
+                const chart = await (0, toiPost_js_1.loadToiChart)(f.gameId, f.teamCode);
+                if (chart && chart !== 'incomplete') {
+                    toiDone = true;
+                    await (0, toiPost_js_1.postToChannels)(f.client, f.guildId, (0, toiPost_js_1.toiMessage)(chart, f.gameId));
+                    logger.info({ guildId: f.guildId, gameId: f.gameId }, 'TOI chart posted');
+                }
+            }
+            catch (error) {
+                logger.error({ error, guildId: f.guildId, gameId: f.gameId, attempt }, 'TOI chart error');
+            }
+        }
+        const pending = !starsDone || !standingsDone || !toiDone;
+        if (pending && attempt < FOLLOW_UP_MAX_ATTEMPTS) {
             setTimeout(tick, FOLLOW_UP_INTERVAL_MS);
         }
-        else if (!starsDone || !standingsDone) {
-            logger.warn({ guildId: f.guildId, gameId: f.gameId, starsDone, standingsDone }, 'Post-game follow-up gave up');
+        else if (pending) {
+            logger.warn({ guildId: f.guildId, gameId: f.gameId, starsDone, standingsDone, toiDone }, 'Post-game follow-up gave up');
         }
     };
     setTimeout(tick, FOLLOW_UP_INTERVAL_MS);

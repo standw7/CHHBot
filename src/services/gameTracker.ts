@@ -572,6 +572,7 @@ async function handleFinal(client: Client, ctx: TrackerContext): Promise<void> {
         finalMessage,
         standingsBefore,
         trackStandings: gameType === 2 && shouldIncludeScoresInEmbed(spoilerMode),
+        gameType,
       });
     } catch (error) {
       logger.error({ error, gameId }, 'Failed to post final summary');
