@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.isTeamImpactCard = isTeamImpactCard;
 exports.parseImpactCards = parseImpactCards;
 exports.buildImpactCardEmbed = buildImpactCardEmbed;
+exports.planHscPoll = planHscPoll;
 exports.latestImpactCard = latestImpactCard;
 exports.startHscWatcher = startHscWatcher;
 exports.stopHscWatcher = stopHscWatcher;
@@ -80,6 +81,21 @@ function buildImpactCardEmbed(post) {
         .setImage(post.imageUrl)
         .setColor(0x006847);
 }
+/**
+ * What one poll should do: post each unseen card to the guilds of its team (oldest first),
+ * and mark every post in the feed seen, so cards from before a guild was enabled never backfill.
+ */
+function planHscPoll(feed, guildsByTeamName, isSeen) {
+    const post = [];
+    for (const [teamName, guildIds] of guildsByTeamName) {
+        for (const card of parseImpactCards(feed, teamName).reverse()) {
+            if (!isSeen(card.uri))
+                post.push({ card, guildIds });
+        }
+    }
+    const items = feed?.feed ?? [];
+    return { post, markSeen: items.flatMap(it => (it.post?.uri ? [it.post.uri] : [])) };
+}
 async function fetchFeed(limit) {
     try {
         const res = await fetch(FEED_URL + limit, { headers: { 'User-Agent': 'Tusky-Discord-Bot/1.0' } });
@@ -119,18 +135,23 @@ async function poll(client) {
         const team = (0, queries_js_1.getGuildConfig)(guildId)?.primary_team ?? 'UTA';
         byTeam.set(team, [...(byTeam.get(team) ?? []), guildId]);
     }
+    const guildsByTeamName = new Map();
     for (const [team, guildIds] of byTeam) {
         const teamName = await teamFullName(team);
         if (!teamName)
-            continue; // standings unavailable: retry next poll
-        for (const card of parseImpactCards(feed, teamName).reverse()) {
-            if (!(0, queries_js_1.markHscPostSeen)(card.uri))
-                continue;
-            for (const guildId of guildIds)
-                await (0, toiPost_js_1.postToChannels)(client, guildId, { embeds: [buildImpactCardEmbed(card)] });
-            logger.info({ team, uri: card.uri }, 'Impact card posted');
-        }
+            return; // standings unavailable: retry next poll without marking anything seen
+        guildsByTeamName.set(teamName, guildIds);
     }
+    const plan = planHscPoll(feed, guildsByTeamName, queries_js_1.isHscPostSeen);
+    for (const { card, guildIds } of plan.post) {
+        if (!(0, queries_js_1.markHscPostSeen)(card.uri))
+            continue; // claim before posting
+        for (const guildId of guildIds)
+            await (0, toiPost_js_1.postToChannels)(client, guildId, { embeds: [buildImpactCardEmbed(card)] });
+        logger.info({ uri: card.uri, guildIds }, 'Impact card posted');
+    }
+    for (const uri of plan.markSeen)
+        (0, queries_js_1.markHscPostSeen)(uri);
 }
 let timer = null;
 function startHscWatcher(client) {

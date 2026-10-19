@@ -351,6 +351,10 @@ export function hasAnyHscPostSeen(): boolean {
   return !!getDb().prepare('SELECT 1 FROM hsc_posts_seen LIMIT 1').get();
 }
 
+export function isHscPostSeen(uri: string): boolean {
+  return !!getDb().prepare('SELECT 1 FROM hsc_posts_seen WHERE post_uri = ?').get(uri);
+}
+
 /** Claims a Bluesky post; false if it was already seen/posted. */
 export function markHscPostSeen(uri: string): boolean {
   return getDb().prepare('INSERT OR IGNORE INTO hsc_posts_seen (post_uri, seen_at) VALUES (?, ?)').run(uri, new Date().toISOString()).changes > 0;

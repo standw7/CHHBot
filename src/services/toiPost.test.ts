@@ -37,6 +37,13 @@ describe('toiChartInputFromGame', () => {
     assert.equal(toiChartInputFromGame(fixture.shifts, home, away, 'BOS'), null);
   });
 
+  test("a goalie's missing shift → incomplete (goalies count toward completeness)", () => {
+    const goalieId = home.goalies[0].playerId;
+    const lastGoalieShift = fixture.shifts.map((r, i) => ({ r, i })).filter(x => x.r.playerId === goalieId).pop()!.i;
+    const rows = fixture.shifts.filter((_, i) => i !== lastGoalieShift);
+    assert.equal(toiChartInputFromGame(rows, home, away, 'UTA'), 'incomplete');
+  });
+
   test('open shifts → incomplete', () => {
     const rows = fixture.shifts.map((r, i) => (i === 0 ? { ...r, duration: null } : r));
     assert.equal(toiChartInputFromGame(rows, home, away, 'UTA'), 'incomplete');

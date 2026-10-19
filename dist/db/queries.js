@@ -52,6 +52,7 @@ exports.markDailyCardPosted = markDailyCardPosted;
 exports.hasDailyCheckInBeenPosted = hasDailyCheckInBeenPosted;
 exports.markDailyCheckInPosted = markDailyCheckInPosted;
 exports.hasAnyHscPostSeen = hasAnyHscPostSeen;
+exports.isHscPostSeen = isHscPostSeen;
 exports.markHscPostSeen = markHscPostSeen;
 exports.createReminder = createReminder;
 exports.getDueReminders = getDueReminders;
@@ -329,6 +330,9 @@ function markDailyCheckInPosted(guildId, date) {
 }
 function hasAnyHscPostSeen() {
     return !!(0, database_js_1.getDb)().prepare('SELECT 1 FROM hsc_posts_seen LIMIT 1').get();
+}
+function isHscPostSeen(uri) {
+    return !!(0, database_js_1.getDb)().prepare('SELECT 1 FROM hsc_posts_seen WHERE post_uri = ?').get(uri);
 }
 /** Claims a Bluesky post; false if it was already seen/posted. */
 function markHscPostSeen(uri) {

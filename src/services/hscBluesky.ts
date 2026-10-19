@@ -2,7 +2,7 @@ import { Client, EmbedBuilder } from 'discord.js';
 import pino from 'pino';
 import * as nhlClient from '../nhl/client.js';
 import { getDb } from '../db/database.js';
-import { getGuildConfig, hasAnyHscPostSeen, markHscPostSeen } from '../db/queries.js';
+import { getGuildConfig, hasAnyHscPostSeen, isHscPostSeen, markHscPostSeen } from '../db/queries.js';
 import { postToChannels } from './toiPost.js';
 
 const logger = pino({ name: 'hsc-bluesky' });
@@ -57,6 +57,25 @@ export function buildImpactCardEmbed(post: ImpactCardPost): EmbedBuilder {
     .setColor(0x006847);
 }
 
+/**
+ * What one poll should do: post each unseen card to the guilds of its team (oldest first),
+ * and mark every post in the feed seen, so cards from before a guild was enabled never backfill.
+ */
+export function planHscPoll(
+  feed: unknown,
+  guildsByTeamName: Map<string, string[]>,
+  isSeen: (uri: string) => boolean
+): { post: { card: ImpactCardPost; guildIds: string[] }[]; markSeen: string[] } {
+  const post: { card: ImpactCardPost; guildIds: string[] }[] = [];
+  for (const [teamName, guildIds] of guildsByTeamName) {
+    for (const card of parseImpactCards(feed, teamName).reverse()) {
+      if (!isSeen(card.uri)) post.push({ card, guildIds });
+    }
+  }
+  const items = (feed as { feed?: FeedItem[] } | null)?.feed ?? [];
+  return { post, markSeen: items.flatMap(it => (it.post?.uri ? [it.post.uri] : [])) };
+}
+
 async function fetchFeed(limit: number): Promise<unknown | null> {
   try {
     const res = await fetch(FEED_URL + limit, { headers: { 'User-Agent': 'Tusky-Discord-Bot/1.0' } });
@@ -98,15 +117,20 @@ async function poll(client: Client): Promise<void> {
     byTeam.set(team, [...(byTeam.get(team) ?? []), guildId]);
   }
 
+  const guildsByTeamName = new Map<string, string[]>();
   for (const [team, guildIds] of byTeam) {
     const teamName = await teamFullName(team);
-    if (!teamName) continue; // standings unavailable: retry next poll
-    for (const card of parseImpactCards(feed, teamName).reverse()) {
-      if (!markHscPostSeen(card.uri)) continue;
-      for (const guildId of guildIds) await postToChannels(client, guildId, { embeds: [buildImpactCardEmbed(card)] });
-      logger.info({ team, uri: card.uri }, 'Impact card posted');
-    }
+    if (!teamName) return; // standings unavailable: retry next poll without marking anything seen
+    guildsByTeamName.set(teamName, guildIds);
   }
+
+  const plan = planHscPoll(feed, guildsByTeamName, isHscPostSeen);
+  for (const { card, guildIds } of plan.post) {
+    if (!markHscPostSeen(card.uri)) continue; // claim before posting
+    for (const guildId of guildIds) await postToChannels(client, guildId, { embeds: [buildImpactCardEmbed(card)] });
+    logger.info({ uri: card.uri, guildIds }, 'Impact card posted');
+  }
+  for (const uri of plan.markSeen) markHscPostSeen(uri);
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;

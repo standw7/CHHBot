@@ -84,6 +84,7 @@ export declare function hasDailyCheckInBeenPosted(guildId: string, date: string)
 /** Returns true if this call claimed the (guild, date) pair; false if it was already claimed. */
 export declare function markDailyCheckInPosted(guildId: string, date: string): boolean;
 export declare function hasAnyHscPostSeen(): boolean;
+export declare function isHscPostSeen(uri: string): boolean;
 /** Claims a Bluesky post; false if it was already seen/posted. */
 export declare function markHscPostSeen(uri: string): boolean;
 export declare function createReminder(guildId: string, channelId: string, userId: string, message: string, fireAt: string, dm: boolean): number;

@@ -43,8 +43,9 @@ export function toiChartInputFromGame(
   const them = us === home ? away : home;
 
   const shifts = normalizeShifts(rows);
-  const skaters = [home, away].flatMap(t => [...t.forwards, ...t.defense]);
-  const boxToi = new Map(skaters.map(p => [p.playerId, toSeconds(p.toi)]));
+  // Goalies too: a 5v5 second needs one goalie per side, so a missing goalie shift would shorten the chart
+  const everyone = [home, away].flatMap(t => [...t.forwards, ...t.defense, ...t.goalies]);
+  const boxToi = new Map(everyone.map(p => [p.playerId, toSeconds(p.toi)]));
   if (!isShiftDataComplete(shifts, boxToi, hasOpenShifts(rows))) return 'incomplete';
 
   const goalieIds = new Set([...home.goalies, ...away.goalies].map(g => g.playerId));

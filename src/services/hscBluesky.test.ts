@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { isTeamImpactCard, parseImpactCards, buildImpactCardEmbed } from './hscBluesky.js';
+import { isTeamImpactCard, parseImpactCards, buildImpactCardEmbed, planHscPoll } from './hscBluesky.js';
 
 const DID = 'did:plc:yhovbu5zkl6qxr2lz7znals5';
 function item(rkey: string, text: string, opts: { images?: boolean; reason?: boolean; reply?: boolean } = {}) {
@@ -58,5 +58,27 @@ describe('buildImpactCardEmbed', () => {
     assert.equal(embed.title, '📊 Game Score Impact Card · 2026-10-17');
     assert.equal(embed.description, '[via HockeyStatCards](https://bsky.app/profile/hockeystatcards.com/post/3uta)');
     assert.equal(embed.image?.url, card.imageUrl);
+  });
+});
+
+describe('planHscPoll', () => {
+  const teams = new Map([['Utah Mammoth', ['g1', 'g2']]]);
+
+  test('unseen team cards are posted to every guild of that team; every feed post is marked seen', () => {
+    const plan = planHscPoll(feed, teams, () => false);
+    assert.deepEqual(plan.post.map(p => [p.card.rkey, p.guildIds]), [['3uta', ['g1', 'g2']]]);
+    assert.equal(plan.markSeen.length, feed.feed.length);
+  });
+
+  test('cards posted while no guild was enabled are marked seen, so enabling later does not backfill', () => {
+    const first = planHscPoll(feed, new Map(), () => false);
+    assert.deepEqual(first.post, []);
+    const seen = new Set(first.markSeen);
+    const later = planHscPoll(feed, teams, uri => seen.has(uri));
+    assert.deepEqual(later.post, []);
+  });
+
+  test('already-seen cards are not posted again', () => {
+    assert.deepEqual(planHscPoll(feed, teams, () => true).post, []);
   });
 });
