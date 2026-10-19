@@ -19,4 +19,15 @@ export declare function hasOpenShifts(rows: ShiftChartRow[]): boolean;
 export declare function isShiftDataComplete(shifts: Shift[], boxscoreToiSec: Map<number, number>, hadOpenShifts: boolean, toleranceSec?: number): boolean;
 /** Per-second walk: a second counts when each team has exactly 5 skaters + 1 goalie on the ice. */
 export declare function computeFiveOnFive(shifts: Shift[], goalieIds: Set<number>, team: string, opponent: string): FiveOnFive;
+export interface ChartPlayer {
+    id: number;
+    label: string;
+    position: 'F' | 'D';
+}
+export declare function chartLabel(firstName: string, lastName: string): string;
+/** Chart order: forwards in trios, then defense in pairs; skaters with no 5v5 time are left out. */
+export declare function orderPlayers(players: ChartPlayer[], fiveOnFive: FiveOnFive): {
+    forwards: ChartPlayer[];
+    defense: ChartPlayer[];
+};
 //# sourceMappingURL=toiChart.d.ts.map

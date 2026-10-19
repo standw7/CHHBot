@@ -83,3 +83,41 @@ export function computeFiveOnFive(shifts: Shift[], goalieIds: Set<number>, team:
   }
   return result;
 }
+
+export interface ChartPlayer {
+  id: number;
+  label: string; // "C. McDavid"
+  position: 'F' | 'D';
+}
+
+export function chartLabel(firstName: string, lastName: string): string {
+  return `${firstName.charAt(0)}. ${lastName}`;
+}
+
+function pairKey(a: number, b: number): string {
+  return `${Math.min(a, b)}-${Math.max(a, b)}`;
+}
+
+/** Greedy linemate grouping: seed = most 5v5 TOI left, then the teammates he shared the most 5v5 time with. */
+function groupByLinemates(players: ChartPlayer[], f: FiveOnFive, groupSize: number): ChartPlayer[] {
+  const remaining = players.filter(p => (f.toi.get(p.id) ?? 0) > 0);
+  const ordered: ChartPlayer[] = [];
+  while (remaining.length > 0) {
+    remaining.sort((a, b) => (f.toi.get(b.id) ?? 0) - (f.toi.get(a.id) ?? 0));
+    const seed = remaining.shift()!;
+    const mates = [...remaining]
+      .sort((a, b) => (f.together.get(pairKey(seed.id, b.id)) ?? 0) - (f.together.get(pairKey(seed.id, a.id)) ?? 0))
+      .slice(0, groupSize - 1);
+    ordered.push(seed, ...mates);
+    for (const m of mates) remaining.splice(remaining.indexOf(m), 1);
+  }
+  return ordered;
+}
+
+/** Chart order: forwards in trios, then defense in pairs; skaters with no 5v5 time are left out. */
+export function orderPlayers(players: ChartPlayer[], fiveOnFive: FiveOnFive): { forwards: ChartPlayer[]; defense: ChartPlayer[] } {
+  return {
+    forwards: groupByLinemates(players.filter(p => p.position === 'F'), fiveOnFive, 3),
+    defense: groupByLinemates(players.filter(p => p.position === 'D'), fiveOnFive, 2),
+  };
+}

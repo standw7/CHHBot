@@ -1,8 +1,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
-import { normalizeShifts, hasOpenShifts, isShiftDataComplete, computeFiveOnFive } from './toiChart.js';
-import type { Shift } from './toiChart.js';
+import { normalizeShifts, hasOpenShifts, isShiftDataComplete, computeFiveOnFive, orderPlayers, chartLabel } from './toiChart.js';
+import type { Shift, ChartPlayer, FiveOnFive } from './toiChart.js';
 import type { ShiftChartRow } from '../nhl/types.js';
 
 interface FixturePlayer { playerId: number; name: { default: string }; position: string; toi: string }
@@ -94,5 +94,47 @@ describe('shift data completeness', () => {
     const skaters = [fixture.box.homePlayers, fixture.box.awayPlayers].flatMap(s => [...s.forwards, ...s.defense]);
     const toi = new Map(skaters.map(p => [p.playerId, toSec(p.toi)]));
     assert.equal(isShiftDataComplete(normalizeShifts(fixture.shifts), toi, hasOpenShifts(fixture.shifts)), true);
+  });
+});
+
+describe('orderPlayers', () => {
+  const p = (id: number, position: 'F' | 'D'): ChartPlayer => ({ id, label: `P${id}`, position });
+  const five = (toi: [number, number][], together: [string, number][]): FiveOnFive =>
+    ({ against: new Map(), toi: new Map(toi), together: new Map(together) });
+
+  test('forwards before defense, grouped by linemates', () => {
+    const players = [p(6, 'F'), p(2, 'F'), p(21, 'D'), p(5, 'F'), p(1, 'F'), p(4, 'F'), p(3, 'F'), p(24, 'D'), p(23, 'D'), p(22, 'D')];
+    const f = five(
+      [[1, 900], [2, 880], [3, 870], [4, 700], [5, 690], [6, 680], [21, 1000], [22, 990], [23, 800], [24, 790]],
+      [['1-2', 600], ['1-3', 550], ['2-3', 540], ['4-5', 400], ['4-6', 390], ['5-6', 380], ['1-4', 50],
+       ['21-22', 700], ['23-24', 500], ['21-23', 100]]
+    );
+    const { forwards, defense } = orderPlayers(players, f);
+    assert.deepEqual(forwards.map(x => x.id), [1, 2, 3, 4, 5, 6]);
+    assert.deepEqual(defense.map(x => x.id), [21, 22, 23, 24]);
+  });
+
+  test('skaters with 0 5v5 seconds are omitted', () => {
+    const f = five([[1, 900], [2, 800]], [['1-2', 500]]);
+    const { forwards, defense } = orderPlayers([p(1, 'F'), p(2, 'F'), p(3, 'F'), p(21, 'D')], f);
+    assert.deepEqual(forwards.map(x => x.id), [1, 2]);
+    assert.deepEqual(defense, []);
+  });
+
+  test('fixture: Utah order resembles HockeyStatCards (Yamamoto/Lee line first, Weegar or Sergachev first on D)', () => {
+    const result = computeFiveOnFive(normalizeShifts(fixture.shifts), goalieIds, 'UTA', 'EDM');
+    const uta = fixture.box.homePlayers;
+    const players: ChartPlayer[] = [
+      ...uta.forwards.map(x => ({ id: x.playerId, label: x.name.default, position: 'F' as const })),
+      ...uta.defense.map(x => ({ id: x.playerId, label: x.name.default, position: 'D' as const })),
+    ];
+    const { forwards, defense } = orderPlayers(players, result);
+    const firstLine = forwards.slice(0, 3).map(x => x.label);
+    assert.ok(firstLine.includes('K. Yamamoto') && firstLine.includes('A. Lee'), firstLine.join(', '));
+    assert.ok(['M. Weegar', 'M. Sergachev'].includes(defense[0].label), defense[0].label);
+  });
+
+  test('chartLabel', () => {
+    assert.equal(chartLabel('Connor', 'McDavid'), 'C. McDavid');
   });
 });
