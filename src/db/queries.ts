@@ -347,6 +347,15 @@ export function markDailyCheckInPosted(guildId: string, date: string): boolean {
   return getDb().prepare('INSERT OR IGNORE INTO rewards_daily_posted (guild_id, date) VALUES (?, ?)').run(guildId, date).changes > 0;
 }
 
+export function hasAnyHscPostSeen(): boolean {
+  return !!getDb().prepare('SELECT 1 FROM hsc_posts_seen LIMIT 1').get();
+}
+
+/** Claims a Bluesky post; false if it was already seen/posted. */
+export function markHscPostSeen(uri: string): boolean {
+  return getDb().prepare('INSERT OR IGNORE INTO hsc_posts_seen (post_uri, seen_at) VALUES (?, ?)').run(uri, new Date().toISOString()).changes > 0;
+}
+
 // --- Reminders ---
 
 export function createReminder(guildId: string, channelId: string, userId: string, message: string, fireAt: string, dm: boolean): number {

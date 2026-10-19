@@ -51,6 +51,8 @@ exports.hasDailyCardBeenPosted = hasDailyCardBeenPosted;
 exports.markDailyCardPosted = markDailyCardPosted;
 exports.hasDailyCheckInBeenPosted = hasDailyCheckInBeenPosted;
 exports.markDailyCheckInPosted = markDailyCheckInPosted;
+exports.hasAnyHscPostSeen = hasAnyHscPostSeen;
+exports.markHscPostSeen = markHscPostSeen;
 exports.createReminder = createReminder;
 exports.getDueReminders = getDueReminders;
 exports.getUserReminders = getUserReminders;
@@ -324,6 +326,13 @@ function hasDailyCheckInBeenPosted(guildId, date) {
 /** Returns true if this call claimed the (guild, date) pair; false if it was already claimed. */
 function markDailyCheckInPosted(guildId, date) {
     return (0, database_js_1.getDb)().prepare('INSERT OR IGNORE INTO rewards_daily_posted (guild_id, date) VALUES (?, ?)').run(guildId, date).changes > 0;
+}
+function hasAnyHscPostSeen() {
+    return !!(0, database_js_1.getDb)().prepare('SELECT 1 FROM hsc_posts_seen LIMIT 1').get();
+}
+/** Claims a Bluesky post; false if it was already seen/posted. */
+function markHscPostSeen(uri) {
+    return (0, database_js_1.getDb)().prepare('INSERT OR IGNORE INTO hsc_posts_seen (post_uri, seen_at) VALUES (?, ?)').run(uri, new Date().toISOString()).changes > 0;
 }
 // --- Reminders ---
 function createReminder(guildId, channelId, userId, message, fireAt, dm) {

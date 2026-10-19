@@ -78,6 +78,9 @@ function registerMessageHandler(client) {
                 case 'toi':
                     await handlePrefixToi(message, args[1]);
                     break;
+                case 'hsc':
+                    await handlePrefixHsc(message);
+                    break;
                 case 'player':
                     await handlePrefixPlayer(message, args.slice(1));
                     break;
@@ -1040,6 +1043,25 @@ async function handlePrefixFollowers(message) {
         : `**${followers.length}** follower${followers.length === 1 ? '' : 's'}: ${followers.map(id => `<@${id}>`).join(', ')}`;
     content += optedOut ? '\nFollowing is turned off for you (`!follow on` to allow it).' : '\nUse `!follow off` to stop people following you.';
     await message.reply({ content, allowedMentions: { parse: [] } });
+}
+// Admin test command: post the latest Game Score Impact Card from Bluesky here (ignores hsc_charts_enabled)
+async function handlePrefixHsc(message) {
+    const { PermissionFlagsBits } = await import('discord.js');
+    if (!message.member?.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        await message.reply('You need Manage Server permission.');
+        return;
+    }
+    const { latestImpactCard, buildImpactCardEmbed } = await import('../../services/hscBluesky.js');
+    const nhl = await import('../../nhl/client.js');
+    const team = (0, queries_js_1.getGuildConfig)(message.guild.id)?.primary_team ?? 'UTA';
+    const teamName = (await nhl.getStandings())?.standings.find(s => s.teamAbbrev.default === team)?.teamName.default;
+    const card = teamName ? await latestImpactCard(teamName) : null;
+    if (!card) {
+        await message.reply('No recent Game Score Impact Card found.');
+    }
+    else if (message.channel.isSendable()) {
+        await message.channel.send({ embeds: [buildImpactCardEmbed(card)] });
+    }
 }
 // Admin test command: render the TOI chart for a game in the current channel (ignores hsc_charts_enabled)
 async function handlePrefixToi(message, arg) {
