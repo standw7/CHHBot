@@ -1,7 +1,7 @@
 # Game Score Impact Card + TOI chart — design
 
 **Date:** 2026-10-19
-**Status:** approved in chat, pending spec review
+**Status:** approved (2026-10-19), with test-server rollout and HSC-style aesthetic
 
 ## Goal
 
@@ -19,6 +19,14 @@ Requested by members in the server (they saw both on HSC's X account, which only
 - The TOI chart is reproducible from the NHL's public shift charts (`api.nhle.com/stats/rest/en/shiftcharts?cayenneExp=gameId=<id>`). For 2026-10-17 EDM @ UTA (2026020133), our per-second 5v5 overlap matched HSC's chart exactly on 7/7 sampled cells (e.g. Weegar vs Draisaitl 11.3, Sergachev vs Bouchard 12.6). Shift totals matched boxscore TOI exactly (Weegar 22:38).
 - VM: x86_64, Node 20, ~350 MB free. No headless browser; SVG → PNG via `@resvg/resvg-js` (prebuilt native binary, small memory footprint).
 
+## Rollout: test server first
+
+- New `guild_config.hsc_charts_enabled INTEGER DEFAULT 0`. Both parts only post in guilds where it is 1.
+- Enable first in the test guild (`…3584`, channels #news / #game-day). Enable Clean Hits Hockey (`…5556`) once the output is approved: `/config` or a one-line DB update.
+- Admin test commands (Manage Server permission, work regardless of the flag, post in the current channel):
+  - `!toi last` / `!toi <gameId>`: render and post the TOI chart for the latest completed Utah game or a given game.
+  - `!hsc last`: post the most recent Utah Game Score Impact Card from Bluesky.
+
 ## Part 1: Game Score Impact Card (Bluesky watcher)
 
 **New:** `src/services/hscBluesky.ts`
@@ -29,7 +37,7 @@ Requested by members in the server (they saw both on HSC's X account, which only
 - Post the image's `fullsize` URL as an embed image (no download needed; Bluesky CDN URLs are stable) with:
   - title: `📊 Game Score Impact Card · <date from post>`
   - description: `via HockeyStatCards`, linked to the post (`https://bsky.app/profile/hockeystatcards.com/post/<rkey>`)
-- Post to every guild whose `primary_team` matches, to `news_channel_id` and `gameday_channel_id` (skip a channel that isn't configured).
+- Post to every guild with `hsc_charts_enabled = 1` whose `primary_team` matches, to `news_channel_id` and `gameday_channel_id` (skip a channel that isn't configured).
 - **Dedup:** table `hsc_posts_seen(post_uri TEXT PRIMARY KEY, seen_at TEXT)`. Claim (INSERT OR IGNORE) before posting. **First run seeds** all currently visible posts as seen without posting (no backfill of old cards).
 - Errors (network, API) are logged and retried next poll.
 
@@ -51,14 +59,14 @@ Requested by members in the server (they saw both on HSC's X account, which only
 - Utah players are rows, opponent players are columns.
 
 ### Rendering
-- `buildToiSvg(matrix, rows, cols, title)`: dark background, rotated column labels (`C. McDavid` style), one rounded cell per pair with the value to 1 decimal, cell shade scaled from the minimum to the maximum value in the matrix (dark brown → warm orange), footer `TIME AGAINST OPPONENTS · UTA · 5V5 MINUTES · DATA: NHL`. Tusky's own styling; no HSC branding.
+- `buildToiSvg(matrix, rows, cols, labels)`: **modelled closely on HSC's aesthetic** (requested): dark charcoal background (~`#1c1b1f`); rounded-corner cells with small gaps, shaded on a continuous scale from deep brown (low minutes) to warm amber (high), scaled to the matrix's min/max; small centred values (1 decimal) in light text; row names right-aligned in muted light gray; column names angled ~55° across the top; thin subtle divider lines between forwards and defense on both axes; letter-spaced all-caps footer in muted gray: `TIME AGAINST OPPONENTS · UTA · 5V5 MINUTES · DATA: NHL`. No HockeyStatCards name or logo. Iterated in the test server and compared side by side with HSC's chart before rollout.
 - Font: bundle one open-licensed TTF (e.g. IBM Plex Sans or Inter, OFL) in `assets/fonts/`, loaded by resvg (`loadSystemFonts: false`) so output is identical locally and on the VM.
 - `renderPng(svg)`: `@resvg/resvg-js` → PNG buffer, posted as an attachment `toi-<gameId>.png`.
 
 ### Trigger and posting
 - In `startPostGameFollowUp` (already polls once a minute for up to an hour after the final for three stars and standings), add a third task: fetch shifts + boxscore; when complete, compute, render and post.
 - Regular season and playoffs only (`gameType` 2 or 3); preseason skipped.
-- Posts to the same two channels as Part 1, message title `⏱️ Time against opponents · <AWAY> @ <HOME> · <Mon D>`.
+- Posts (only where `hsc_charts_enabled = 1`) to the same two channels as Part 1, message title `⏱️ Time against opponents · <AWAY> @ <HOME> · <Mon D>`.
 - Gives up silently (logged) after the follow-up window if shift data never completes. A restart during the window drops it, the same accepted trade-off as three stars.
 - The two guild trackers each run their own follow-up; each posts to its own guild's channels (no cross-guild dedup needed).
 
@@ -71,7 +79,7 @@ Requested by members in the server (they saw both on HSC's X account, which only
 
 - `toiChart.test.ts`: overlap on small synthetic shift sets (5v5 counted; PP/PK, empty net and goalie-pulled seconds excluded; shift boundaries end-exclusive); completeness check; ordering groups linemates; **regression fixture**: saved shift + boxscore JSON for 2026020133 reproduces HSC's sampled cells (Weegar–Draisaitl 11.3, Weegar–McDavid 11.5, Sergachev–Bouchard 12.6, Yamamoto–Bouchard 6.3, Peeke–Hyman 9.2, McBain–Draisaitl 1.6, Schmidt–Shea 7.7).
 - `hscBluesky.test.ts`: filter matches Utah's card text, rejects other teams/"Top and bottom skaters" posts, rkey/link building.
-- Manual: render the 10/17 chart to a PNG for review before deploying; dry run of the Bluesky filter against the live feed.
+- Manual: render the 10/17 chart locally, then iterate via `!toi` in the test server until approved; `!hsc last` in the test server; dry run of the Bluesky filter against the live feed. Then enable Clean Hits Hockey.
 
 ## Out of scope
 
