@@ -1653,7 +1653,7 @@ async function handlePrefixRemind(message: Message, args: string[]): Promise<voi
         '`!remind <time> <message> --dm`',
         '',
         '**Time formats:**',
-        '`30s`, `5m`, `2h`, `1d`, `1h30m`',
+        '`30s`, `5m`, `2h`, `1d`, `7y`, `1h30m`, `1y 2d`',
         '`tomorrow`, `tomorrow 3pm`',
         '`3/18 8pm`, `Mar 18 8pm`',
         '',

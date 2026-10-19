@@ -5,22 +5,26 @@ export interface ParsedTime {
   relative: string;
 }
 
-const RELATIVE_RE = /^(?:(?:(\d+)\s*d(?:ays?)?)?[\s,]*(?:(\d+)\s*h(?:(?:ou)?rs?)?)?[\s,]*(?:(\d+)\s*m(?:in(?:ute)?s?)?)?[\s,]*(?:(\d+)\s*s(?:ec(?:ond)?s?)?)?)$/i;
+const RELATIVE_RE = /^(?:(?:(\d+)\s*y(?:(?:ea)?rs?)?)?[\s,]*(?:(\d+)\s*d(?:ays?)?)?[\s,]*(?:(\d+)\s*h(?:(?:ou)?rs?)?)?[\s,]*(?:(\d+)\s*m(?:in(?:ute)?s?)?)?[\s,]*(?:(\d+)\s*s(?:ec(?:ond)?s?)?)?)$/i;
 
 export function parseTime(input: string, timezone: string): ParsedTime | null {
   const now = DateTime.now().setZone(timezone);
 
-  // --- Relative: 30s, 5m, 2h, 1d, 1h30m, etc ---
+  // --- Relative: 30s, 5m, 2h, 1d, 7y, 1h30m, 1y 2d, etc ---
   const relMatch = input.match(RELATIVE_RE);
-  if (relMatch && (relMatch[1] || relMatch[2] || relMatch[3] || relMatch[4])) {
-    const days = parseInt(relMatch[1] || '0', 10);
-    const hours = parseInt(relMatch[2] || '0', 10);
-    const minutes = parseInt(relMatch[3] || '0', 10);
-    const seconds = parseInt(relMatch[4] || '0', 10);
-    const totalMs = ((days * 86400) + (hours * 3600) + (minutes * 60) + seconds) * 1000;
-    if (totalMs <= 0) return null;
-    const date = now.plus({ days, hours, minutes, seconds });
-    return { date, relative: formatRelative(totalMs) };
+  if (relMatch && (relMatch[1] || relMatch[2] || relMatch[3] || relMatch[4] || relMatch[5])) {
+    const years = parseInt(relMatch[1] || '0', 10);
+    const days = parseInt(relMatch[2] || '0', 10);
+    const hours = parseInt(relMatch[3] || '0', 10);
+    const minutes = parseInt(relMatch[4] || '0', 10);
+    const seconds = parseInt(relMatch[5] || '0', 10);
+    const restMs = ((days * 86400) + (hours * 3600) + (minutes * 60) + seconds) * 1000;
+    if (years <= 0 && restMs <= 0) return null;
+    // Calendar years (leap days handled by luxon), not 365-day blocks
+    const date = now.plus({ years, days, hours, minutes, seconds });
+    if (years <= 0) return { date, relative: formatRelative(restMs) };
+    const yearsText = `in ${years} year${years !== 1 ? 's' : ''}`;
+    return { date, relative: restMs > 0 ? `${yearsText} ${formatRelative(restMs).replace(/^in /, '')}` : yearsText };
   }
 
   // --- "tomorrow" with optional time ---
