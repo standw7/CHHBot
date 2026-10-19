@@ -183,6 +183,8 @@ Look up team stat leaders for the current season or for a specific game.
 | `!follow @member` | DM me when this member's post makes the Hall of Fame (up to 5 per server) |
 | `!unfollow @member` | Stop following a member |
 | `!following` | List the players and members you follow |
+| `!toi last` / `!toi <gameId>` | (Admin) Post the 5v5 time-against-opponents chart for a game here |
+| `!hsc last` | (Admin) Post Utah's latest HockeyStatCards Game Score Impact Card here |
 | `!followers` | See how many people follow you, and who |
 | `!follow off` / `!follow on` | Stop anyone following you (removes current followers) / allow it again |
 
@@ -263,6 +265,8 @@ There's a 5-second cooldown per person per command to prevent spam.
 | `/gif remove key:goal url:https://example.com/goal.gif` | Remove a specific URL from a key |
 | `/gif list key:goal` | See all URLs registered for a key |
 | `/gif keys` | See all registered keys |
+
+**Game charts:** with `/config set setting:game_charts value:on`, after every Utah game Tusky posts a 5v5 "time against opponents" chart (built from NHL shift data) and reposts HockeyStatCards' Game Score Impact Card from Bluesky, in the news and gameday channels.
 
 **Saved copies:** Tenor and Klipy links are posted as links. Anything that's an actual file (a Discord upload, or a direct link to an image, gif, video or audio file) is downloaded when added and posted as an attachment, so it never expires and audio clips get Discord's audio player. Files can be up to 10 MB (50 MB in a level 2 boosted server, 100 MB at level 3). In `/gif list`, 📁 marks saved copies.
 

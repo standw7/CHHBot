@@ -25,6 +25,8 @@ npm run build && git add dist && git commit && git push      # locally
 ssh ... 'cd ~/CHHBot && git pull && pm2 restart tusky'       # on VM
 ```
 
+If `package.json` changed, run `npm install --omit=dev` on the VM before restarting (e.g. `@resvg/resvg-js` ships a native binary).
+
 ### Process supervision (three layers)
 
 1. **systemd runs PM2** — `pm2-ubuntu.service` with `ops/pm2-ubuntu.override.conf`: `Restart=always`, no `ExecStop` (the pm2 CLI spawns a rogue daemon when none is running), and `ExecStartPre` that kills any escaped daemon/bot and clears stale sockets. If PM2 dies, systemd kills the orphaned bot and resurrects both.

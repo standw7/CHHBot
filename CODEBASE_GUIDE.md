@@ -60,6 +60,10 @@ CHHBot/
 │       ├── follows.ts            # !follow: roster name matching, follow DM text, sendFollowDms() on goal cards (+ .test.ts)
 │       ├── media.ts              # Gif-command files: which links to save, download (Discord URL refresh), post as attachment (+ .test.ts)
 │       ├── leaders.ts            # NHL top-3 alerts on goal cards (goals/assists/points/PP/SH), tie rules, snapshot (+ .test.ts)
+│       ├── toiChart.ts           # 5v5 head-to-head TOI from NHL shift charts; completeness check; linemate ordering (+ .test.ts, fixtures/)
+│       ├── toiRender.ts          # TOI heatmap SVG (HSC-like style) → PNG via @resvg/resvg-js; fonts in assets/fonts (+ .test.ts)
+│       ├── toiPost.ts            # Game → chart input, loadToiChart(), postToChannels() (news + gameday) (+ .test.ts)
+│       ├── hscBluesky.ts         # Polls HockeyStatCards' Bluesky for the team's Game Score Impact Card (+ .test.ts)
 │       ├── milestones.ts         # Pure detectMilestones(): hat trick 🧢🧢🧢, OT winner, season/career marks (+ .test.ts)
 │       └── simulator.ts          # Fake game simulation for testing goal/final cards
 ├── dist/                         # Compiled JS (committed for low-RAM VM deployment)
@@ -138,6 +142,7 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 - Member follows / HoF DMs → `follows.ts` (`checkMemberFollow`, `buildHofFollowDm`, `sendHofFollowDms`); tables `member_follows` + `follow_opt_outs` (per guild); sent from `reactionAdd.ts` `inductMessage(..., { notifyFollowers: true })` for live inductions only (`!hof scan` doesn't DM); commands `handleFollowMember/handleFollowOptOut/handlePrefixFollowers` in `messageCreate.ts`
 - Gif/media commands saving files → `src/services/media.ts` (`isDownloadableFile`, `addGifEntry`, `buildMediaMessage`, `uploadLimitBytes`); `gif_commands.file_path` (relative to `media/`, gitignored, VM only); handlers in `src/bot/commands/gif.ts` and `messageCreate.ts` `handlePrefixGif`/`handlePrefixGifAdmin`; one-off backfill `src/scripts/backfillMedia.ts`
 - NHL top-3 leader alerts → `src/services/leaders.ts` (`evaluateLeaderMove` = trigger/tie rules, `leaderAlertsForGoal`, `MAX_TOP3_ROWS`); snapshot `TrackerContext.leadersBefore` taken on LIVE; season totals in `ctx.seasonCache` filled by `getCareerBefore`; rendered as fields in `goalCard.ts`
+- Game charts (impact card + TOI) → gated per guild by `guild_config.hsc_charts_enabled` (`/config set game_charts on`); TOI math `toiChart.ts`, look `toiRender.ts` (`COLORS`, `LAYOUT`), posting `toiPost.ts`, auto-post after games in `postGame.ts` (`shouldPostToiChart`), Bluesky watcher `hscBluesky.ts` (table `hsc_posts_seen`, seeds on first run); test commands `!toi last|<gameId>` and `!hsc last`; preview a chart locally with `npx tsx src/scripts/renderToiChart.ts <gameId> out.png`
 - Tests → `npm test` (`node --test` via tsx, `src/services/*.test.ts`)
 
 | Change | Files to edit |
