@@ -150,9 +150,28 @@ export interface LandingAssist {
     assistsToDate: number;
     sweaterNumber?: number;
 }
+export interface BoxscorePlayer {
+    playerId: number;
+    name: {
+        default: string;
+    };
+    position: string;
+    toi: string;
+}
+export interface BoxscoreTeamPlayers {
+    forwards: BoxscorePlayer[];
+    defense: BoxscorePlayer[];
+    goalies: BoxscorePlayer[];
+}
 export interface BoxscoreResponse {
     id: number;
     gameState: string;
+    gameDate?: string;
+    gameType?: number;
+    playerByGameStats?: {
+        homeTeam: BoxscoreTeamPlayers;
+        awayTeam: BoxscoreTeamPlayers;
+    };
     homeTeam: BoxscoreTeam;
     awayTeam: BoxscoreTeam;
     summary?: {

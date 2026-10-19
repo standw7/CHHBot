@@ -148,9 +148,25 @@ export interface LandingAssist {
 
 // --- Boxscore ---
 
+export interface BoxscorePlayer {
+  playerId: number;
+  name: { default: string }; // "C. McDavid"
+  position: string; // C, L, R, D, G
+  toi: string; // mm:ss
+}
+
+export interface BoxscoreTeamPlayers {
+  forwards: BoxscorePlayer[];
+  defense: BoxscorePlayer[];
+  goalies: BoxscorePlayer[];
+}
+
 export interface BoxscoreResponse {
   id: number;
   gameState: string;
+  gameDate?: string;
+  gameType?: number;
+  playerByGameStats?: { homeTeam: BoxscoreTeamPlayers; awayTeam: BoxscoreTeamPlayers };
   homeTeam: BoxscoreTeam;
   awayTeam: BoxscoreTeam;
   summary?: {
