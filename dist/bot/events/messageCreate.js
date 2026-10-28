@@ -1366,7 +1366,7 @@ async function handlePrefixGifAdmin(message, args) {
     // or: !gif keys
     const { PermissionFlagsBits } = await import('discord.js');
     const { listGifKeys, listGifUrlsForKey } = await import('../../db/queries.js');
-    const { addGifEntry, removeGifEntry, deleteGifKeyAndMedia, uploadLimitBytes, MediaError, ADD_REPLIES } = await import('../../services/media.js');
+    const { addGifEntry, removeGifEntry, removeGifEntryByNumber, parseListNumber, deleteGifKeyAndMedia, uploadLimitBytes, MediaError, ADD_REPLIES } = await import('../../services/media.js');
     const guildId = message.guild.id;
     const sub = args[0]?.toLowerCase();
     if (!sub) {
@@ -1466,8 +1466,14 @@ async function handlePrefixGifAdmin(message, args) {
         }
     }
     else if (sub === 'remove') {
-        if (!key || !url) {
-            await message.reply('Usage: `!gif remove key:<key> url:<url>`');
+        const number = parseListNumber(args.slice(1));
+        if (!key || (!url && !number)) {
+            await message.reply('Usage: `!gif remove key:<key> <#>` (the number from `!gif list key:<key>`), or `!gif remove key:<key> url:<url>`');
+            return;
+        }
+        if (number) {
+            const removed = await removeGifEntryByNumber(guildId, key, number);
+            await message.reply(removed ? `Removed #${number} from **${key}** (<${removed.url}>).` : `**${key}** has no #${number}. Check \`!gif list key:${key}\`.`);
             return;
         }
         const removed = await removeGifEntry(guildId, key, url);

@@ -15,6 +15,9 @@ exports.deleteMediaFile = deleteMediaFile;
 exports.buildMediaMessage = buildMediaMessage;
 exports.addGifEntry = addGifEntry;
 exports.removeGifEntry = removeGifEntry;
+exports.parseListNumber = parseListNumber;
+exports.entryForListNumber = entryForListNumber;
+exports.removeGifEntryByNumber = removeGifEntryByNumber;
 exports.deleteGifKeyAndMedia = deleteGifKeyAndMedia;
 const promises_1 = require("fs/promises");
 const fs_1 = require("fs");
@@ -185,6 +188,25 @@ async function removeGifEntry(guildId, key, url) {
     const { removed, filePaths } = (0, queries_js_1.removeGifUrl)(guildId, key, url);
     await Promise.all(filePaths.map(deleteMediaFile));
     return removed > 0;
+}
+/** The list number in `!gif remove key:goal 3` (or `#3`), or null if there isn't one. */
+function parseListNumber(args) {
+    const token = args.find(a => /^#?\d+$/.test(a));
+    const n = token ? parseInt(token.replace('#', ''), 10) : NaN;
+    return n >= 1 ? n : null;
+}
+/** Entry shown as number `n` (1-based) in the list command, or null if out of range. */
+function entryForListNumber(entries, n) {
+    return n >= 1 && n <= entries.length ? entries[n - 1] : null;
+}
+/** Remove the entry shown as number `n` in the list command. Returns it, or null if out of range. */
+async function removeGifEntryByNumber(guildId, key, n) {
+    const entry = entryForListNumber((0, queries_js_1.listGifUrlsForKey)(guildId, key), n);
+    if (!entry)
+        return null;
+    (0, queries_js_1.deleteGifEntryById)(entry.id);
+    await deleteMediaFile(entry.file_path);
+    return entry;
 }
 async function deleteGifKeyAndMedia(guildId, key) {
     const { removed, filePaths } = (0, queries_js_1.deleteGifKey)(guildId, key);

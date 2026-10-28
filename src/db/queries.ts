@@ -94,7 +94,7 @@ export function renameGifKey(guildId: string, oldKey: string, newKey: string): n
 }
 
 export function listGifUrlsForKey(guildId: string, key: string): GifCommand[] {
-  return getDb().prepare('SELECT * FROM gif_commands WHERE guild_id = ? AND key = ?').all(guildId, key) as GifCommand[];
+  return getDb().prepare('SELECT * FROM gif_commands WHERE guild_id = ? AND key = ? ORDER BY id').all(guildId, key) as GifCommand[];
 }
 
 // --- Posted Goals ---

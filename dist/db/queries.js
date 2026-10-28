@@ -125,7 +125,7 @@ function renameGifKey(guildId, oldKey, newKey) {
     return result.changes;
 }
 function listGifUrlsForKey(guildId, key) {
-    return (0, database_js_1.getDb)().prepare('SELECT * FROM gif_commands WHERE guild_id = ? AND key = ?').all(guildId, key);
+    return (0, database_js_1.getDb)().prepare('SELECT * FROM gif_commands WHERE guild_id = ? AND key = ? ORDER BY id').all(guildId, key);
 }
 // --- Posted Goals ---
 function hasGoalBeenPosted(guildId, gameId, eventId) {

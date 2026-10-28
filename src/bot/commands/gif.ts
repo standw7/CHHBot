@@ -4,7 +4,7 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import { getGifEntries, listGifKeys, listGifUrlsForKey } from '../../db/queries.js';
-import { addGifEntry, removeGifEntry, buildMediaMessage, uploadLimitBytes, MediaError, ADD_REPLIES } from '../../services/media.js';
+import { addGifEntry, removeGifEntry, removeGifEntryByNumber, buildMediaMessage, uploadLimitBytes, MediaError, ADD_REPLIES } from '../../services/media.js';
 
 export const data = new SlashCommandBuilder()
   .setName('gif')
@@ -26,9 +26,10 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(sub =>
     sub
       .setName('remove')
-      .setDescription('Remove a media URL from a key (admin only)')
+      .setDescription('Remove media from a key by its list number or URL (admin only)')
       .addStringOption(opt => opt.setName('key').setDescription('The gif key').setRequired(true))
-      .addStringOption(opt => opt.setName('url').setDescription('The media URL to remove').setRequired(true))
+      .addIntegerOption(opt => opt.setName('number').setDescription('The number shown by /gif list').setMinValue(1))
+      .addStringOption(opt => opt.setName('url').setDescription('Or the media URL to remove'))
   )
   .addSubcommand(sub =>
     sub.setName('list').setDescription('List all URLs for a key')
@@ -129,7 +130,21 @@ async function handleRemove(interaction: ChatInputCommandInteraction, guildId: s
   }
 
   const key = interaction.options.getString('key', true).toLowerCase();
-  const url = interaction.options.getString('url', true);
+  const number = interaction.options.getInteger('number');
+  if (number) {
+    const entry = await removeGifEntryByNumber(guildId, key, number);
+    await interaction.reply({
+      content: entry ? `Removed #${number} from **${key}** (<${entry.url}>).` : `**${key}** has no #${number}. Check \`/gif list\`.`,
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const url = interaction.options.getString('url');
+  if (!url) {
+    await interaction.reply({ content: 'Give a `number` from `/gif list` or a `url`.', ephemeral: true });
+    return;
+  }
   const removed = await removeGifEntry(guildId, key, url);
   if (removed) {
     await interaction.reply({ content: `Removed media from **${key}**.`, ephemeral: true });

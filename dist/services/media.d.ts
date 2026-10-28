@@ -1,4 +1,5 @@
 import type { REST } from 'discord.js';
+import type { GifCommand } from '../db/models.js';
 export declare const MEDIA_DIR: string;
 export declare const MAX_MEDIA_BYTES: number;
 /** Upload limit for a server's boost tier (Guild.premiumTier / premium_tier). */
@@ -48,6 +49,12 @@ export declare function buildMediaMessage(entry: {
  */
 export declare function addGifEntry(rest: REST, guildId: string, key: string, url: string, addedBy: string, maxBytes?: number): Promise<'saved' | 'link' | 'link_fallback'>;
 export declare function removeGifEntry(guildId: string, key: string, url: string): Promise<boolean>;
+/** The list number in `!gif remove key:goal 3` (or `#3`), or null if there isn't one. */
+export declare function parseListNumber(args: string[]): number | null;
+/** Entry shown as number `n` (1-based) in the list command, or null if out of range. */
+export declare function entryForListNumber<T>(entries: T[], n: number): T | null;
+/** Remove the entry shown as number `n` in the list command. Returns it, or null if out of range. */
+export declare function removeGifEntryByNumber(guildId: string, key: string, n: number): Promise<GifCommand | null>;
 export declare function deleteGifKeyAndMedia(guildId: string, key: string): Promise<number>;
 export declare const ADD_REPLIES: Record<'saved' | 'link' | 'link_fallback', (key: string) => string>;
 //# sourceMappingURL=media.d.ts.map

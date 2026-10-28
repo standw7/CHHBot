@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { isDownloadableFile, isDiscordAttachment, validateMedia, displayFileName, MAX_MEDIA_BYTES, uploadLimitBytes, canFallBackToLink } from './media.js';
+import { isDownloadableFile, isDiscordAttachment, validateMedia, displayFileName, MAX_MEDIA_BYTES, uploadLimitBytes, canFallBackToLink, entryForListNumber, parseListNumber } from './media.js';
 
 describe('isDownloadableFile', () => {
   test('Discord attachment links are downloaded (any domain variant, with or without params)', () => {
@@ -86,5 +86,32 @@ describe('canFallBackToLink', () => {
   test('Discord attachments must be saved (their links expire)', () => {
     assert.equal(canFallBackToLink('https://cdn.discordapp.com/attachments/1/2/a.png?ex=1'), false);
     assert.equal(canFallBackToLink('https://media.discordapp.net/attachments/1/2/a.png'), false);
+  });
+});
+
+describe('parseListNumber', () => {
+  test('a bare number or #number from the remove args', () => {
+    assert.equal(parseListNumber(['key:goal', '3']), 3);
+    assert.equal(parseListNumber(['key:goal', '#12']), 12);
+    assert.equal(parseListNumber(['3', 'key:goal']), 3);
+  });
+
+  test('no number, zero, or junk → null', () => {
+    assert.equal(parseListNumber(['key:goal']), null);
+    assert.equal(parseListNumber(['key:goal', 'url:https://x.com/1.gif']), null);
+    assert.equal(parseListNumber(['key:goal', '0']), null);
+    assert.equal(parseListNumber(['key:goal', '3a']), null);
+  });
+});
+
+describe('entryForListNumber', () => {
+  const entries = [{ id: 10 }, { id: 11 }, { id: 12 }];
+  test('1-based, matching the numbers in list', () => {
+    assert.equal(entryForListNumber(entries, 1)?.id, 10);
+    assert.equal(entryForListNumber(entries, 3)?.id, 12);
+  });
+  test('out of range → null', () => {
+    assert.equal(entryForListNumber(entries, 0), null);
+    assert.equal(entryForListNumber(entries, 4), null);
   });
 });

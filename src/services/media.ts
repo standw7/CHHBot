@@ -3,7 +3,8 @@ import { existsSync } from 'fs';
 import path from 'path';
 import type { REST } from 'discord.js';
 import pino from 'pino';
-import { addGifUrl, removeGifUrl, deleteGifKey } from '../db/queries.js';
+import { addGifUrl, removeGifUrl, deleteGifKey, listGifUrlsForKey, deleteGifEntryById } from '../db/queries.js';
+import type { GifCommand } from '../db/models.js';
 
 const logger = pino({ name: 'media' });
 
@@ -188,6 +189,27 @@ export async function removeGifEntry(guildId: string, key: string, url: string):
   const { removed, filePaths } = removeGifUrl(guildId, key, url);
   await Promise.all(filePaths.map(deleteMediaFile));
   return removed > 0;
+}
+
+/** The list number in `!gif remove key:goal 3` (or `#3`), or null if there isn't one. */
+export function parseListNumber(args: string[]): number | null {
+  const token = args.find(a => /^#?\d+$/.test(a));
+  const n = token ? parseInt(token.replace('#', ''), 10) : NaN;
+  return n >= 1 ? n : null;
+}
+
+/** Entry shown as number `n` (1-based) in the list command, or null if out of range. */
+export function entryForListNumber<T>(entries: T[], n: number): T | null {
+  return n >= 1 && n <= entries.length ? entries[n - 1] : null;
+}
+
+/** Remove the entry shown as number `n` in the list command. Returns it, or null if out of range. */
+export async function removeGifEntryByNumber(guildId: string, key: string, n: number): Promise<GifCommand | null> {
+  const entry = entryForListNumber(listGifUrlsForKey(guildId, key), n);
+  if (!entry) return null;
+  deleteGifEntryById(entry.id);
+  await deleteMediaFile(entry.file_path);
+  return entry;
 }
 
 export async function deleteGifKeyAndMedia(guildId: string, key: string): Promise<number> {
