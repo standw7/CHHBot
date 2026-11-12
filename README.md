@@ -267,7 +267,7 @@ There's a 5-second cooldown per person per command to prevent spam.
 | `/gif list key:goal` | See all URLs registered for a key |
 | `/gif keys` | See all registered keys |
 
-**Game charts:** with `/config set setting:game_charts value:on`, after every Utah game Tusky posts a 5v5 "time against opponents" chart (built from NHL shift data) and reposts HockeyStatCards' Game Score Impact Card from Bluesky, in the news and gameday channels.
+**Game charts:** with `/config set setting:game_charts value:on`, after every Utah game Tusky posts a 5v5 "time against opponents" chart (built from NHL shift data, falling back to the NHL's HTML shift reports when the shift API never fills in), a Deserve To Win O'Meter (MoneyPuck's xG simulation, re-run on MoneyPuck's shot data), and reposts HockeyStatCards' Game Score Impact Card from Bluesky, in the news and gameday channels. Admins can test them with `!toi last` and `!meter last` (or a game ID).
 
 **Saved copies:** Tenor and Klipy links are posted as links. Anything that's an actual file (a Discord upload, or a direct link to an image, gif, video or audio file) is downloaded when added and posted as an attachment, so it never expires and audio clips get Discord's audio player. Files can be up to 10 MB (50 MB in a level 2 boosted server, 100 MB at level 3). In `/gif list`, 📁 marks saved copies.
 

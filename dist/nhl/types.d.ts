@@ -152,6 +152,7 @@ export interface LandingAssist {
 }
 export interface BoxscorePlayer {
     playerId: number;
+    sweaterNumber?: number;
     name: {
         default: string;
     };

@@ -5,6 +5,7 @@ import { getTeamEmoji } from './goalCard.js';
 import { sendFirstStarDms } from './follows.js';
 import { getGuildConfig } from '../db/queries.js';
 import { loadToiChart, postToChannels, toiMessage } from './toiPost.js';
+import { loadDeserveToWin, meterMessage } from './deserveToWin.js';
 import type { TeamStanding, ThreeStar } from '../nhl/types.js';
 
 const logger = pino({ name: 'post-game' });
@@ -117,7 +118,9 @@ export function startPostGameFollowUp(f: PostGameFollowUp): void {
   const beforeUs = f.standingsBefore ? findTeam(f.standingsBefore, f.teamCode) : undefined;
   let standingsDone = !f.trackStandings || !f.finalMessage || !beforeUs;
   let starsDone = false;
-  let toiDone = !shouldPostToiChart(f.gameType, getGuildConfig(f.guildId)?.hsc_charts_enabled);
+  const chartsWanted = shouldPostToiChart(f.gameType, getGuildConfig(f.guildId)?.hsc_charts_enabled);
+  let toiDone = !chartsWanted;
+  let meterDone = !chartsWanted;
   let attempt = 0;
 
   const tick = async () => {
@@ -175,11 +178,27 @@ export function startPostGameFollowUp(f: PostGameFollowUp): void {
       }
     }
 
-    const pending = !starsDone || !standingsDone || !toiDone;
+    // Deserve To Win O'Meter: waits until MoneyPuck has the whole game
+    if (!meterDone) {
+      try {
+        const meter = await loadDeserveToWin(f.gameId, f.teamCode);
+        if (meter === null) {
+          meterDone = true;
+        } else if (meter !== 'incomplete') {
+          meterDone = true;
+          await postToChannels(f.client, f.guildId, meterMessage(meter, f.gameId, f.teamCode));
+          logger.info({ guildId: f.guildId, gameId: f.gameId }, 'Deserve to win meter posted');
+        }
+      } catch (error) {
+        logger.error({ error, guildId: f.guildId, gameId: f.gameId, attempt }, 'Deserve to win meter error');
+      }
+    }
+
+    const pending = !starsDone || !standingsDone || !toiDone || !meterDone;
     if (pending && attempt < FOLLOW_UP_MAX_ATTEMPTS) {
       setTimeout(tick, FOLLOW_UP_INTERVAL_MS);
     } else if (pending) {
-      logger.warn({ guildId: f.guildId, gameId: f.gameId, starsDone, standingsDone, toiDone }, 'Post-game follow-up gave up');
+      logger.warn({ guildId: f.guildId, gameId: f.gameId, starsDone, standingsDone, toiDone, meterDone }, 'Post-game follow-up gave up');
     }
   };
 

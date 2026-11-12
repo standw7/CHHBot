@@ -150,6 +150,7 @@ export interface LandingAssist {
 
 export interface BoxscorePlayer {
   playerId: number;
+  sweaterNumber?: number;
   name: { default: string }; // "C. McDavid"
   position: string; // C, L, R, D, G
   toi: string; // mm:ss

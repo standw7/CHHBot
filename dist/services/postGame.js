@@ -49,6 +49,7 @@ const goalCard_js_1 = require("./goalCard.js");
 const follows_js_1 = require("./follows.js");
 const queries_js_1 = require("../db/queries.js");
 const toiPost_js_1 = require("./toiPost.js");
+const deserveToWin_js_1 = require("./deserveToWin.js");
 const logger = (0, pino_1.default)({ name: 'post-game' });
 // After the final card, re-check the NHL every minute for up to an hour for
 // updated standings and the published three stars.
@@ -137,7 +138,9 @@ function startPostGameFollowUp(f) {
     const beforeUs = f.standingsBefore ? findTeam(f.standingsBefore, f.teamCode) : undefined;
     let standingsDone = !f.trackStandings || !f.finalMessage || !beforeUs;
     let starsDone = false;
-    let toiDone = !shouldPostToiChart(f.gameType, (0, queries_js_1.getGuildConfig)(f.guildId)?.hsc_charts_enabled);
+    const chartsWanted = shouldPostToiChart(f.gameType, (0, queries_js_1.getGuildConfig)(f.guildId)?.hsc_charts_enabled);
+    let toiDone = !chartsWanted;
+    let meterDone = !chartsWanted;
     let attempt = 0;
     const tick = async () => {
         attempt++;
@@ -192,12 +195,29 @@ function startPostGameFollowUp(f) {
                 logger.error({ error, guildId: f.guildId, gameId: f.gameId, attempt }, 'TOI chart error');
             }
         }
-        const pending = !starsDone || !standingsDone || !toiDone;
+        // Deserve To Win O'Meter: waits until MoneyPuck has the whole game
+        if (!meterDone) {
+            try {
+                const meter = await (0, deserveToWin_js_1.loadDeserveToWin)(f.gameId, f.teamCode);
+                if (meter === null) {
+                    meterDone = true;
+                }
+                else if (meter !== 'incomplete') {
+                    meterDone = true;
+                    await (0, toiPost_js_1.postToChannels)(f.client, f.guildId, (0, deserveToWin_js_1.meterMessage)(meter, f.gameId, f.teamCode));
+                    logger.info({ guildId: f.guildId, gameId: f.gameId }, 'Deserve to win meter posted');
+                }
+            }
+            catch (error) {
+                logger.error({ error, guildId: f.guildId, gameId: f.gameId, attempt }, 'Deserve to win meter error');
+            }
+        }
+        const pending = !starsDone || !standingsDone || !toiDone || !meterDone;
         if (pending && attempt < FOLLOW_UP_MAX_ATTEMPTS) {
             setTimeout(tick, FOLLOW_UP_INTERVAL_MS);
         }
         else if (pending) {
-            logger.warn({ guildId: f.guildId, gameId: f.gameId, starsDone, standingsDone, toiDone }, 'Post-game follow-up gave up');
+            logger.warn({ guildId: f.guildId, gameId: f.gameId, starsDone, standingsDone, toiDone, meterDone }, 'Post-game follow-up gave up');
         }
     };
     setTimeout(tick, FOLLOW_UP_INTERVAL_MS);

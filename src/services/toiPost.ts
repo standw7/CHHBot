@@ -8,6 +8,7 @@ import { buildToiSvg, renderPng } from './toiRender.js';
 import { normalizeShifts, hasOpenShifts, isShiftDataComplete, computeFiveOnFive, orderPlayers } from './toiChart.js';
 import type { ChartPlayer } from './toiChart.js';
 import type { ToiChartInput } from './toiRender.js';
+import { fetchShiftReports } from './toiHtmlReport.js';
 
 const logger = pino({ name: 'toi-post' });
 
@@ -80,16 +81,29 @@ export async function latestCompletedGameId(teamCode: string): Promise<number | 
   return schedule ? pickLatestCompletedGame(schedule.games ?? []) : null;
 }
 
-/** Fetch, check and render. null if the game can't be loaded or doesn't involve the team. */
+/**
+ * Fetch, check and render. null if the game can't be loaded or doesn't involve the team.
+ * Uses the shiftcharts API, falling back to the HTML shift reports when the API's data
+ * is missing or incomplete (the API is never populated for some games).
+ */
 export async function loadToiChart(gameId: number, teamCode: string): Promise<{ png: Buffer; title: string } | 'incomplete' | null> {
   const [shifts, box] = await Promise.all([nhlClient.getShiftChart(gameId), nhlClient.getBoxscore(gameId)]);
-  if (!shifts || !box?.playerByGameStats) return null;
-  const input = toiChartInputFromGame(
-    shifts.data,
-    { abbrev: box.homeTeam.abbrev, ...box.playerByGameStats.homeTeam },
-    { abbrev: box.awayTeam.abbrev, ...box.playerByGameStats.awayTeam },
-    teamCode
-  );
+  if (!box?.playerByGameStats) return null;
+  const home: BoxTeam = { abbrev: box.homeTeam.abbrev, ...box.playerByGameStats.homeTeam };
+  const away: BoxTeam = { abbrev: box.awayTeam.abbrev, ...box.playerByGameStats.awayTeam };
+
+  let input = shifts ? toiChartInputFromGame(shifts.data, home, away, teamCode) : 'incomplete';
+  if (input === 'incomplete' || (shifts?.data.length ?? 0) === 0) {
+    const everyone = (t: BoxTeam) => [...t.forwards, ...t.defense, ...t.goalies];
+    const rows = await fetchShiftReports(gameId, { abbrev: home.abbrev, players: everyone(home) }, { abbrev: away.abbrev, players: everyone(away) });
+    if (rows && rows.length > 0) {
+      const fromReports = toiChartInputFromGame(rows, home, away, teamCode);
+      if (fromReports !== 'incomplete') {
+        if (fromReports) logger.info({ gameId }, 'Using HTML shift reports for TOI chart');
+        input = fromReports;
+      }
+    }
+  }
   if (input === null || input === 'incomplete') return input;
   return {
     png: renderPng(buildToiSvg(input)),

@@ -14,7 +14,11 @@ export declare function toiChartTitle(awayAbbrev: string, homeAbbrev: string, ga
 /** Latest finished regular-season or playoff game, or null. */
 export declare function pickLatestCompletedGame(games: ScheduleGame[]): number | null;
 export declare function latestCompletedGameId(teamCode: string): Promise<number | null>;
-/** Fetch, check and render. null if the game can't be loaded or doesn't involve the team. */
+/**
+ * Fetch, check and render. null if the game can't be loaded or doesn't involve the team.
+ * Uses the shiftcharts API, falling back to the HTML shift reports when the API's data
+ * is missing or incomplete (the API is never populated for some games).
+ */
 export declare function loadToiChart(gameId: number, teamCode: string): Promise<{
     png: Buffer;
     title: string;

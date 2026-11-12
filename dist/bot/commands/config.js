@@ -61,7 +61,7 @@ async function handleShow(interaction, guildId) {
         `**Daily Card Hour:** ${config.daily_card_hour ?? 9}`,
         `**Season Start:** ${config.season_start ?? '2026-09-29'}`,
         `**Season End:** ${config.season_end ?? '2027-04-10'}`,
-        `**Game Charts (impact card + TOI):** ${config.hsc_charts_enabled ? 'on' : 'off'}`,
+        `**Game Charts (impact card + TOI + deserve-to-win):** ${config.hsc_charts_enabled ? 'on' : 'off'}`,
         `**Gif Contributor Role:** ${config.gif_contributor_role_id ? `<@&${config.gif_contributor_role_id}>` : 'Not set'}`,
         `**Gif Log Channel:** ${config.gif_log_channel_id ? `<#${config.gif_log_channel_id}>` : 'Not set'}`,
     ];

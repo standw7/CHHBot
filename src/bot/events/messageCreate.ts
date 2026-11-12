@@ -79,6 +79,9 @@ export function registerMessageHandler(client: Client): void {
         case 'toi':
           await handlePrefixToi(message, args[1]);
           break;
+        case 'meter':
+          await handlePrefixMeter(message, args[1]);
+          break;
         case 'hsc':
           await handlePrefixHsc(message);
           break;
@@ -1245,6 +1248,31 @@ async function handlePrefixToi(message: Message, arg: string | undefined): Promi
     await message.reply("Couldn't load that game.");
   } else if (message.channel.isSendable()) {
     await message.channel.send(toiMessage(chart, gameId));
+  }
+}
+
+// Admin test command: render the Deserve To Win O'Meter for a game in the current channel
+async function handlePrefixMeter(message: Message, arg: string | undefined): Promise<void> {
+  const { PermissionFlagsBits } = await import('discord.js');
+  if (!message.member?.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    await message.reply('You need Manage Server permission.');
+    return;
+  }
+  const { latestCompletedGameId } = await import('../../services/toiPost.js');
+  const { loadDeserveToWin, meterMessage } = await import('../../services/deserveToWin.js');
+  const teamCode = getGuildConfig(message.guild!.id)?.primary_team ?? 'UTA';
+  const gameId = !arg || arg === 'last' ? await latestCompletedGameId(teamCode) : Number(arg);
+  if (!gameId || Number.isNaN(gameId)) {
+    await message.reply('Usage: `!meter last` or `!meter <gameId>`');
+    return;
+  }
+  const meter = await loadDeserveToWin(gameId, teamCode);
+  if (meter === 'incomplete') {
+    await message.reply("MoneyPuck doesn't have the full game yet.");
+  } else if (!meter) {
+    await message.reply("Couldn't load that game.");
+  } else if (message.channel.isSendable()) {
+    await message.channel.send(meterMessage(meter, gameId, teamCode));
   }
 }
 
