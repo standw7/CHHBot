@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { isDownloadableFile, isDiscordAttachment, validateMedia, displayFileName, MAX_MEDIA_BYTES, uploadLimitBytes, canFallBackToLink, entryForListNumber, parseListNumber, mediaUrlsFromMessage } from './media.js';
+import { isDownloadableFile, isDiscordAttachment, validateMedia, displayFileName, MAX_MEDIA_BYTES, uploadLimitBytes, canFallBackToLink, entryForListNumber, parseListNumber, mediaUrlsFromMessage, normalizeGifKey } from './media.js';
 
 describe('isDownloadableFile', () => {
   test('Discord attachment links are downloaded (any domain variant, with or without params)', () => {
@@ -140,5 +140,18 @@ describe('mediaUrlsFromMessage', () => {
 
   test('plain link previews without media are ignored', () => {
     assert.deepEqual(mediaUrlsFromMessage(msg([], [{ data: { type: 'article' }, url: 'https://example.com/news' }])), []);
+  });
+});
+
+describe('normalizeGifKey', () => {
+  test('strips placeholder brackets and quotes, lowercases', () => {
+    assert.equal(normalizeGifKey('<pain>'), 'pain');
+    assert.equal(normalizeGifKey('[Pain]'), 'pain');
+    assert.equal(normalizeGifKey(' "goal" '), 'goal');
+    assert.equal(normalizeGifKey('YAMS'), 'yams');
+  });
+
+  test('only brackets leaves nothing', () => {
+    assert.equal(normalizeGifKey('<>'), '');
   });
 });

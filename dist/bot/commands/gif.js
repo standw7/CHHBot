@@ -57,7 +57,7 @@ async function execute(interaction) {
     }
 }
 async function handlePlay(interaction, guildId) {
-    const key = interaction.options.getString('name', true).toLowerCase();
+    const key = (0, media_js_1.normalizeGifKey)(interaction.options.getString('name', true));
     const userId = interaction.user.id;
     // Check cooldown
     const cooldownKey = `${userId}-${key}`;
@@ -86,7 +86,7 @@ async function handleAdd(interaction, guildId) {
         await interaction.reply({ content: gifLog_js_1.CONTRIBUTOR_DENIED, ephemeral: true });
         return;
     }
-    const key = interaction.options.getString('key', true).toLowerCase();
+    const key = (0, media_js_1.normalizeGifKey)(interaction.options.getString('key', true));
     const url = interaction.options.getString('url') ?? interaction.options.getAttachment('file')?.url;
     if (!url) {
         await interaction.reply({ content: 'Give a `url` or attach a `file`.', ephemeral: true });
@@ -109,7 +109,7 @@ async function handleRemove(interaction, guildId) {
         await interaction.reply({ content: gifLog_js_1.CONTRIBUTOR_DENIED, ephemeral: true });
         return;
     }
-    const key = interaction.options.getString('key', true).toLowerCase();
+    const key = (0, media_js_1.normalizeGifKey)(interaction.options.getString('key', true));
     const onRemoved = (entries) => (0, gifLog_js_1.logGifAction)(interaction.client, guildId, interaction.user.id, { kind: 'remove', entries });
     const number = interaction.options.getInteger('number');
     if (number) {
@@ -134,7 +134,7 @@ async function handleRemove(interaction, guildId) {
     }
 }
 async function handleList(interaction, guildId) {
-    const key = interaction.options.getString('key', true).toLowerCase();
+    const key = (0, media_js_1.normalizeGifKey)(interaction.options.getString('key', true));
     const entries = (0, queries_js_1.listGifUrlsForKey)(guildId, key);
     if (entries.length === 0) {
         await interaction.reply({ content: `No media registered for **${key}**.`, ephemeral: true });

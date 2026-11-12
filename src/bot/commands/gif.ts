@@ -5,7 +5,7 @@ import {
 import { getGifEntries, listGifKeys, listGifUrlsForKey } from '../../db/queries.js';
 import { memberGifAccess, logGifAction, CONTRIBUTOR_DENIED } from '../../services/gifLog.js';
 import type { GifCommand } from '../../db/models.js';
-import { addGifEntry, removeGifEntry, removeGifEntryByNumber, buildMediaMessage, uploadLimitBytes, MediaError, ADD_REPLIES } from '../../services/media.js';
+import { normalizeGifKey, addGifEntry, removeGifEntry, removeGifEntryByNumber, buildMediaMessage, uploadLimitBytes, MediaError, ADD_REPLIES } from '../../services/media.js';
 
 export const data = new SlashCommandBuilder()
   .setName('gif')
@@ -73,7 +73,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 }
 
 async function handlePlay(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const key = interaction.options.getString('name', true).toLowerCase();
+  const key = normalizeGifKey(interaction.options.getString('name', true));
   const userId = interaction.user.id;
 
   // Check cooldown
@@ -106,7 +106,7 @@ async function handleAdd(interaction: ChatInputCommandInteraction, guildId: stri
     return;
   }
 
-  const key = interaction.options.getString('key', true).toLowerCase();
+  const key = normalizeGifKey(interaction.options.getString('key', true));
   const url = interaction.options.getString('url') ?? interaction.options.getAttachment('file')?.url;
   if (!url) {
     await interaction.reply({ content: 'Give a `url` or attach a `file`.', ephemeral: true });
@@ -131,7 +131,7 @@ async function handleRemove(interaction: ChatInputCommandInteraction, guildId: s
     return;
   }
 
-  const key = interaction.options.getString('key', true).toLowerCase();
+  const key = normalizeGifKey(interaction.options.getString('key', true));
   const onRemoved = (entries: GifCommand[]) => logGifAction(interaction.client, guildId, interaction.user.id, { kind: 'remove', entries });
   const number = interaction.options.getInteger('number');
   if (number) {
@@ -157,7 +157,7 @@ async function handleRemove(interaction: ChatInputCommandInteraction, guildId: s
 }
 
 async function handleList(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const key = interaction.options.getString('key', true).toLowerCase();
+  const key = normalizeGifKey(interaction.options.getString('key', true));
   const entries = listGifUrlsForKey(guildId, key);
   if (entries.length === 0) {
     await interaction.reply({ content: `No media registered for **${key}**.`, ephemeral: true });

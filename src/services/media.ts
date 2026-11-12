@@ -218,6 +218,14 @@ export async function removeGifEntry(guildId: string, key: string, url: string, 
   return removed;
 }
 
+/**
+ * Canonical gif key: lowercase, with placeholder-style wrapping stripped, so
+ * `!gif add <pain>` or `[pain]` makes the key `pain` (triggered by `!pain`).
+ */
+export function normalizeGifKey(raw: string): string {
+  return raw.trim().toLowerCase().replace(/[<>\[\]{}"'`]/g, '').trim();
+}
+
 /** The list number in `!gif remove key:goal 3` (or `#3`), or null if there isn't one. */
 export function parseListNumber(args: string[]): number | null {
   const token = args.find(a => /^#?\d+$/.test(a));

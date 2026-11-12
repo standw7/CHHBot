@@ -54,6 +54,11 @@ export declare function addGifEntry(rest: REST, guildId: string, key: string, ur
  */
 export type OnGifRemoved = (entries: GifCommand[]) => Promise<void>;
 export declare function removeGifEntry(guildId: string, key: string, url: string, onRemoved?: OnGifRemoved): Promise<GifCommand[]>;
+/**
+ * Canonical gif key: lowercase, with placeholder-style wrapping stripped, so
+ * `!gif add <pain>` or `[pain]` makes the key `pain` (triggered by `!pain`).
+ */
+export declare function normalizeGifKey(raw: string): string;
 /** The list number in `!gif remove key:goal 3` (or `#3`), or null if there isn't one. */
 export declare function parseListNumber(args: string[]): number | null;
 /** Entry shown as number `n` (1-based) in the list command, or null if out of range. */

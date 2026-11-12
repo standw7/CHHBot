@@ -1394,7 +1394,7 @@ async function handlePrefixGifAdmin(message, args) {
     // !gif list key:<key> | !gif keys
     // !gif delete <key> | !gif rename <old> to <new>   (Manage Server only)
     const { listGifKeys, listGifUrlsForKey } = await import('../../db/queries.js');
-    const { addGifEntry, removeGifEntry, removeGifEntryByNumber, parseListNumber, deleteGifKeyAndMedia, uploadLimitBytes, MediaError, ADD_REPLIES } = await import('../../services/media.js');
+    const { addGifEntry, removeGifEntry, removeGifEntryByNumber, parseListNumber, deleteGifKeyAndMedia, uploadLimitBytes, MediaError, ADD_REPLIES, normalizeGifKey } = await import('../../services/media.js');
     const { memberGifAccess, logGifAction, CONTRIBUTOR_DENIED } = await import('../../services/gifLog.js');
     const guildId = message.guild.id;
     const sub = args[0]?.toLowerCase();
@@ -1420,7 +1420,7 @@ async function handlePrefixGifAdmin(message, args) {
             return;
         }
         // Everything after "!gif delete " is the key name
-        const deleteKey = args.slice(1).join(' ').trim().toLowerCase();
+        const deleteKey = normalizeGifKey(args.slice(1).join(' '));
         if (!deleteKey) {
             await message.reply('Usage: `!gif delete <keyname>` - Deletes ALL URLs for a key\nExample: `!gif delete key:veggie`');
             return;
@@ -1441,8 +1441,8 @@ async function handlePrefixGifAdmin(message, args) {
             await message.reply('Usage: `!gif rename <oldkey> to <newkey>`\nExample: `!gif rename key:veggie to veggie`');
             return;
         }
-        const oldKey = renameArgs.slice(0, toIndex).trim().toLowerCase();
-        const newKey = renameArgs.slice(toIndex + 4).trim().toLowerCase();
+        const oldKey = normalizeGifKey(renameArgs.slice(0, toIndex));
+        const newKey = normalizeGifKey(renameArgs.slice(toIndex + 4));
         if (!oldKey || !newKey) {
             await message.reply('Usage: `!gif rename <oldkey> to <newkey>`\nExample: `!gif rename key:veggie to veggie`');
             return;
@@ -1458,7 +1458,7 @@ async function handlePrefixGifAdmin(message, args) {
     const fullArgs = args.slice(1).join(' ');
     const keyMatch = fullArgs.match(/key:(\S+)/);
     const urlMatch = fullArgs.match(/url:(\S+)/);
-    const key = keyMatch?.[1]?.toLowerCase();
+    const key = keyMatch?.[1] ? normalizeGifKey(keyMatch[1]) || undefined : undefined;
     if (sub === 'list') {
         if (!key) {
             await message.reply('Usage: `!gif list key:<key>`');
@@ -1482,7 +1482,7 @@ async function handlePrefixGifAdmin(message, args) {
     const onRemoved = (entries) => logGifAction(message.client, guildId, actorId, { kind: 'remove', entries });
     if (sub === 'add') {
         // `key:` is optional for add: `!gif add goal` works too
-        const addKey = key ?? args[1]?.toLowerCase();
+        const addKey = key ?? (args[1] ? normalizeGifKey(args[1]) || undefined : undefined);
         const usage = 'Usage: `!gif add <key> url:<url>`, `!gif add <key>` with a file attached, or reply to a message with media using `!gif add <key>`';
         if (!addKey || addKey.startsWith('url:')) {
             await message.reply(usage);

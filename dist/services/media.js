@@ -15,6 +15,7 @@ exports.deleteMediaFile = deleteMediaFile;
 exports.buildMediaMessage = buildMediaMessage;
 exports.addGifEntry = addGifEntry;
 exports.removeGifEntry = removeGifEntry;
+exports.normalizeGifKey = normalizeGifKey;
 exports.parseListNumber = parseListNumber;
 exports.entryForListNumber = entryForListNumber;
 exports.removeGifEntryByNumber = removeGifEntryByNumber;
@@ -212,6 +213,13 @@ async function removeGifEntry(guildId, key, url, onRemoved) {
     const removed = (0, queries_js_1.removeGifUrl)(guildId, key, url);
     await finishRemoval(removed, onRemoved);
     return removed;
+}
+/**
+ * Canonical gif key: lowercase, with placeholder-style wrapping stripped, so
+ * `!gif add <pain>` or `[pain]` makes the key `pain` (triggered by `!pain`).
+ */
+function normalizeGifKey(raw) {
+    return raw.trim().toLowerCase().replace(/[<>\[\]{}"'`]/g, '').trim();
 }
 /** The list number in `!gif remove key:goal 3` (or `#3`), or null if there isn't one. */
 function parseListNumber(args) {
