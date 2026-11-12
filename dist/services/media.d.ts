@@ -57,4 +57,32 @@ export declare function entryForListNumber<T>(entries: T[], n: number): T | null
 export declare function removeGifEntryByNumber(guildId: string, key: string, n: number): Promise<GifCommand | null>;
 export declare function deleteGifKeyAndMedia(guildId: string, key: string): Promise<number>;
 export declare const ADD_REPLIES: Record<'saved' | 'link' | 'link_fallback', (key: string) => string>;
+interface MessageLike {
+    attachments: {
+        values(): Iterable<{
+            url: string;
+            contentType?: string | null;
+        }>;
+    };
+    embeds: Array<{
+        data: {
+            type?: string;
+        };
+        url: string | null;
+        image?: {
+            url: string;
+        } | null;
+        video?: {
+            url: string;
+        } | null;
+    }>;
+}
+/**
+ * Media URLs in a message, for `!gif add <key>` as a reply. Attachments first
+ * (any file Discord gives us — addGifEntry validates the type), then embeds:
+ * Tenor/Klipy/etc. links (gifv/image/video embeds keep their page URL) and
+ * images or videos inside rich embeds such as fxtwitter.
+ */
+export declare function mediaUrlsFromMessage(msg: MessageLike): string[];
+export {};
 //# sourceMappingURL=media.d.ts.map

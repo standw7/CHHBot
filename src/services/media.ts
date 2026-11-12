@@ -223,3 +223,26 @@ export const ADD_REPLIES: Record<'saved' | 'link' | 'link_fallback', (key: strin
   link: key => `Added link to **${key}**.`,
   link_fallback: key => `Added to **${key}** as a link (that site wouldn't let Tusky save a copy, but its links don't expire).`,
 };
+
+interface MessageLike {
+  attachments: { values(): Iterable<{ url: string; contentType?: string | null }> };
+  embeds: Array<{ data: { type?: string }; url: string | null; image?: { url: string } | null; video?: { url: string } | null }>;
+}
+
+/**
+ * Media URLs in a message, for `!gif add <key>` as a reply. Attachments first
+ * (any file Discord gives us — addGifEntry validates the type), then embeds:
+ * Tenor/Klipy/etc. links (gifv/image/video embeds keep their page URL) and
+ * images or videos inside rich embeds such as fxtwitter.
+ */
+export function mediaUrlsFromMessage(msg: MessageLike): string[] {
+  const urls: string[] = [];
+  for (const a of msg.attachments.values()) urls.push(a.url);
+  for (const e of msg.embeds) {
+    const type = e.data.type;
+    if ((type === 'gifv' || type === 'image' || type === 'video') && e.url) urls.push(e.url);
+    else if (e.video?.url) urls.push(e.video.url);
+    else if (e.image?.url) urls.push(e.image.url);
+  }
+  return [...new Set(urls)];
+}

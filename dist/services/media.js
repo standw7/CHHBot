@@ -19,6 +19,7 @@ exports.parseListNumber = parseListNumber;
 exports.entryForListNumber = entryForListNumber;
 exports.removeGifEntryByNumber = removeGifEntryByNumber;
 exports.deleteGifKeyAndMedia = deleteGifKeyAndMedia;
+exports.mediaUrlsFromMessage = mediaUrlsFromMessage;
 const promises_1 = require("fs/promises");
 const fs_1 = require("fs");
 const path_1 = __importDefault(require("path"));
@@ -218,4 +219,25 @@ exports.ADD_REPLIES = {
     link: key => `Added link to **${key}**.`,
     link_fallback: key => `Added to **${key}** as a link (that site wouldn't let Tusky save a copy, but its links don't expire).`,
 };
+/**
+ * Media URLs in a message, for `!gif add <key>` as a reply. Attachments first
+ * (any file Discord gives us — addGifEntry validates the type), then embeds:
+ * Tenor/Klipy/etc. links (gifv/image/video embeds keep their page URL) and
+ * images or videos inside rich embeds such as fxtwitter.
+ */
+function mediaUrlsFromMessage(msg) {
+    const urls = [];
+    for (const a of msg.attachments.values())
+        urls.push(a.url);
+    for (const e of msg.embeds) {
+        const type = e.data.type;
+        if ((type === 'gifv' || type === 'image' || type === 'video') && e.url)
+            urls.push(e.url);
+        else if (e.video?.url)
+            urls.push(e.video.url);
+        else if (e.image?.url)
+            urls.push(e.image.url);
+    }
+    return [...new Set(urls)];
+}
 //# sourceMappingURL=media.js.map

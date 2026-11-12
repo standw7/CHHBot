@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { isDownloadableFile, isDiscordAttachment, validateMedia, displayFileName, MAX_MEDIA_BYTES, uploadLimitBytes, canFallBackToLink, entryForListNumber, parseListNumber } from './media.js';
+import { isDownloadableFile, isDiscordAttachment, validateMedia, displayFileName, MAX_MEDIA_BYTES, uploadLimitBytes, canFallBackToLink, entryForListNumber, parseListNumber, mediaUrlsFromMessage } from './media.js';
 
 describe('isDownloadableFile', () => {
   test('Discord attachment links are downloaded (any domain variant, with or without params)', () => {
@@ -113,5 +113,32 @@ describe('entryForListNumber', () => {
   test('out of range → null', () => {
     assert.equal(entryForListNumber(entries, 0), null);
     assert.equal(entryForListNumber(entries, 4), null);
+  });
+});
+
+describe('mediaUrlsFromMessage', () => {
+  const msg = (attachments: string[], embeds: any[]) => ({
+    attachments: new Map(attachments.map((url, i) => [String(i), { url }])),
+    embeds,
+  });
+
+  test('collects attachments then embed media, deduped', () => {
+    const urls = mediaUrlsFromMessage(msg(
+      ['https://cdn.discordapp.com/attachments/1/2/a.gif'],
+      [
+        { data: { type: 'gifv' }, url: 'https://tenor.com/view/goal-123' },
+        { data: { type: 'rich' }, url: 'https://fxtwitter.com/x/status/1', image: { url: 'https://pbs.twimg.com/media/x.jpg' } },
+        { data: { type: 'gifv' }, url: 'https://tenor.com/view/goal-123' },
+      ],
+    ));
+    assert.deepEqual(urls, [
+      'https://cdn.discordapp.com/attachments/1/2/a.gif',
+      'https://tenor.com/view/goal-123',
+      'https://pbs.twimg.com/media/x.jpg',
+    ]);
+  });
+
+  test('plain link previews without media are ignored', () => {
+    assert.deepEqual(mediaUrlsFromMessage(msg([], [{ data: { type: 'article' }, url: 'https://example.com/news' }])), []);
   });
 });

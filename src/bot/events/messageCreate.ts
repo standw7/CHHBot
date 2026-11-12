@@ -168,7 +168,7 @@ function buildHelpPages(gifKeysText: string): EmbedBuilder[] {
       .setTitle('Tusky Commands — Admin')
       .setColor(0x006847)
       .addFields(
-        { name: 'Gif Management', value: '`!gif add key:<k> url:<u>` - Add gif to a key\n`!gif remove key:<k> url:<u>` - Remove gif\n`!gif list key:<k>` - List URLs for a key\n`!gif keys` - List all registered keys', inline: false },
+        { name: 'Gif Management', value: '`!gif add <k> url:<u>` - Add gif to a key (or attach a file, or reply to a message with media)\n`!gif remove key:<k> url:<u>` - Remove gif\n`!gif list key:<k>` - List URLs for a key\n`!gif keys` - List all registered keys', inline: false },
         { name: 'News Feeds', value: '`!feed add <url> [label]` - Add RSS or Twitter feed\n`!feed remove <label>` - Remove a feed\n`!feed list` - List all feeds\n`!feed status` - Check feed health\n`!feed check [label]` - Force-check feeds now\n`!feed reset <label>` - Reset feed tracking', inline: false },
         { name: 'Hall of Fame', value: '`!hof` - Show HOF settings\n`!hof threshold <n>` - Set reaction threshold (1-100)\n`!hof update` - Rebuild all existing HOF posts', inline: false },
         { name: 'Config', value: '`/config show` - View all settings\n`/config set setting:<name> value:<value>` - Change a setting', inline: false },
@@ -1648,19 +1648,49 @@ async function handlePrefixGifAdmin(message: Message, args: string[]): Promise<v
   const url = urlMatch?.[1];
 
   if (sub === 'add') {
-    // A file attached to the command message works instead of url:
-    const addUrl = url ?? message.attachments.first()?.url;
-    if (!key || !addUrl) {
-      await message.reply('Usage: `!gif add key:<key> url:<url>`, or `!gif add key:<key>` with a file attached');
+    // `key:` is optional for add: `!gif add goal` works too
+    const addKey = key ?? args[1]?.toLowerCase();
+    const usage = 'Usage: `!gif add <key> url:<url>`, `!gif add <key>` with a file attached, or reply to a message with media using `!gif add <key>`';
+    if (!addKey || addKey.startsWith('url:')) {
+      await message.reply(usage);
       return;
     }
-    try {
-      const limit = uploadLimitBytes(message.guild!.premiumTier);
-      const result = await addGifEntry(message.client.rest, guildId, key, addUrl, message.author.id, limit);
-      await message.reply(ADD_REPLIES[result](key));
-    } catch (err) {
-      await message.reply(err instanceof MediaError ? err.message : 'Something went wrong saving that file.');
+
+    // A url: or a file attached to the command message wins; otherwise take
+    // every piece of media from the message being replied to.
+    let addUrls: string[] = [];
+    const ownUrl = url ?? message.attachments.first()?.url;
+    if (ownUrl) {
+      addUrls = [ownUrl];
+    } else if (message.reference?.messageId) {
+      const { mediaUrlsFromMessage } = await import('../../services/media.js');
+      try {
+        addUrls = mediaUrlsFromMessage(await message.fetchReference());
+      } catch {
+        await message.reply("Couldn't load the message you replied to.");
+        return;
+      }
+      if (addUrls.length === 0) {
+        await message.reply("The message you replied to doesn't have any media in it.");
+        return;
+      }
     }
+    if (addUrls.length === 0) {
+      await message.reply(usage);
+      return;
+    }
+
+    const limit = uploadLimitBytes(message.guild!.premiumTier);
+    const replies: string[] = [];
+    for (const addUrl of addUrls) {
+      try {
+        const result = await addGifEntry(message.client.rest, guildId, addKey, addUrl, message.author.id, limit);
+        replies.push(ADD_REPLIES[result](addKey));
+      } catch (err) {
+        replies.push(err instanceof MediaError ? err.message : 'Something went wrong saving that file.');
+      }
+    }
+    await message.reply(replies.length === 1 ? replies[0] : replies.map((r, i) => `${i + 1}. ${r}`).join('\n'));
   } else if (sub === 'remove') {
     const number = parseListNumber(args.slice(1));
     if (!key || (!url && !number)) {
