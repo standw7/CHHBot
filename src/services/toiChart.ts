@@ -88,6 +88,7 @@ export interface ChartPlayer {
   id: number;
   label: string; // "C. McDavid"
   position: 'F' | 'D';
+  toi?: string; // total game TOI (all situations), e.g. "18:42"
 }
 
 export function chartLabel(firstName: string, lastName: string): string {

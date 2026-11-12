@@ -41,7 +41,7 @@ describe('buildToiSvg', () => {
     for (const label of ['K. Yamamoto', 'M. Weegar', 'C. McDavid', 'E. Bouchard']) assert.ok(svg.includes(label), label);
     assert.ok(svg.includes('>11.5<'));
     assert.ok(svg.includes('>5.0<'));
-    assert.ok(svg.includes('TIME AGAINST OPPONENTS · UTA · 5V5 MINUTES · DATA: NHL'));
+    assert.ok(svg.includes('TIME AGAINST OPPONENTS · UTA · 5V5 MINUTES · EDGES: TOTAL TOI · DATA: NHL'));
     assert.ok(!/hockeystatcards/i.test(svg));
   });
 

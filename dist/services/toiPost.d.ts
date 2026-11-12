@@ -5,6 +5,8 @@ import type { ToiChartInput } from './toiRender.js';
 export interface BoxTeam extends BoxscoreTeamPlayers {
     abbrev: string;
 }
+/** Boxscore TOI "08:12" -> "8:12". */
+export declare function formatToi(mmss: string): string;
 /**
  * Chart input for `teamCode` (rows) vs its opponent (columns), or null if the team isn't
  * in this game, or 'incomplete' while shift data doesn't yet match the boxscore.

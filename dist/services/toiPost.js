@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.formatToi = formatToi;
 exports.toiChartInputFromGame = toiChartInputFromGame;
 exports.toiChartTitle = toiChartTitle;
 exports.pickLatestCompletedGame = pickLatestCompletedGame;
@@ -56,10 +57,14 @@ function toSeconds(mmss) {
     const [m, s] = mmss.split(':').map(Number);
     return m * 60 + s;
 }
+/** Boxscore TOI "08:12" -> "8:12". */
+function formatToi(mmss) {
+    return mmss.replace(/^0(?=\d:)/, '');
+}
 function chartPlayers(team) {
     return [
-        ...team.forwards.map(p => ({ id: p.playerId, label: p.name.default, position: 'F' })),
-        ...team.defense.map(p => ({ id: p.playerId, label: p.name.default, position: 'D' })),
+        ...team.forwards.map(p => ({ id: p.playerId, label: p.name.default, position: 'F', toi: formatToi(p.toi) })),
+        ...team.defense.map(p => ({ id: p.playerId, label: p.name.default, position: 'D', toi: formatToi(p.toi) })),
     ];
 }
 /**

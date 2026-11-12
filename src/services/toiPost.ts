@@ -22,10 +22,15 @@ function toSeconds(mmss: string): number {
   return m * 60 + s;
 }
 
+/** Boxscore TOI "08:12" -> "8:12". */
+export function formatToi(mmss: string): string {
+  return mmss.replace(/^0(?=\d:)/, '');
+}
+
 function chartPlayers(team: BoxTeam): ChartPlayer[] {
   return [
-    ...team.forwards.map(p => ({ id: p.playerId, label: p.name.default, position: 'F' as const })),
-    ...team.defense.map(p => ({ id: p.playerId, label: p.name.default, position: 'D' as const })),
+    ...team.forwards.map(p => ({ id: p.playerId, label: p.name.default, position: 'F' as const, toi: formatToi(p.toi) })),
+    ...team.defense.map(p => ({ id: p.playerId, label: p.name.default, position: 'D' as const, toi: formatToi(p.toi) })),
   ];
 }
 

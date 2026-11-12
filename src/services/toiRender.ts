@@ -13,6 +13,7 @@ const COLORS = {
   colLabel: '#b9b4bd',
   value: '#f2e6dc',
   divider: '#55505c',
+  toi: '#7d7884', // total TOI next to names
   footer: '#8c8794',
   low: '#34251e',
   high: '#94562f',
@@ -22,6 +23,7 @@ const LAYOUT = {
   pad: 24,
   labelWidth: 150, // row-label column
   headerHeight: 118, // angled column labels
+  toiGutter: 62, // total TOI: right of each row, below each column
   cellW: 40,
   cellH: 34,
   gap: 6,
@@ -64,8 +66,12 @@ export function buildToiSvg(input: ToiChartInput): string {
   const gridY = pad + headerHeight;
   const gridW = cols.length * pitchX - gap;
   const gridH = rows.length * pitchY - gap;
-  const width = gridX + gridW + pad + 40; // room for the last angled label
-  const height = gridY + gridH + footerHeight + pad;
+  // Total TOI sits opposite the names: right of the rows, under the columns
+  const showToi = rows.some(r => r.toi) || cols.some(c => c.toi);
+  const toiGutter = showToi ? LAYOUT.toiGutter : 0;
+  const toiBand = showToi ? 30 : 0;
+  const width = gridX + gridW + Math.max(pad + 40, toiGutter + pad); // room for the last angled label / TOI column
+  const height = gridY + gridH + toiBand + footerHeight + pad;
 
   const minutes = rows.map(r => cols.map(c => seconds(r.id, c.id) / 60));
   const flat = minutes.flat();
@@ -82,14 +88,16 @@ export function buildToiSvg(input: ToiChartInput): string {
     const x = gridX + j * pitchX + cellW / 2 - 4;
     const y = gridY - 10;
     parts.push(
-      `<text x="${x}" y="${y}" transform="rotate(${labelAngle} ${x} ${y})" font-size="15" font-weight="500" fill="${COLORS.colLabel}">${esc(c.label)}</text>`
+      `<text x="${x}" y="${y}" transform="rotate(${labelAngle} ${x} ${y})" font-size="15" font-weight="500" fill="${COLORS.colLabel}">${esc(c.label)}</text>`,
+      c.toi ? `<text x="${gridX + j * pitchX + cellW / 2}" y="${gridY + gridH + 24}" text-anchor="middle" font-size="13" fill="${COLORS.toi}">${esc(c.toi)}</text>` : ''
     );
   });
 
   rows.forEach((r, i) => {
     const y = gridY + i * pitchY;
     parts.push(
-      `<text x="${gridX - 14}" y="${y + cellH / 2 + 5.5}" text-anchor="end" font-size="16" font-weight="500" fill="${COLORS.rowLabel}">${esc(r.label)}</text>`
+      `<text x="${gridX - 14}" y="${y + cellH / 2 + 5.5}" text-anchor="end" font-size="16" font-weight="500" fill="${COLORS.rowLabel}">${esc(r.label)}</text>`,
+      r.toi ? `<text x="${gridX + gridW + 14}" y="${y + cellH / 2 + 5}" text-anchor="start" font-size="14" fill="${COLORS.toi}">${esc(r.toi)}</text>` : ''
     );
     cols.forEach((c, j) => {
       const x = gridX + j * pitchX;
@@ -111,9 +119,9 @@ export function buildToiSvg(input: ToiChartInput): string {
     parts.push(`<line x1="${gridX - 4}" y1="${y}" x2="${gridX + gridW + 4}" y2="${y}" stroke="${COLORS.divider}" stroke-width="1.5"/>`);
   }
 
-  const footer = `TIME AGAINST OPPONENTS · ${teamCode} · 5V5 MINUTES · DATA: NHL`;
+  const footer = `TIME AGAINST OPPONENTS · ${teamCode} · 5V5 MINUTES · EDGES: TOTAL TOI · DATA: NHL`;
   parts.push(
-    `<text x="${gridX + gridW / 2}" y="${gridY + gridH + footerHeight - 14}" text-anchor="middle" font-size="16" font-weight="600" letter-spacing="2.5" fill="${COLORS.footer}">${esc(footer)}</text>`,
+    `<text x="${gridX + gridW / 2}" y="${gridY + gridH + toiBand + footerHeight - 14}" text-anchor="middle" font-size="16" font-weight="600" letter-spacing="2.5" fill="${COLORS.footer}">${esc(footer)}</text>`,
     `</g></svg>`
   );
   return parts.join('');

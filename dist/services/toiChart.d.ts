@@ -23,6 +23,7 @@ export interface ChartPlayer {
     id: number;
     label: string;
     position: 'F' | 'D';
+    toi?: string;
 }
 export declare function chartLabel(firstName: string, lastName: string): string;
 /** Chart order: forwards in trios, then defense in pairs; skaters with no 5v5 time are left out. */
