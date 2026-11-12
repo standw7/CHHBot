@@ -5,12 +5,9 @@ export declare function getGifEntries(guildId: string, key: string): {
     url: string;
     file_path: string | null;
 }[];
-export declare function addGifUrl(guildId: string, key: string, url: string, addedBy: string, filePath?: string | null): void;
-/** Removes matching entries; returns the saved file paths of what was removed (so callers can delete them). */
-export declare function removeGifUrl(guildId: string, key: string, url: string): {
-    removed: number;
-    filePaths: string[];
-};
+export declare function addGifUrl(guildId: string, key: string, url: string, addedBy: string, filePath?: string | null): GifCommand;
+/** Removes matching entries and returns them (callers delete their saved files). */
+export declare function removeGifUrl(guildId: string, key: string, url: string): GifCommand[];
 export declare function setGifFilePath(id: number, filePath: string): void;
 export declare function deleteGifEntryById(id: number): void;
 /** All gif entries across guilds (for the one-off media backfill). */
@@ -22,10 +19,8 @@ export declare function listAllGifEntries(): {
     file_path: string | null;
 }[];
 export declare function listGifKeys(guildId: string): string[];
-export declare function deleteGifKey(guildId: string, key: string): {
-    removed: number;
-    filePaths: string[];
-};
+/** Removes every entry for a key and returns them (callers delete their saved files). */
+export declare function deleteGifKey(guildId: string, key: string): GifCommand[];
 export declare function renameGifKey(guildId: string, oldKey: string, newKey: string): number;
 export declare function listGifUrlsForKey(guildId: string, key: string): GifCommand[];
 export declare function hasGoalBeenPosted(guildId: string, gameId: number, eventId: number): boolean;

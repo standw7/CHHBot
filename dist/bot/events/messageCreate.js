@@ -147,7 +147,7 @@ function buildHelpPages(gifKeysText) {
     pages.push(new discord_js_1.EmbedBuilder()
         .setTitle('Tusky Commands — Admin')
         .setColor(0x006847)
-        .addFields({ name: 'Gif Management', value: '`!gif add <k> url:<u>` - Add gif to a key (or attach a file, or reply to a message with media)\n`!gif remove key:<k> url:<u>` - Remove gif\n`!gif list key:<k>` - List URLs for a key\n`!gif keys` - List all registered keys', inline: false }, { name: 'News Feeds', value: '`!feed add <url> [label]` - Add RSS or Twitter feed\n`!feed remove <label>` - Remove a feed\n`!feed list` - List all feeds\n`!feed status` - Check feed health\n`!feed check [label]` - Force-check feeds now\n`!feed reset <label>` - Reset feed tracking', inline: false }, { name: 'Hall of Fame', value: '`!hof` - Show HOF settings\n`!hof threshold <n>` - Set reaction threshold (1-100)\n`!hof update` - Rebuild all existing HOF posts', inline: false }, { name: 'Config', value: '`/config show` - View all settings\n`/config set setting:<name> value:<value>` - Change a setting', inline: false }, { name: 'Testing', value: '`!sim` - Run game simulation\n`!sim reset` - Reset simulation data', inline: false })
+        .addFields({ name: 'Gif Management', value: '`!gif add <k> url:<u>` - Add gif to a key (or attach a file, or reply to a message with media)\n`!gif remove key:<k> <#>` - Remove gif\n`!gif list key:<k>` - List URLs for a key\n`!gif keys` - List all registered keys\n`!gif delete <k>` / `!gif rename <old> to <new>` - Manage Server only\nAdd/remove also work for the gif contributor role (`/config set gif_contributor_role`). Changes are posted to `gif_log_channel`.', inline: false }, { name: 'News Feeds', value: '`!feed add <url> [label]` - Add RSS or Twitter feed\n`!feed remove <label>` - Remove a feed\n`!feed list` - List all feeds\n`!feed status` - Check feed health\n`!feed check [label]` - Force-check feeds now\n`!feed reset <label>` - Reset feed tracking', inline: false }, { name: 'Hall of Fame', value: '`!hof` - Show HOF settings\n`!hof threshold <n>` - Set reaction threshold (1-100)\n`!hof update` - Rebuild all existing HOF posts', inline: false }, { name: 'Config', value: '`/config show` - View all settings\n`/config set setting:<name> value:<value>` - Change a setting', inline: false }, { name: 'Testing', value: '`!sim` - Run game simulation\n`!sim reset` - Reset simulation data', inline: false })
         .setFooter({ text: 'Page 3/3 — Use buttons to navigate' }));
     return pages;
 }
@@ -1360,17 +1360,19 @@ async function handlePrefixGif(message, key) {
     }
 }
 async function handlePrefixGifAdmin(message, args) {
-    // Parse: !gif add key:<key> url:<url>
-    // or: !gif remove key:<key> url:<url>
-    // or: !gif list key:<key>
-    // or: !gif keys
-    const { PermissionFlagsBits } = await import('discord.js');
+    // !gif add <key> [url:<url>]   (or a file attached, or as a reply to a message with media)
+    // !gif remove key:<key> <#> | url:<url>
+    // !gif list key:<key> | !gif keys
+    // !gif delete <key> | !gif rename <old> to <new>   (Manage Server only)
     const { listGifKeys, listGifUrlsForKey } = await import('../../db/queries.js');
     const { addGifEntry, removeGifEntry, removeGifEntryByNumber, parseListNumber, deleteGifKeyAndMedia, uploadLimitBytes, MediaError, ADD_REPLIES } = await import('../../services/media.js');
+    const { memberGifAccess, logGifAction, CONTRIBUTOR_DENIED } = await import('../../services/gifLog.js');
     const guildId = message.guild.id;
     const sub = args[0]?.toLowerCase();
+    const actorId = message.author.id;
+    const access = memberGifAccess(message.member, message.member?.permissions, guildId);
     if (!sub) {
-        await message.reply('Usage: `!gif add key:<key> url:<url>` (or attach a file instead of url) | `!gif remove key:<key> url:<url>` | `!gif list key:<key>` | `!gif keys`');
+        await message.reply('Usage: `!gif add <key> url:<url>` (or attach a file, or reply to a message with media) | `!gif remove key:<key> <#>` | `!gif list key:<key>` | `!gif keys`');
         return;
     }
     if (sub === 'keys') {
@@ -1384,9 +1386,8 @@ async function handlePrefixGifAdmin(message, args) {
     }
     // Handle delete and rename BEFORE key:/url: parsing (they use different syntax)
     if (sub === 'delete') {
-        const member = message.member;
-        if (!member?.permissions.has(PermissionFlagsBits.ManageGuild)) {
-            await message.reply('You need Manage Server permission.');
+        if (access !== 'admin') {
+            await message.reply('You need Manage Server permission to delete a whole key.');
             return;
         }
         // Everything after "!gif delete " is the key name
@@ -1395,14 +1396,13 @@ async function handlePrefixGifAdmin(message, args) {
             await message.reply('Usage: `!gif delete <keyname>` - Deletes ALL URLs for a key\nExample: `!gif delete key:veggie`');
             return;
         }
-        const count = await deleteGifKeyAndMedia(guildId, deleteKey);
+        const count = await deleteGifKeyAndMedia(guildId, deleteKey, entries => logGifAction(message.client, guildId, actorId, { kind: 'delete', key: deleteKey, entries }));
         await message.reply(count > 0 ? `Deleted **${deleteKey}** (${count} URLs removed).` : `Key **${deleteKey}** not found.`);
         return;
     }
     if (sub === 'rename') {
-        const member = message.member;
-        if (!member?.permissions.has(PermissionFlagsBits.ManageGuild)) {
-            await message.reply('You need Manage Server permission.');
+        if (access !== 'admin') {
+            await message.reply('You need Manage Server permission to rename a key.');
             return;
         }
         // Parse: !gif rename <oldkey> to <newkey>
@@ -1420,6 +1420,8 @@ async function handlePrefixGifAdmin(message, args) {
         }
         const { renameGifKey } = await import('../../db/queries.js');
         const count = renameGifKey(guildId, oldKey, newKey);
+        if (count > 0)
+            await logGifAction(message.client, guildId, actorId, { kind: 'rename', oldKey, newKey, count });
         await message.reply(count > 0 ? `Renamed **${oldKey}** to **${newKey}** (${count} URLs).` : `Key **${oldKey}** not found.`);
         return;
     }
@@ -1442,13 +1444,13 @@ async function handlePrefixGifAdmin(message, args) {
         await message.reply(`**${key}** (${entries.length}, 📁 = saved copy):\n${list}`);
         return;
     }
-    // Admin-only from here
-    const member = message.member;
-    if (!member?.permissions.has(PermissionFlagsBits.ManageGuild)) {
-        await message.reply('You need Manage Server permission.');
+    // Admins and gif contributors from here
+    if (!access) {
+        await message.reply(CONTRIBUTOR_DENIED);
         return;
     }
     const url = urlMatch?.[1];
+    const onRemoved = (entries) => logGifAction(message.client, guildId, actorId, { kind: 'remove', entries });
     if (sub === 'add') {
         // `key:` is optional for add: `!gif add goal` works too
         const addKey = key ?? args[1]?.toLowerCase();
@@ -1483,10 +1485,11 @@ async function handlePrefixGifAdmin(message, args) {
             return;
         }
         const limit = uploadLimitBytes(message.guild.premiumTier);
+        const onAdded = (entry) => logGifAction(message.client, guildId, actorId, { kind: 'add', entry });
         const replies = [];
         for (const addUrl of addUrls) {
             try {
-                const result = await addGifEntry(message.client.rest, guildId, addKey, addUrl, message.author.id, limit);
+                const result = await addGifEntry(message.client.rest, guildId, addKey, addUrl, actorId, limit, onAdded);
                 replies.push(ADD_REPLIES[result](addKey));
             }
             catch (err) {
@@ -1502,12 +1505,12 @@ async function handlePrefixGifAdmin(message, args) {
             return;
         }
         if (number) {
-            const removed = await removeGifEntryByNumber(guildId, key, number);
+            const removed = await removeGifEntryByNumber(guildId, key, number, onRemoved);
             await message.reply(removed ? `Removed #${number} from **${key}** (<${removed.url}>).` : `**${key}** has no #${number}. Check \`!gif list key:${key}\`.`);
             return;
         }
-        const removed = await removeGifEntry(guildId, key, url);
-        await message.reply(removed ? `Removed from **${key}**.` : `URL not found for **${key}**.`);
+        const removed = await removeGifEntry(guildId, key, url, onRemoved);
+        await message.reply(removed.length > 0 ? `Removed from **${key}**.` : `URL not found for **${key}**.`);
     }
 }
 async function handlePrefixRemind(message, args) {

@@ -19,6 +19,8 @@ export interface GuildConfig {
     daily_card_hour: number;
     season_start: string;
     season_end: string;
+    gif_contributor_role_id: string | null;
+    gif_log_channel_id: string | null;
 }
 export interface FeedSource {
     id: number;

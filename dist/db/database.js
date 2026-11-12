@@ -213,6 +213,12 @@ function runMigrations(db) {
     if (!colNames.includes('season_end')) {
         db.exec("ALTER TABLE guild_config ADD COLUMN season_end TEXT DEFAULT '2027-04-10'");
     }
+    if (!colNames.includes('gif_contributor_role_id')) {
+        db.exec('ALTER TABLE guild_config ADD COLUMN gif_contributor_role_id TEXT');
+    }
+    if (!colNames.includes('gif_log_channel_id')) {
+        db.exec('ALTER TABLE guild_config ADD COLUMN gif_log_channel_id TEXT');
+    }
     // Saved copies of linked files for gif commands
     const gifColumns = db.prepare("PRAGMA table_info(gif_commands)").all();
     if (!gifColumns.some(c => c.name === 'file_path')) {

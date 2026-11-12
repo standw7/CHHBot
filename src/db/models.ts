@@ -19,6 +19,8 @@ export interface GuildConfig {
   daily_card_hour: number; // 0-23, guild-local hour to post the daily card
   season_start: string; // ISO YYYY-MM-DD, first day of the "in season" off-day card window
   season_end: string; // ISO YYYY-MM-DD, last day of the "in season" off-day card window
+  gif_contributor_role_id: string | null; // members with this role can add/remove gifs
+  gif_log_channel_id: string | null; // gif add/remove/delete/rename actions are posted here
 }
 
 export interface FeedSource {

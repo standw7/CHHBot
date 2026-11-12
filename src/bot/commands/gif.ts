@@ -1,9 +1,10 @@
 import {
   ChatInputCommandInteraction,
   SlashCommandBuilder,
-  PermissionFlagsBits,
 } from 'discord.js';
 import { getGifEntries, listGifKeys, listGifUrlsForKey } from '../../db/queries.js';
+import { memberGifAccess, logGifAction, CONTRIBUTOR_DENIED } from '../../services/gifLog.js';
+import type { GifCommand } from '../../db/models.js';
 import { addGifEntry, removeGifEntry, removeGifEntryByNumber, buildMediaMessage, uploadLimitBytes, MediaError, ADD_REPLIES } from '../../services/media.js';
 
 export const data = new SlashCommandBuilder()
@@ -18,7 +19,7 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(sub =>
     sub
       .setName('add')
-      .setDescription('Add media to a key: a link, or attach a file (admin only)')
+      .setDescription('Add media to a key: a link, or attach a file (admins & gif contributors)')
       .addStringOption(opt => opt.setName('key').setDescription('The gif key').setRequired(true))
       .addStringOption(opt => opt.setName('url').setDescription('The media URL (Tenor/Klipy stay links; files are saved)'))
       .addAttachmentOption(opt => opt.setName('file').setDescription('Or attach an image, gif, video or audio clip (max 10 MB)'))
@@ -26,7 +27,7 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(sub =>
     sub
       .setName('remove')
-      .setDescription('Remove media from a key by its list number or URL (admin only)')
+      .setDescription('Remove media from a key by its list number or URL (admins & gif contributors)')
       .addStringOption(opt => opt.setName('key').setDescription('The gif key').setRequired(true))
       .addIntegerOption(opt => opt.setName('number').setDescription('The number shown by /gif list').setMinValue(1))
       .addStringOption(opt => opt.setName('url').setDescription('Or the media URL to remove'))
@@ -100,8 +101,8 @@ async function handlePlay(interaction: ChatInputCommandInteraction, guildId: str
 }
 
 async function handleAdd(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    await interaction.reply({ content: 'You need Manage Server permission to do this.', ephemeral: true });
+  if (!memberGifAccess(interaction.member, interaction.memberPermissions, guildId)) {
+    await interaction.reply({ content: CONTRIBUTOR_DENIED, ephemeral: true });
     return;
   }
 
@@ -116,7 +117,8 @@ async function handleAdd(interaction: ChatInputCommandInteraction, guildId: stri
   await interaction.deferReply({ ephemeral: true });
   try {
     const limit = uploadLimitBytes(interaction.guild?.premiumTier ?? 0);
-    const result = await addGifEntry(interaction.client.rest, guildId, key, url, interaction.user.id, limit);
+    const onAdded = (entry: GifCommand) => logGifAction(interaction.client, guildId, interaction.user.id, { kind: 'add', entry });
+    const result = await addGifEntry(interaction.client.rest, guildId, key, url, interaction.user.id, limit, onAdded);
     await interaction.editReply(ADD_REPLIES[result](key));
   } catch (err) {
     await interaction.editReply(err instanceof MediaError ? err.message : 'Something went wrong saving that file.');
@@ -124,15 +126,16 @@ async function handleAdd(interaction: ChatInputCommandInteraction, guildId: stri
 }
 
 async function handleRemove(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    await interaction.reply({ content: 'You need Manage Server permission to do this.', ephemeral: true });
+  if (!memberGifAccess(interaction.member, interaction.memberPermissions, guildId)) {
+    await interaction.reply({ content: CONTRIBUTOR_DENIED, ephemeral: true });
     return;
   }
 
   const key = interaction.options.getString('key', true).toLowerCase();
+  const onRemoved = (entries: GifCommand[]) => logGifAction(interaction.client, guildId, interaction.user.id, { kind: 'remove', entries });
   const number = interaction.options.getInteger('number');
   if (number) {
-    const entry = await removeGifEntryByNumber(guildId, key, number);
+    const entry = await removeGifEntryByNumber(guildId, key, number, onRemoved);
     await interaction.reply({
       content: entry ? `Removed #${number} from **${key}** (<${entry.url}>).` : `**${key}** has no #${number}. Check \`/gif list\`.`,
       ephemeral: true,
@@ -145,8 +148,8 @@ async function handleRemove(interaction: ChatInputCommandInteraction, guildId: s
     await interaction.reply({ content: 'Give a `number` from `/gif list` or a `url`.', ephemeral: true });
     return;
   }
-  const removed = await removeGifEntry(guildId, key, url);
-  if (removed) {
+  const removed = await removeGifEntry(guildId, key, url, onRemoved);
+  if (removed.length > 0) {
     await interaction.reply({ content: `Removed media from **${key}**.`, ephemeral: true });
   } else {
     await interaction.reply({ content: `URL not found for key **${key}**.`, ephemeral: true });

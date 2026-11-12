@@ -165,30 +165,57 @@ export async function addGifEntry(
   key: string,
   url: string,
   addedBy: string,
-  maxBytes: number = MAX_MEDIA_BYTES
+  maxBytes: number = MAX_MEDIA_BYTES,
+  onAdded?: (entry: GifCommand) => Promise<void>
 ): Promise<'saved' | 'link' | 'link_fallback'> {
+  const added = async (entry: GifCommand) => {
+    if (!onAdded) return;
+    try {
+      await onAdded(entry);
+    } catch (err) {
+      logger.warn({ err }, 'onAdded hook failed');
+    }
+  };
   if (!isDownloadableFile(url)) {
-    addGifUrl(guildId, key, url, addedBy);
+    await added(addGifUrl(guildId, key, url, addedBy));
     return 'link';
   }
   try {
     const filePath = await downloadMedia(rest, guildId, url, maxBytes);
-    addGifUrl(guildId, key, url, addedBy, filePath);
+    await added(addGifUrl(guildId, key, url, addedBy, filePath));
     return 'saved';
   } catch (err) {
     logger.warn({ err, guildId, key, url }, 'Could not save media copy');
     if (err instanceof MediaError && canFallBackToLink(url)) {
-      addGifUrl(guildId, key, url, addedBy);
+      await added(addGifUrl(guildId, key, url, addedBy));
       return 'link_fallback';
     }
     throw err;
   }
 }
 
-export async function removeGifEntry(guildId: string, key: string, url: string): Promise<boolean> {
-  const { removed, filePaths } = removeGifUrl(guildId, key, url);
-  await Promise.all(filePaths.map(deleteMediaFile));
-  return removed > 0;
+/**
+ * Called with removed entries while their saved files still exist on disk, so the
+ * gif log can post a copy before the files are deleted. Errors are logged, not thrown.
+ */
+export type OnGifRemoved = (entries: GifCommand[]) => Promise<void>;
+
+async function finishRemoval(entries: GifCommand[], onRemoved?: OnGifRemoved): Promise<void> {
+  if (entries.length === 0) return;
+  if (onRemoved) {
+    try {
+      await onRemoved(entries);
+    } catch (err) {
+      logger.warn({ err }, 'onRemoved hook failed');
+    }
+  }
+  await Promise.all(entries.map(e => deleteMediaFile(e.file_path)));
+}
+
+export async function removeGifEntry(guildId: string, key: string, url: string, onRemoved?: OnGifRemoved): Promise<GifCommand[]> {
+  const removed = removeGifUrl(guildId, key, url);
+  await finishRemoval(removed, onRemoved);
+  return removed;
 }
 
 /** The list number in `!gif remove key:goal 3` (or `#3`), or null if there isn't one. */
@@ -204,18 +231,18 @@ export function entryForListNumber<T>(entries: T[], n: number): T | null {
 }
 
 /** Remove the entry shown as number `n` in the list command. Returns it, or null if out of range. */
-export async function removeGifEntryByNumber(guildId: string, key: string, n: number): Promise<GifCommand | null> {
+export async function removeGifEntryByNumber(guildId: string, key: string, n: number, onRemoved?: OnGifRemoved): Promise<GifCommand | null> {
   const entry = entryForListNumber(listGifUrlsForKey(guildId, key), n);
   if (!entry) return null;
   deleteGifEntryById(entry.id);
-  await deleteMediaFile(entry.file_path);
+  await finishRemoval([entry], onRemoved);
   return entry;
 }
 
-export async function deleteGifKeyAndMedia(guildId: string, key: string): Promise<number> {
-  const { removed, filePaths } = deleteGifKey(guildId, key);
-  await Promise.all(filePaths.map(deleteMediaFile));
-  return removed;
+export async function deleteGifKeyAndMedia(guildId: string, key: string, onRemoved?: OnGifRemoved): Promise<number> {
+  const removed = deleteGifKey(guildId, key);
+  await finishRemoval(removed, onRemoved);
+  return removed.length;
 }
 
 export const ADD_REPLIES: Record<'saved' | 'link' | 'link_fallback', (key: string) => string> = {

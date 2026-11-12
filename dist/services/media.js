@@ -166,29 +166,52 @@ function buildMediaMessage(entry) {
  * and page links are stored as links ('link'). A non-Discord file that can't be saved is
  * stored as a link ('link_fallback'). Throws MediaError if a Discord file can't be saved.
  */
-async function addGifEntry(rest, guildId, key, url, addedBy, maxBytes = exports.MAX_MEDIA_BYTES) {
+async function addGifEntry(rest, guildId, key, url, addedBy, maxBytes = exports.MAX_MEDIA_BYTES, onAdded) {
+    const added = async (entry) => {
+        if (!onAdded)
+            return;
+        try {
+            await onAdded(entry);
+        }
+        catch (err) {
+            logger.warn({ err }, 'onAdded hook failed');
+        }
+    };
     if (!isDownloadableFile(url)) {
-        (0, queries_js_1.addGifUrl)(guildId, key, url, addedBy);
+        await added((0, queries_js_1.addGifUrl)(guildId, key, url, addedBy));
         return 'link';
     }
     try {
         const filePath = await downloadMedia(rest, guildId, url, maxBytes);
-        (0, queries_js_1.addGifUrl)(guildId, key, url, addedBy, filePath);
+        await added((0, queries_js_1.addGifUrl)(guildId, key, url, addedBy, filePath));
         return 'saved';
     }
     catch (err) {
         logger.warn({ err, guildId, key, url }, 'Could not save media copy');
         if (err instanceof MediaError && canFallBackToLink(url)) {
-            (0, queries_js_1.addGifUrl)(guildId, key, url, addedBy);
+            await added((0, queries_js_1.addGifUrl)(guildId, key, url, addedBy));
             return 'link_fallback';
         }
         throw err;
     }
 }
-async function removeGifEntry(guildId, key, url) {
-    const { removed, filePaths } = (0, queries_js_1.removeGifUrl)(guildId, key, url);
-    await Promise.all(filePaths.map(deleteMediaFile));
-    return removed > 0;
+async function finishRemoval(entries, onRemoved) {
+    if (entries.length === 0)
+        return;
+    if (onRemoved) {
+        try {
+            await onRemoved(entries);
+        }
+        catch (err) {
+            logger.warn({ err }, 'onRemoved hook failed');
+        }
+    }
+    await Promise.all(entries.map(e => deleteMediaFile(e.file_path)));
+}
+async function removeGifEntry(guildId, key, url, onRemoved) {
+    const removed = (0, queries_js_1.removeGifUrl)(guildId, key, url);
+    await finishRemoval(removed, onRemoved);
+    return removed;
 }
 /** The list number in `!gif remove key:goal 3` (or `#3`), or null if there isn't one. */
 function parseListNumber(args) {
@@ -201,18 +224,18 @@ function entryForListNumber(entries, n) {
     return n >= 1 && n <= entries.length ? entries[n - 1] : null;
 }
 /** Remove the entry shown as number `n` in the list command. Returns it, or null if out of range. */
-async function removeGifEntryByNumber(guildId, key, n) {
+async function removeGifEntryByNumber(guildId, key, n, onRemoved) {
     const entry = entryForListNumber((0, queries_js_1.listGifUrlsForKey)(guildId, key), n);
     if (!entry)
         return null;
     (0, queries_js_1.deleteGifEntryById)(entry.id);
-    await deleteMediaFile(entry.file_path);
+    await finishRemoval([entry], onRemoved);
     return entry;
 }
-async function deleteGifKeyAndMedia(guildId, key) {
-    const { removed, filePaths } = (0, queries_js_1.deleteGifKey)(guildId, key);
-    await Promise.all(filePaths.map(deleteMediaFile));
-    return removed;
+async function deleteGifKeyAndMedia(guildId, key, onRemoved) {
+    const removed = (0, queries_js_1.deleteGifKey)(guildId, key);
+    await finishRemoval(removed, onRemoved);
+    return removed.length;
 }
 exports.ADD_REPLIES = {
     saved: key => `Saved a copy and added it to **${key}**.`,

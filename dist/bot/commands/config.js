@@ -16,7 +16,7 @@ exports.data = new discord_js_1.SlashCommandBuilder()
     .setName('setting')
     .setDescription('The setting to change')
     .setRequired(true)
-    .addChoices({ name: 'team', value: 'primary_team' }, { name: 'gameday_channel', value: 'gameday_channel_id' }, { name: 'hof_channel', value: 'hof_channel_id' }, { name: 'bot_channel', value: 'bot_commands_channel_id' }, { name: 'news_channel', value: 'news_channel_id' }, { name: 'delay', value: 'spoiler_delay_seconds' }, { name: 'spoiler_mode', value: 'spoiler_mode' }, { name: 'command_mode', value: 'command_mode' }, { name: 'link_fix', value: 'link_fix_enabled' }, { name: 'hof_threshold', value: 'hof_threshold' }, { name: 'timezone', value: 'timezone' }, { name: 'daily_card', value: 'daily_card_enabled' }, { name: 'daily_card_hour', value: 'daily_card_hour' }, { name: 'season_start', value: 'season_start' }, { name: 'season_end', value: 'season_end' }, { name: 'game_charts', value: 'hsc_charts_enabled' }))
+    .addChoices({ name: 'team', value: 'primary_team' }, { name: 'gameday_channel', value: 'gameday_channel_id' }, { name: 'hof_channel', value: 'hof_channel_id' }, { name: 'bot_channel', value: 'bot_commands_channel_id' }, { name: 'news_channel', value: 'news_channel_id' }, { name: 'delay', value: 'spoiler_delay_seconds' }, { name: 'spoiler_mode', value: 'spoiler_mode' }, { name: 'command_mode', value: 'command_mode' }, { name: 'link_fix', value: 'link_fix_enabled' }, { name: 'hof_threshold', value: 'hof_threshold' }, { name: 'timezone', value: 'timezone' }, { name: 'daily_card', value: 'daily_card_enabled' }, { name: 'daily_card_hour', value: 'daily_card_hour' }, { name: 'season_start', value: 'season_start' }, { name: 'season_end', value: 'season_end' }, { name: 'game_charts', value: 'hsc_charts_enabled' }, { name: 'gif_contributor_role', value: 'gif_contributor_role_id' }, { name: 'gif_log_channel', value: 'gif_log_channel_id' }))
     .addStringOption(opt => opt.setName('value').setDescription('The new value').setRequired(true)))
     .addSubcommand(sub => sub.setName('show').setDescription('Show current configuration'));
 const VALID_SPOILER_MODES = ['off', 'wrap_scores', 'minimal_embed'];
@@ -62,6 +62,8 @@ async function handleShow(interaction, guildId) {
         `**Season Start:** ${config.season_start ?? '2026-09-29'}`,
         `**Season End:** ${config.season_end ?? '2027-04-10'}`,
         `**Game Charts (impact card + TOI):** ${config.hsc_charts_enabled ? 'on' : 'off'}`,
+        `**Gif Contributor Role:** ${config.gif_contributor_role_id ? `<@&${config.gif_contributor_role_id}>` : 'Not set'}`,
+        `**Gif Log Channel:** ${config.gif_log_channel_id ? `<#${config.gif_log_channel_id}>` : 'Not set'}`,
     ];
     await interaction.reply({ content: `**Tusky Configuration**\n${lines.join('\n')}`, ephemeral: true });
 }
@@ -190,6 +192,22 @@ async function handleSet(interaction, guildId) {
                 return;
             }
             updates.season_end = value;
+            break;
+        }
+        case 'gif_contributor_role_id':
+        case 'gif_log_channel_id': {
+            // Accepts a mention (<@&id> / <#id>), a raw ID, or "none" to clear
+            if (value.toLowerCase() === 'none') {
+                updates[setting] = null;
+                break;
+            }
+            const id = value.replace(/[<@&#>]/g, '');
+            if (!/^\d{17,20}$/.test(id)) {
+                const what = setting === 'gif_contributor_role_id' ? 'a role mention (@Role) or role ID' : 'a channel mention (#channel) or channel ID';
+                await interaction.reply({ content: `Value must be ${what}, or \`none\` to clear.`, ephemeral: true });
+                return;
+            }
+            updates[setting] = id;
             break;
         }
         default:

@@ -47,15 +47,20 @@ export declare function buildMediaMessage(entry: {
  * and page links are stored as links ('link'). A non-Discord file that can't be saved is
  * stored as a link ('link_fallback'). Throws MediaError if a Discord file can't be saved.
  */
-export declare function addGifEntry(rest: REST, guildId: string, key: string, url: string, addedBy: string, maxBytes?: number): Promise<'saved' | 'link' | 'link_fallback'>;
-export declare function removeGifEntry(guildId: string, key: string, url: string): Promise<boolean>;
+export declare function addGifEntry(rest: REST, guildId: string, key: string, url: string, addedBy: string, maxBytes?: number, onAdded?: (entry: GifCommand) => Promise<void>): Promise<'saved' | 'link' | 'link_fallback'>;
+/**
+ * Called with removed entries while their saved files still exist on disk, so the
+ * gif log can post a copy before the files are deleted. Errors are logged, not thrown.
+ */
+export type OnGifRemoved = (entries: GifCommand[]) => Promise<void>;
+export declare function removeGifEntry(guildId: string, key: string, url: string, onRemoved?: OnGifRemoved): Promise<GifCommand[]>;
 /** The list number in `!gif remove key:goal 3` (or `#3`), or null if there isn't one. */
 export declare function parseListNumber(args: string[]): number | null;
 /** Entry shown as number `n` (1-based) in the list command, or null if out of range. */
 export declare function entryForListNumber<T>(entries: T[], n: number): T | null;
 /** Remove the entry shown as number `n` in the list command. Returns it, or null if out of range. */
-export declare function removeGifEntryByNumber(guildId: string, key: string, n: number): Promise<GifCommand | null>;
-export declare function deleteGifKeyAndMedia(guildId: string, key: string): Promise<number>;
+export declare function removeGifEntryByNumber(guildId: string, key: string, n: number, onRemoved?: OnGifRemoved): Promise<GifCommand | null>;
+export declare function deleteGifKeyAndMedia(guildId: string, key: string, onRemoved?: OnGifRemoved): Promise<number>;
 export declare const ADD_REPLIES: Record<'saved' | 'link' | 'link_fallback', (key: string) => string>;
 interface MessageLike {
     attachments: {

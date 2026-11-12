@@ -324,6 +324,18 @@ These require the **Manage Server** permission in Discord.
 | `!gif add <key>` (as a reply) | Add every image/gif/video/audio in the replied-to message to `<key>` (`key:` prefix optional) |
 | `!gif remove key:<key> <#>` | Remove media by its number from `!gif list` |
 | `!gif remove key:<key> url:<url>` | Remove media from a command by URL |
+| `!gif delete <key>` / `!gif rename <old> to <new>` | Delete or rename a whole key (Manage Server only) |
+
+### Gif contributors and the gif log
+
+People with the **gif contributor role** can add and remove individual gifs (`!gif add`, `!gif remove`, `/gif add`, `/gif remove`) without Manage Server. Deleting or renaming whole keys stays with admins.
+
+```
+/config set setting:gif_contributor_role value:@Tusky Contributor
+/config set setting:gif_log_channel value:#tusky-log
+```
+
+Every gif add, remove, delete and rename (by anyone) is posted to the log channel. Removals include the saved file itself, so to undo one, reply to that log message with `!gif add <key>`. Tusky needs View Channel, Send Messages and Attach Files in the log channel. Set either value to `none` to turn it off.
 | `!feed add <url>` | Add a news feed |
 | `!feed remove <label>` | Remove a news feed |
 | `!sim` | Run a game simulation for testing |
