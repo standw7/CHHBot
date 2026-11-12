@@ -39,6 +39,8 @@ export const data = new SlashCommandBuilder()
             { name: 'game_charts', value: 'hsc_charts_enabled' },
             { name: 'gif_contributor_role', value: 'gif_contributor_role_id' },
             { name: 'gif_log_channel', value: 'gif_log_channel_id' },
+            { name: 'tomato_channel', value: 'tomato_channel_id' },
+            { name: 'tomato_threshold', value: 'tomato_threshold' },
           )
       )
       .addStringOption(opt =>
@@ -98,6 +100,8 @@ async function handleShow(interaction: ChatInputCommandInteraction, guildId: str
     `**Season End:** ${config.season_end ?? '2027-04-10'}`,
     `**Game Charts (impact card + TOI + deserve-to-win):** ${config.hsc_charts_enabled ? 'on' : 'off'}`,
     `**Gif Contributor Role:** ${config.gif_contributor_role_id ? `<@&${config.gif_contributor_role_id}>` : 'Not set'}`,
+    `**Tomato Town Channel:** ${config.tomato_channel_id ? `<#${config.tomato_channel_id}>` : 'Not set'}`,
+    `**Tomato Town Threshold:** ${config.tomato_threshold ?? 8} 🍅`,
     `**Gif Log Channel:** ${config.gif_log_channel_id ? `<#${config.gif_log_channel_id}>` : 'Not set'}`,
   ];
 
@@ -233,6 +237,16 @@ async function handleSet(interaction: ChatInputCommandInteraction, guildId: stri
       updates.season_end = value;
       break;
     }
+    case 'tomato_threshold': {
+      const num = parseInt(value, 10);
+      if (isNaN(num) || num < 1 || num > 100) {
+        await interaction.reply({ content: 'Tomato threshold must be a number between 1 and 100.', ephemeral: true });
+        return;
+      }
+      updates.tomato_threshold = num;
+      break;
+    }
+    case 'tomato_channel_id':
     case 'gif_contributor_role_id':
     case 'gif_log_channel_id': {
       // Accepts a mention (<@&id> / <#id>), a raw ID, or "none" to clear

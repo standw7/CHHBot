@@ -88,4 +88,9 @@ export declare function getUserReminders(guildId: string, userId: string): Remin
 export declare function cancelReminder(id: number, userId: string): boolean;
 export declare function deleteReminder(id: number): void;
 export declare function countUserReminders(guildId: string, userId: string): number;
+export declare function hasBoardPost(board: string, guildId: string, messageId: string): boolean;
+/** Claims the slot before posting; false if another reaction event already did (no double posts). */
+export declare function claimBoardPost(board: string, guildId: string, messageId: string, channelId: string): boolean;
+export declare function setBoardMessageId(board: string, guildId: string, messageId: string, boardMessageId: string): void;
+export declare function releaseBoardPost(board: string, guildId: string, messageId: string): void;
 //# sourceMappingURL=queries.d.ts.map

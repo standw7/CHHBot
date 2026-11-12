@@ -31,7 +31,7 @@ async function scanForMissedHof(guild, config, sinceISO) {
     const threshold = config.hof_threshold ?? exports.DEFAULT_THRESHOLD;
     const candidates = [];
     const me = guild.members.me;
-    const textChannels = guild.channels.cache.filter((channel) => channel.type === discord_js_1.ChannelType.GuildText && channel.id !== config.hof_channel_id);
+    const textChannels = guild.channels.cache.filter((channel) => channel.type === discord_js_1.ChannelType.GuildText && channel.id !== config.hof_channel_id && channel.id !== config.tomato_channel_id);
     for (const channel of textChannels.values()) {
         if (!me?.permissionsIn(channel).has([discord_js_1.PermissionFlagsBits.ViewChannel, discord_js_1.PermissionFlagsBits.ReadMessageHistory])) {
             continue;

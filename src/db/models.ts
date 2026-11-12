@@ -21,6 +21,8 @@ export interface GuildConfig {
   season_end: string; // ISO YYYY-MM-DD, last day of the "in season" off-day card window
   gif_contributor_role_id: string | null; // members with this role can add/remove gifs
   gif_log_channel_id: string | null; // gif add/remove/delete/rename actions are posted here
+  tomato_channel_id: string | null; // Tomato Town: messages with enough 🍅 reactions are reposted here
+  tomato_threshold: number; // 🍅 reactions needed for Tomato Town
 }
 
 export interface FeedSource {

@@ -22,5 +22,7 @@ export declare function buildHofPost(message: Message, guildId: string, channelI
 export declare function inductMessage(message: Message, guildId: string, config: GuildConfig, options?: {
     notifyFollowers?: boolean;
 }): Promise<boolean>;
+/** 🍅, or a custom server emoji named like "tomato". */
+export declare function isTomatoEmoji(name: string | null): boolean;
 export declare function registerReactionHandler(client: Client): void;
 //# sourceMappingURL=reactionAdd.d.ts.map

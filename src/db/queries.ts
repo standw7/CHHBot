@@ -402,3 +402,25 @@ export function countUserReminders(guildId: string, userId: string): number {
   ).get(guildId, userId) as { count: number };
   return row.count;
 }
+
+// --- Reaction boards (Tomato Town) ---
+
+export function hasBoardPost(board: string, guildId: string, messageId: string): boolean {
+  return !!getDb().prepare('SELECT 1 FROM board_messages WHERE board = ? AND guild_id = ? AND original_message_id = ?').get(board, guildId, messageId);
+}
+
+/** Claims the slot before posting; false if another reaction event already did (no double posts). */
+export function claimBoardPost(board: string, guildId: string, messageId: string, channelId: string): boolean {
+  return getDb().prepare(`
+    INSERT OR IGNORE INTO board_messages (board, guild_id, original_message_id, original_channel_id, inducted_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(board, guildId, messageId, channelId, new Date().toISOString()).changes > 0;
+}
+
+export function setBoardMessageId(board: string, guildId: string, messageId: string, boardMessageId: string): void {
+  getDb().prepare('UPDATE board_messages SET board_message_id = ? WHERE board = ? AND guild_id = ? AND original_message_id = ?').run(boardMessageId, board, guildId, messageId);
+}
+
+export function releaseBoardPost(board: string, guildId: string, messageId: string): void {
+  getDb().prepare('DELETE FROM board_messages WHERE board = ? AND guild_id = ? AND original_message_id = ?').run(board, guildId, messageId);
+}

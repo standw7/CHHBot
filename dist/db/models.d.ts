@@ -21,6 +21,8 @@ export interface GuildConfig {
     season_end: string;
     gif_contributor_role_id: string | null;
     gif_log_channel_id: string | null;
+    tomato_channel_id: string | null;
+    tomato_threshold: number;
 }
 export interface FeedSource {
     id: number;

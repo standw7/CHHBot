@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.HOF_EMOJIS = void 0;
 exports.buildHofPost = buildHofPost;
 exports.inductMessage = inductMessage;
+exports.isTomatoEmoji = isTomatoEmoji;
 exports.registerReactionHandler = registerReactionHandler;
 const discord_js_1 = require("discord.js");
 const queries_js_1 = require("../../db/queries.js");
@@ -185,6 +186,51 @@ async function inductMessage(message, guildId, config, options = {}) {
     }
     return true;
 }
+// ---- Tomato Town: like the HoF, but for 🍅 ----
+const TOMATO_BOARD = 'tomato';
+const TOMATO_COLOR = 0xE5322D;
+/** 🍅, or a custom server emoji named like "tomato". */
+function isTomatoEmoji(name) {
+    return name === '🍅' || (!!name && name.toLowerCase().includes('tomato'));
+}
+async function handleTomatoReaction(reaction, config) {
+    const guild = reaction.message.guild;
+    const messageId = reaction.message.id;
+    const channelId = reaction.message.channel.id;
+    const boardChannelId = config.tomato_channel_id;
+    // Never repost the boards' own posts
+    if (channelId === boardChannelId || channelId === config.hof_channel_id)
+        return;
+    if ((reaction.count ?? 0) < (config.tomato_threshold ?? hofScan_js_1.DEFAULT_THRESHOLD))
+        return;
+    if ((0, queries_js_1.hasBoardPost)(TOMATO_BOARD, guild.id, messageId))
+        return;
+    // Claim first: several 🍅 can land at once, and each fires this handler
+    if (!(0, queries_js_1.claimBoardPost)(TOMATO_BOARD, guild.id, messageId, channelId))
+        return;
+    try {
+        const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
+        const board = await guild.channels.fetch(boardChannelId);
+        if (!board?.isTextBased()) {
+            logger.error({ boardChannelId }, 'Tomato Town channel not found or not text-based');
+            (0, queries_js_1.releaseBoardPost)(TOMATO_BOARD, guild.id, messageId);
+            return;
+        }
+        const { embed, embedLinks, files } = await buildHofPost(message, guild.id, channelId, messageId);
+        embed.setColor(TOMATO_COLOR);
+        const tc = board;
+        const post = await tc.send({ content: `🍅 **${reaction.count}**`, embeds: [embed] });
+        (0, queries_js_1.setBoardMessageId)(TOMATO_BOARD, guild.id, messageId, post.id);
+        if (embedLinks.length > 0 || files.length > 0) {
+            await tc.send({ content: embedLinks.length > 0 ? embedLinks.join('\n') : undefined, files });
+        }
+        logger.info({ guildId: guild.id, messageId, channelId, reactionCount: reaction.count }, 'Message sent to Tomato Town');
+    }
+    catch (error) {
+        (0, queries_js_1.releaseBoardPost)(TOMATO_BOARD, guild.id, messageId); // let the next 🍅 retry
+        throw error;
+    }
+}
 function registerReactionHandler(client) {
     client.on('messageReactionAdd', async (reaction, user) => {
         try {
@@ -200,8 +246,14 @@ function registerReactionHandler(client) {
             }
             if (!reaction.message.guild)
                 return;
-            // Check if this is a qualifying emoji
             const emojiName = reaction.emoji.name;
+            if (isTomatoEmoji(emojiName)) {
+                const config = (0, queries_js_1.getGuildConfig)(reaction.message.guild.id);
+                if (config?.tomato_channel_id)
+                    await handleTomatoReaction(reaction, config);
+                return;
+            }
+            // Check if this is a qualifying emoji
             if (!emojiName || !hofScan_js_1.HOF_EMOJIS.includes(emojiName))
                 return;
             const guildId = reaction.message.guild.id;
@@ -210,8 +262,8 @@ function registerReactionHandler(client) {
                 return;
             const messageId = reaction.message.id;
             const channelId = reaction.message.channel.id;
-            // Don't induct messages from the HoF channel itself
-            if (channelId === config.hof_channel_id)
+            // Don't induct the boards' own reposts (HoF or Tomato Town)
+            if (channelId === config.hof_channel_id || channelId === config.tomato_channel_id)
                 return;
             const threshold = config.hof_threshold ?? hofScan_js_1.DEFAULT_THRESHOLD;
             const count = reaction.count ?? 0;

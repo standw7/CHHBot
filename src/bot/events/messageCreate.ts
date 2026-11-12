@@ -160,6 +160,7 @@ function buildHelpPages(gifKeysText: string): EmbedBuilder[] {
       .addFields(
         { name: 'Media Commands', value: `\`!<key>\` - Post a random gif from a collection (e.g. \`!goal\`)\n\`!<key> <#>\` - Post a specific one by its number in \`!gif list\` (e.g. \`!goal 4\`)\nRegistered keys: ${gifKeysText}`, inline: false },
         { name: 'Hall of Fame', value: 'Messages that get enough 🔥 😂 or 🤣 reactions are automatically posted to the Hall of Fame channel.\nHOF posts include reply context, media, and rendered Twitter links.', inline: false },
+        { name: 'Tomato Town', value: 'Messages that get 8 🍅 reactions are reposted to the Tomato Town channel.', inline: false },
         { name: 'Auto Link Fix', value: 'Twitter/X links are automatically replied to with embeddable versions so you can see the content without clicking.', inline: false },
       )
       .setFooter({ text: 'Page 2/3 — Use buttons to navigate' })
@@ -173,7 +174,7 @@ function buildHelpPages(gifKeysText: string): EmbedBuilder[] {
       .addFields(
         { name: 'Gif Management', value: '`!gif add <k> url:<u>` - Add gif to a key (or attach a file, or reply to a message with media)\n`!gif remove key:<k> <#>` - Remove gif\n`!gif list key:<k>` - List URLs for a key\n`!gif keys` - List all registered keys\n`!gif delete <k>` / `!gif rename <old> to <new>` - Manage Server only\nAdd/remove also work for the gif contributor role (`/config set gif_contributor_role`). Changes are posted to `gif_log_channel`.', inline: false },
         { name: 'News Feeds', value: '`!feed add <url> [label]` - Add RSS or Twitter feed\n`!feed remove <label>` - Remove a feed\n`!feed list` - List all feeds\n`!feed status` - Check feed health\n`!feed check [label]` - Force-check feeds now\n`!feed reset <label>` - Reset feed tracking', inline: false },
-        { name: 'Hall of Fame', value: '`!hof` - Show HOF settings\n`!hof threshold <n>` - Set reaction threshold (1-100)\n`!hof update` - Rebuild all existing HOF posts', inline: false },
+        { name: 'Hall of Fame', value: '`!hof` - Show HOF settings\n`!hof threshold <n>` - Set reaction threshold (1-100)\n`!hof update` - Rebuild all existing HOF posts\nTomato Town: `/config set setting:tomato_channel` and `tomato_threshold` (default 8)', inline: false },
         { name: 'Config', value: '`/config show` - View all settings\n`/config set setting:<name> value:<value>` - Change a setting', inline: false },
         { name: 'Testing', value: '`!sim` - Run game simulation\n`!sim reset` - Reset simulation data', inline: false },
       )

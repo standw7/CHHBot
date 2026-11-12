@@ -77,6 +77,8 @@ After inviting Tusky, you need to tell it which channels to use. Run these slash
 | `team` | Which NHL team to track | Any NHL team code (e.g., UTA, EDM, NYR) | UTA |
 | `gameday_channel` | Channel for goal cards and game summaries | Any channel | Not set |
 | `hof_channel` | Channel for Hall of Fame reposts | Any channel | Not set |
+| `tomato_channel` | Channel for Tomato Town reposts (messages with enough 🍅 reactions) | Any channel | Not set |
+| `tomato_threshold` | 🍅 reactions needed for Tomato Town | 1-100 | 8 |
 | `bot_channel` | Channel for bot admin commands | Any channel | Not set |
 | `news_channel` | Channel for RSS/Twitter feed posts | Any channel | Not set |
 | `delay` | Seconds to wait before posting a goal (spoiler protection) | 0 to 300 | 30 |

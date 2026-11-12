@@ -219,6 +219,25 @@ function runMigrations(db) {
     if (!colNames.includes('gif_log_channel_id')) {
         db.exec('ALTER TABLE guild_config ADD COLUMN gif_log_channel_id TEXT');
     }
+    if (!colNames.includes('tomato_channel_id')) {
+        db.exec('ALTER TABLE guild_config ADD COLUMN tomato_channel_id TEXT');
+    }
+    if (!colNames.includes('tomato_threshold')) {
+        db.exec('ALTER TABLE guild_config ADD COLUMN tomato_threshold INTEGER DEFAULT 8');
+    }
+    // Reaction boards other than the Hall of Fame (e.g. 'tomato'); one post per board per message
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS board_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      board TEXT NOT NULL,
+      guild_id TEXT NOT NULL,
+      original_message_id TEXT NOT NULL,
+      original_channel_id TEXT,
+      board_message_id TEXT,
+      inducted_at TEXT,
+      UNIQUE(board, guild_id, original_message_id)
+    );
+  `);
     // Saved copies of linked files for gif commands
     const gifColumns = db.prepare("PRAGMA table_info(gif_commands)").all();
     if (!gifColumns.some(c => c.name === 'file_path')) {

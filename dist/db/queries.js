@@ -60,6 +60,10 @@ exports.getUserReminders = getUserReminders;
 exports.cancelReminder = cancelReminder;
 exports.deleteReminder = deleteReminder;
 exports.countUserReminders = countUserReminders;
+exports.hasBoardPost = hasBoardPost;
+exports.claimBoardPost = claimBoardPost;
+exports.setBoardMessageId = setBoardMessageId;
+exports.releaseBoardPost = releaseBoardPost;
 const database_js_1 = require("./database.js");
 const dailyCard_js_1 = require("../services/dailyCard.js");
 // --- Guild Config ---
@@ -365,5 +369,22 @@ function deleteReminder(id) {
 function countUserReminders(guildId, userId) {
     const row = (0, database_js_1.getDb)().prepare('SELECT COUNT(*) as count FROM reminders WHERE guild_id = ? AND user_id = ?').get(guildId, userId);
     return row.count;
+}
+// --- Reaction boards (Tomato Town) ---
+function hasBoardPost(board, guildId, messageId) {
+    return !!(0, database_js_1.getDb)().prepare('SELECT 1 FROM board_messages WHERE board = ? AND guild_id = ? AND original_message_id = ?').get(board, guildId, messageId);
+}
+/** Claims the slot before posting; false if another reaction event already did (no double posts). */
+function claimBoardPost(board, guildId, messageId, channelId) {
+    return (0, database_js_1.getDb)().prepare(`
+    INSERT OR IGNORE INTO board_messages (board, guild_id, original_message_id, original_channel_id, inducted_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(board, guildId, messageId, channelId, new Date().toISOString()).changes > 0;
+}
+function setBoardMessageId(board, guildId, messageId, boardMessageId) {
+    (0, database_js_1.getDb)().prepare('UPDATE board_messages SET board_message_id = ? WHERE board = ? AND guild_id = ? AND original_message_id = ?').run(boardMessageId, board, guildId, messageId);
+}
+function releaseBoardPost(board, guildId, messageId) {
+    (0, database_js_1.getDb)().prepare('DELETE FROM board_messages WHERE board = ? AND guild_id = ? AND original_message_id = ?').run(board, guildId, messageId);
 }
 //# sourceMappingURL=queries.js.map

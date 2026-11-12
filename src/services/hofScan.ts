@@ -53,7 +53,7 @@ export async function scanForMissedHof(
 
   const textChannels = guild.channels.cache.filter(
     (channel): channel is TextChannel =>
-      channel.type === ChannelType.GuildText && channel.id !== config.hof_channel_id
+      channel.type === ChannelType.GuildText && channel.id !== config.hof_channel_id && channel.id !== config.tomato_channel_id
   );
 
   for (const channel of textChannels.values()) {
