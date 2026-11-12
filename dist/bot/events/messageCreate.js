@@ -104,7 +104,7 @@ function registerMessageHandler(client) {
                     break;
                 default:
                     // Check if it's a registered gif key
-                    await handlePrefixGif(message, command);
+                    await handlePrefixGif(message, command, args[1]);
                     break;
             }
         }
@@ -144,7 +144,7 @@ function buildHelpPages(gifKeysText) {
     pages.push(new discord_js_1.EmbedBuilder()
         .setTitle('Tusky Commands — Media & Fun')
         .setColor(0x006847)
-        .addFields({ name: 'Media Commands', value: `\`!<key>\` - Post a random gif from a collection\nRegistered keys: ${gifKeysText}`, inline: false }, { name: 'Hall of Fame', value: 'Messages that get enough 🔥 😂 or 🤣 reactions are automatically posted to the Hall of Fame channel.\nHOF posts include reply context, media, and rendered Twitter links.', inline: false }, { name: 'Auto Link Fix', value: 'Twitter/X links are automatically replied to with embeddable versions so you can see the content without clicking.', inline: false })
+        .addFields({ name: 'Media Commands', value: `\`!<key>\` - Post a random gif from a collection (e.g. \`!goal\`)\n\`!<key> <#>\` - Post a specific one by its number in \`!gif list\` (e.g. \`!goal 4\`)\nRegistered keys: ${gifKeysText}`, inline: false }, { name: 'Hall of Fame', value: 'Messages that get enough 🔥 😂 or 🤣 reactions are automatically posted to the Hall of Fame channel.\nHOF posts include reply context, media, and rendered Twitter links.', inline: false }, { name: 'Auto Link Fix', value: 'Twitter/X links are automatically replied to with embeddable versions so you can see the content without clicking.', inline: false })
         .setFooter({ text: 'Page 2/3 — Use buttons to navigate' }));
     // Page 3: Admin
     pages.push(new discord_js_1.EmbedBuilder()
@@ -1363,7 +1363,7 @@ async function handlePrefixHof(message, args) {
     }
     await message.reply('Unknown subcommand. Use `!hof help` for usage.');
 }
-async function handlePrefixGif(message, key) {
+async function handlePrefixGif(message, key, numberArg) {
     const guildId = message.guild.id;
     const userId = message.author.id;
     // Check cooldown
@@ -1372,14 +1372,26 @@ async function handlePrefixGif(message, key) {
     if (lastUsed && Date.now() - lastUsed < COOLDOWN_MS) {
         return; // Silent cooldown for prefix commands
     }
-    const entries = (0, queries_js_1.getGifEntries)(guildId, key);
+    const { buildMediaMessage, parseListNumber, entryForListNumber } = await import('../../services/media.js');
+    const { listGifUrlsForKey } = await import('../../db/queries.js');
+    // Same order as `!gif list`, so `!haytin 4` posts the list's #4
+    const entries = listGifUrlsForKey(guildId, key);
     if (entries.length === 0) {
         return; // Silent - unknown key, do nothing per PRD
     }
-    const entry = entries[Math.floor(Math.random() * entries.length)];
+    // `!<key> <#>` picks that entry; anything else after the key is ignored (random pick)
+    const number = numberArg ? parseListNumber([numberArg]) : null;
+    let entry = entries[Math.floor(Math.random() * entries.length)];
+    if (number) {
+        const picked = entryForListNumber(entries, number);
+        if (!picked) {
+            await message.reply(`**${key}** only has ${entries.length} item${entries.length === 1 ? '' : 's'}. Pick 1–${entries.length}.`);
+            return;
+        }
+        entry = picked;
+    }
     cooldowns.set(cooldownKey, Date.now());
     if (message.channel.isSendable()) {
-        const { buildMediaMessage } = await import('../../services/media.js');
         try {
             await message.channel.send(buildMediaMessage(entry));
         }

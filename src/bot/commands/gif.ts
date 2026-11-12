@@ -2,10 +2,10 @@ import {
   ChatInputCommandInteraction,
   SlashCommandBuilder,
 } from 'discord.js';
-import { getGifEntries, listGifKeys, listGifUrlsForKey } from '../../db/queries.js';
+import { listGifKeys, listGifUrlsForKey } from '../../db/queries.js';
 import { memberGifAccess, logGifAction, CONTRIBUTOR_DENIED } from '../../services/gifLog.js';
 import type { GifCommand } from '../../db/models.js';
-import { normalizeGifKey, addGifEntry, removeGifEntry, removeGifEntryByNumber, buildMediaMessage, uploadLimitBytes, MediaError, ADD_REPLIES } from '../../services/media.js';
+import { normalizeGifKey, entryForListNumber, addGifEntry, removeGifEntry, removeGifEntryByNumber, buildMediaMessage, uploadLimitBytes, MediaError, ADD_REPLIES } from '../../services/media.js';
 
 export const data = new SlashCommandBuilder()
   .setName('gif')
@@ -15,6 +15,7 @@ export const data = new SlashCommandBuilder()
       .setName('play')
       .setDescription('Play a random gif/media for a key')
       .addStringOption(opt => opt.setName('name').setDescription('The gif key (e.g. goal, yams)').setRequired(true))
+      .addIntegerOption(opt => opt.setName('number').setDescription('Play a specific one: its number in /gif list').setMinValue(1))
   )
   .addSubcommand(sub =>
     sub
@@ -85,13 +86,18 @@ async function handlePlay(interaction: ChatInputCommandInteraction, guildId: str
     return;
   }
 
-  const entries = getGifEntries(guildId, key);
+  const entries = listGifUrlsForKey(guildId, key); // same order as /gif list
   if (entries.length === 0) {
     await interaction.reply({ content: `No media found for "${key}".`, ephemeral: true });
     return;
   }
 
-  const entry = entries[Math.floor(Math.random() * entries.length)];
+  const number = interaction.options.getInteger('number');
+  const entry = number ? entryForListNumber(entries, number) : entries[Math.floor(Math.random() * entries.length)];
+  if (!entry) {
+    await interaction.reply({ content: `**${key}** only has ${entries.length} item${entries.length === 1 ? '' : 's'}. Pick 1–${entries.length}.`, ephemeral: true });
+    return;
+  }
   cooldowns.set(cooldownKey, Date.now());
   try {
     await interaction.reply(buildMediaMessage(entry));

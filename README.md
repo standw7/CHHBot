@@ -320,6 +320,7 @@ These require the **Manage Server** permission in Discord.
 |---------|-------------|
 | `/config set setting:<name> value:<value>` | Change a bot setting |
 | `/config show` | View all current settings |
+| `!<key> <#>` | Post a specific gif by its number in `!gif list` (e.g. `!haytin 4`) |
 | `!gif add key:<key> url:<url>` | Add media to a command (or attach a file instead of `url:`) |
 | `!gif add <key>` (as a reply) | Add every image/gif/video/audio in the replied-to message to `<key>` (`key:` prefix optional) |
 | `!gif remove key:<key> <#>` | Remove media by its number from `!gif list` |

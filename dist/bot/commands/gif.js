@@ -12,7 +12,8 @@ exports.data = new discord_js_1.SlashCommandBuilder()
     .addSubcommand(sub => sub
     .setName('play')
     .setDescription('Play a random gif/media for a key')
-    .addStringOption(opt => opt.setName('name').setDescription('The gif key (e.g. goal, yams)').setRequired(true)))
+    .addStringOption(opt => opt.setName('name').setDescription('The gif key (e.g. goal, yams)').setRequired(true))
+    .addIntegerOption(opt => opt.setName('number').setDescription('Play a specific one: its number in /gif list').setMinValue(1)))
     .addSubcommand(sub => sub
     .setName('add')
     .setDescription('Add media to a key: a link, or attach a file (admins & gif contributors)')
@@ -67,12 +68,17 @@ async function handlePlay(interaction, guildId) {
         await interaction.reply({ content: `Cooldown: wait ${remaining}s before using this again.`, ephemeral: true });
         return;
     }
-    const entries = (0, queries_js_1.getGifEntries)(guildId, key);
+    const entries = (0, queries_js_1.listGifUrlsForKey)(guildId, key); // same order as /gif list
     if (entries.length === 0) {
         await interaction.reply({ content: `No media found for "${key}".`, ephemeral: true });
         return;
     }
-    const entry = entries[Math.floor(Math.random() * entries.length)];
+    const number = interaction.options.getInteger('number');
+    const entry = number ? (0, media_js_1.entryForListNumber)(entries, number) : entries[Math.floor(Math.random() * entries.length)];
+    if (!entry) {
+        await interaction.reply({ content: `**${key}** only has ${entries.length} item${entries.length === 1 ? '' : 's'}. Pick 1–${entries.length}.`, ephemeral: true });
+        return;
+    }
     cooldowns.set(cooldownKey, Date.now());
     try {
         await interaction.reply((0, media_js_1.buildMediaMessage)(entry));
