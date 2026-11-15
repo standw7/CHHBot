@@ -39,6 +39,18 @@ export interface PlayByPlayResponse {
   plays: Play[];
   homeTeam: PbpTeam;
   awayTeam: PbpTeam;
+  // Everyone dressed for the game, with names — includes same-day call-ups
+  rosterSpots?: RosterSpot[];
+}
+
+export interface RosterSpot {
+  teamId: number;
+  playerId: number;
+  firstName: { default: string };
+  lastName: { default: string };
+  sweaterNumber?: number;
+  positionCode?: string;
+  headshot?: string;
 }
 
 export interface PbpTeam {
@@ -61,6 +73,7 @@ export interface Play {
   };
   timeInPeriod: string;
   timeRemaining: string;
+  situationCode?: string;
   details?: PlayDetails;
   pptReplayUrl?: string;
 }
@@ -68,6 +81,8 @@ export interface Play {
 export interface PlayDetails {
   // Goal-specific fields from play-by-play (IDs only, no names)
   scoringPlayerId?: number;
+  shootingPlayerId?: number; // shots, missed shots, shootout attempts
+  reason?: string; // missed shots, e.g. "hit-right-post", "wide-left"
   scoringPlayerTotal?: number;
   assist1PlayerId?: number;
   assist1PlayerTotal?: number;

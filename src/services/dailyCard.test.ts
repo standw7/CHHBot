@@ -102,21 +102,22 @@ describe('selectDailyCard', () => {
 });
 
 describe('pickOffDayPhrase', () => {
-  test('cycles through all 10 phrases across 10 consecutive dates and wraps', () => {
+  test('cycles through every phrase across consecutive dates and wraps', () => {
+    const n = OFF_DAY_PHRASES.length;
     const start = '2026-01-01'; // ordinal 1
     const seen = new Set<string>();
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < n; i++) {
       const date = new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10);
       const phrase = pickOffDayPhrase(date);
       assert.ok(OFF_DAY_PHRASES.includes(phrase));
       seen.add(phrase);
     }
-    assert.equal(seen.size, 10);
+    assert.equal(seen.size, n);
 
-    // Wraps: day 1 and day 11 (ordinal 1 and 11) should match (11 % 10 === 1)
+    // Wraps: ordinal 1 and ordinal 1 + n match
     const day1 = pickOffDayPhrase('2026-01-01');
-    const day11 = pickOffDayPhrase('2026-01-11');
-    assert.equal(day1, day11);
+    const wrapped = pickOffDayPhrase(new Date(Date.UTC(2026, 0, 1 + n)).toISOString().slice(0, 10));
+    assert.equal(day1, wrapped);
     void start;
   });
 });
@@ -238,5 +239,18 @@ describe('buildPreGameCard milestone watch', () => {
     const g = game({ id: 1 });
     const embed = buildPreGameCard(g, [g], 'UTA', null, undefined, []);
     assert.doesNotMatch(embed.data.description ?? '', /Milestone watch/);
+  });
+
+  test('injury report section comes before milestone watch', () => {
+    const g = game({});
+    const embed = buildPreGameCard(g, [g], 'UTA', null, undefined, ['Keller: 1 goal from 20 this season'], ['**Guenther** — IR · upper body · est. return Dec 5']);
+    const desc = embed.toJSON().description!;
+    assert.ok(desc.includes('🩹 **Injury report**\n**Guenther** — IR · upper body · est. return Dec 5'));
+    assert.ok(desc.indexOf('Injury report') < desc.indexOf('Milestone watch'));
+  });
+
+  test('no injuries → no injury section', () => {
+    const g = game({});
+    assert.ok(!buildPreGameCard(g, [g], 'UTA', null, undefined, [], []).toJSON().description!.includes('Injury report'));
   });
 });

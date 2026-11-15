@@ -37,10 +37,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.findUpcomingMilestones = findUpcomingMilestones;
+exports.excludeInjured = excludeInjured;
 exports.loadWatchPlayers = loadWatchPlayers;
 const pino_1 = __importDefault(require("pino"));
 const nhlClient = __importStar(require("../nhl/client.js"));
 const milestones_js_1 = require("./milestones.js");
+const injuries_js_1 = require("./injuries.js");
 const logger = (0, pino_1.default)({ name: 'milestone-watch' });
 const KIND_ORDER = ['debut', 'career_goals', 'career_points', 'career_assists', 'season_goals', 'games'];
 /**
@@ -51,37 +53,61 @@ const KIND_ORDER = ['debut', 'career_goals', 'career_points', 'career_assists', 
 function findUpcomingMilestones(players) {
     const found = [];
     for (const p of players) {
-        if (p.careerGamesPlayed === 0) {
-            found.push({ kind: 'debut', line: `${p.name}: NHL debut if he plays tonight` });
-            continue;
-        }
-        if (p.careerGoals > 0 && (p.careerGoals + 1) % 100 === 0) {
-            found.push({ kind: 'career_goals', line: `${p.name}: 1 goal from ${p.careerGoals + 1} career goals` });
-        }
-        const pointMark = (Math.floor(p.careerPoints / 100) + 1) * 100;
-        const away = pointMark - p.careerPoints;
-        if (away <= 2) {
-            found.push({
-                kind: 'career_points',
-                line: `${p.name}: ${away} point${away === 1 ? '' : 's'} from ${pointMark} career points`,
-            });
-        }
-        const assistMark = (Math.floor(p.careerAssists / 100) + 1) * 100;
-        const assistsAway = assistMark - p.careerAssists;
-        if (assistsAway <= 2) {
-            found.push({
-                kind: 'career_assists',
-                line: `${p.name}: ${assistsAway} assist${assistsAway === 1 ? '' : 's'} from ${assistMark} career assists`,
-            });
-        }
-        if (milestones_js_1.SEASON_GOAL_THRESHOLDS.includes(p.seasonGoals + 1)) {
-            found.push({ kind: 'season_goals', line: `${p.name}: 1 goal from ${p.seasonGoals + 1} this season` });
-        }
-        if ((p.careerGamesPlayed + 1) % 100 === 0) {
-            found.push({ kind: 'games', line: `${p.name}: ${p.careerGamesPlayed + 1}th NHL game if he plays tonight` });
-        }
+        const tag = p.dayToDay ? ' (day-to-day)' : '';
+        const before = found.length;
+        findForPlayer(p, found);
+        for (let i = before; i < found.length; i++)
+            found[i].line += tag;
     }
     return KIND_ORDER.flatMap(kind => found.filter(f => f.kind === kind).map(f => f.line));
+}
+/**
+ * Drops players who are out (injured reserve, out) per the injury report and flags
+ * day-to-day ones. With no report (null), everyone is kept.
+ */
+function excludeInjured(players, injuries) {
+    if (!injuries)
+        return players;
+    const result = [];
+    for (const p of players) {
+        const status = p.fullName ? injuries.get((0, injuries_js_1.normalizeName)(p.fullName))?.status : undefined;
+        if (status === undefined)
+            result.push(p);
+        else if (!(0, injuries_js_1.isOut)(status))
+            result.push({ ...p, dayToDay: true });
+    }
+    return result;
+}
+function findForPlayer(p, found) {
+    if (p.careerGamesPlayed === 0) {
+        found.push({ kind: 'debut', line: `${p.name}: NHL debut if he plays tonight` });
+        return;
+    }
+    if (p.careerGoals > 0 && (p.careerGoals + 1) % 100 === 0) {
+        found.push({ kind: 'career_goals', line: `${p.name}: 1 goal from ${p.careerGoals + 1} career goals` });
+    }
+    const pointMark = (Math.floor(p.careerPoints / 100) + 1) * 100;
+    const away = pointMark - p.careerPoints;
+    if (away <= 2) {
+        found.push({
+            kind: 'career_points',
+            line: `${p.name}: ${away} point${away === 1 ? '' : 's'} from ${pointMark} career points`,
+        });
+    }
+    const assistMark = (Math.floor(p.careerAssists / 100) + 1) * 100;
+    const assistsAway = assistMark - p.careerAssists;
+    if (assistsAway <= 2) {
+        found.push({
+            kind: 'career_assists',
+            line: `${p.name}: ${assistsAway} assist${assistsAway === 1 ? '' : 's'} from ${assistMark} career assists`,
+        });
+    }
+    if (milestones_js_1.SEASON_GOAL_THRESHOLDS.includes(p.seasonGoals + 1)) {
+        found.push({ kind: 'season_goals', line: `${p.name}: 1 goal from ${p.seasonGoals + 1} this season` });
+    }
+    if ((p.careerGamesPlayed + 1) % 100 === 0) {
+        found.push({ kind: 'games', line: `${p.name}: ${p.careerGamesPlayed + 1}th NHL game if he plays tonight` });
+    }
 }
 /**
  * Loads the current roster's regular-season stats. `season` is the game's season id
@@ -107,6 +133,7 @@ async function loadWatchPlayers(teamCode, season) {
         const seasonGoals = featured?.season === season ? featured.regularSeason?.subSeason.goals ?? 0 : 0;
         players.push({
             name: rp.lastName.default,
+            fullName: `${rp.firstName.default} ${rp.lastName.default}`,
             careerGamesPlayed: career?.gamesPlayed ?? 0,
             careerGoals: career?.goals ?? 0,
             careerPoints: career?.points ?? 0,

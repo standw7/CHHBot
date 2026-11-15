@@ -6,6 +6,10 @@ import { buildGoalCard, findReplayUrl } from './goalCard.js';
 import type { GoalCardData } from './goalCard.js';
 import { buildFinalCard } from './finalCard.js';
 import { detectMilestones } from './milestones.js';
+import { goalsSoFarFromPlays } from './pbpGoal.js';
+import { buildShootoutCard, shootoutState } from './shootoutCard.js';
+import { XG_VICTIM } from './xgVictim.js';
+import { appliesTo as appliesToXgVictim, checkVictimShots, debtPaymentMilestone } from './xgVictimTracker.js';
 import type { CareerTotals } from './milestones.js';
 import { loadLeaderSnapshot, leaderAlertsForGoal, seasonTotalsFrom } from './leaders.js';
 import type { LeaderSnapshot, LeaderCategory } from './leaders.js';
@@ -15,7 +19,7 @@ import { sendFollowDms } from './follows.js';
 import { shouldIncludeScoresInEmbed } from './spoiler.js';
 import { standingsForSeason } from './standings.js';
 import type { SpoilerMode } from './spoiler.js';
-import type { ScheduleGame, Play, PbpTeam, LandingGoal, TeamStanding } from '../nhl/types.js';
+import type { ScheduleGame, Play, PbpTeam, LandingGoal, TeamStanding, PlayByPlayResponse } from '../nhl/types.js';
 
 const logger = pino({ name: 'game-tracker' });
 
@@ -46,6 +50,17 @@ interface TrackerContext {
   leadersBefore: LeaderSnapshot | null;
   // Active goal-replay poll timers, so they can all be cancelled on stopTracker.
   replayPollTimers: Set<ReturnType<typeof setTimeout>>;
+  // Shootout card posting for the current game (a new card after every attempt).
+  shootout: ShootoutTracking | null;
+  // xG-victim (Hayton) shot checks: MoneyPuck is polled at most once a minute, one check at a time.
+  xgLastCheck: number;
+  xgCheckRunning: boolean;
+}
+
+interface ShootoutTracking {
+  gameId: number;
+  lastQueued: number; // attempts shown on the last scheduled card
+  chain: Promise<void>; // posts run in order so a slow send can't be overtaken by the next card
 }
 
 const trackers = new Map<string, TrackerContext>();
@@ -75,6 +90,9 @@ export function startTracker(client: Client, guildId: string): void {
     seasonCache: new Map(),
     leadersBefore: null,
     replayPollTimers: new Set(),
+    shootout: null,
+    xgLastCheck: 0,
+    xgCheckRunning: false,
   };
 
   trackers.set(guildId, ctx);
@@ -235,6 +253,10 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
     return;
   }
 
+  // Before the FINAL check: the deciding attempt and game end land in the same poll
+  queueShootoutUpdate(client, ctx, pbp);
+  maybeCheckXgVictim(client, ctx, pbp);
+
   // Check if game ended
   if (pbp.gameState === 'FINAL' || pbp.gameState === 'OFF') {
     ctx.state = 'FINAL';
@@ -271,6 +293,9 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
   const delayMs = (config.spoiler_delay_seconds ?? 30) * 1000;
 
   for (const goal of goals) {
+    // Shootout goals go on the shootout card instead (see queueShootoutUpdate)
+    if (goal.periodDescriptor?.periodType === 'SO') continue;
+
     if (hasGoalBeenPosted(ctx.guildId, ctx.currentGame.id, goal.eventId)) {
       continue;
     }
@@ -311,10 +336,11 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
         // build goalsSoFar (all goals up to and including this one, tagged with periodType)
         let landingGoal: LandingGoal | undefined;
         let goalsSoFar: LandingGoal[] = [];
+        const flattened: LandingGoal[] = [];
         try {
-          const landing = await nhlClient.getLanding(gameId);
+          // Bypass the cache: a landing fetched moment ago (e.g. by the replay poller) won't have this goal yet
+          const landing = await nhlClient.getLanding(gameId, true);
           if (landing?.summary?.scoring) {
-            const flattened: LandingGoal[] = [];
             for (const period of landing.summary.scoring) {
               for (const g of period.goals) {
                 flattened.push({ ...g, periodType: period.periodDescriptor?.periodType });
@@ -328,6 +354,19 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
           }
         } catch (err) {
           logger.warn({ err, gameId, eventId }, 'Failed to fetch landing for goal details');
+        }
+
+        // Landing lags the play-by-play; fall back to it so the card never says "Unknown"
+        if (!landingGoal) {
+          const latestPbp = (await nhlClient.getPlayByPlay(gameId)) ?? pbp;
+          const fromPbp = goalsSoFarFromPlays(latestPbp, eventId, flattened);
+          if (fromPbp) {
+            goalsSoFar = fromPbp;
+            landingGoal = fromPbp[fromPbp.length - 1];
+            logger.info({ gameId, eventId }, 'Goal not in landing yet, built card from play-by-play');
+          } else {
+            logger.warn({ gameId, eventId }, 'Goal missing from both landing and play-by-play roster');
+          }
         }
 
         // Career totals for the scorer and assisters (regular season, primary team only), cached per game
@@ -352,6 +391,12 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
               assistersCareerBefore,
             })
           : undefined;
+
+        // The xG victim actually scored: debt payment banner (gold, like other celebrations)
+        if (landingGoal && isPrimaryTeam && landingGoal.playerId === XG_VICTIM.playerId && appliesToXgVictim({ gameType, teamCode: ctx.teamCode })) {
+          const goalsTonight = goalsSoFar.filter(g => g.playerId === XG_VICTIM.playerId && g.periodType !== 'SO').length;
+          milestones?.push(await debtPaymentMilestone({ gameId, gameType, season: gameSeason }, goalsTonight));
+        }
 
         // NHL top-3 moves (regular season, primary team, snapshot taken at puck drop)
         const leaderAlerts = landingGoal && isPrimaryTeam && gameType === 2 && ctx.leadersBefore
@@ -483,6 +528,63 @@ function pollForReplay(
       logger.info({ guildId: ctx.guildId, eventId }, 'Gave up polling for replay link');
     }
   }, REPLAY_POLL_INTERVAL_MS);
+  ctx.replayPollTimers.add(timer);
+}
+
+const XG_CHECK_INTERVAL_MS = 60_000;
+
+// Runs in the background so a slow MoneyPuck response never delays goal detection.
+function maybeCheckXgVictim(client: Client, ctx: TrackerContext, pbp: PlayByPlayResponse): void {
+  const game = ctx.currentGame;
+  const channelId = getGuildConfig(ctx.guildId)?.gameday_channel_id;
+  if (!game || !channelId || ctx.xgCheckRunning || Date.now() - ctx.xgLastCheck < XG_CHECK_INTERVAL_MS) return;
+  const xgGame = { guildId: ctx.guildId, gameId: game.id, gameType: game.gameType, season: game.season, teamCode: ctx.teamCode, channelId };
+  if (!appliesToXgVictim(xgGame)) return;
+
+  ctx.xgLastCheck = Date.now();
+  ctx.xgCheckRunning = true;
+  checkVictimShots(client, xgGame, pbp)
+    .catch(err => logger.error({ err, gameId: game.id }, 'xG-victim check failed'))
+    .finally(() => { ctx.xgCheckRunning = false; });
+}
+
+// Posts a new shootout card after every attempt — an edited card would be buried by chat —
+// on the same spoiler delay as goal cards. The card for the deciding attempt shows the winner.
+// Goal posts are deduped in the DB, but these aren't: a restart mid-shootout re-posts the current state once.
+function queueShootoutUpdate(client: Client, ctx: TrackerContext, pbp: PlayByPlayResponse): void {
+  const game = ctx.currentGame;
+  const config = getGuildConfig(ctx.guildId);
+  if (!game || !config?.gameday_channel_id) return;
+
+  const state = shootoutState(pbp);
+  if (!state || state.attempts.length === 0) return;
+
+  if (ctx.shootout?.gameId !== game.id) {
+    ctx.shootout = { gameId: game.id, lastQueued: 0, chain: Promise.resolve() };
+  }
+  const tracking = ctx.shootout;
+  if (state.attempts.length <= tracking.lastQueued) return;
+  tracking.lastQueued = state.attempts.length;
+
+  const spoilerMode = (config.spoiler_mode ?? 'off') as SpoilerMode;
+  const delayMs = (config.spoiler_delay_seconds ?? 30) * 1000;
+  const channelId = config.gameday_channel_id;
+
+  const timer = setTimeout(() => {
+    ctx.replayPollTimers.delete(timer);
+    tracking.chain = tracking.chain.then(async () => {
+      try {
+        const guild = client.guilds.cache.get(ctx.guildId);
+        const embed = buildShootoutCard(state, spoilerMode, ctx.teamCode, guild);
+        const channel = await client.channels.fetch(channelId);
+        if (!channel || !channel.isTextBased()) return;
+        await (channel as TextChannel).send({ embeds: [embed] });
+        logger.info({ guildId: ctx.guildId, gameId: game.id, attempts: state.attempts.length, complete: state.complete }, 'Shootout card posted');
+      } catch (err) {
+        logger.error({ err, gameId: game.id }, 'Failed to post shootout card');
+      }
+    });
+  }, delayMs);
   ctx.replayPollTimers.add(timer);
 }
 

@@ -120,6 +120,14 @@ function runMigrations(db: Database.Database): void {
       PRIMARY KEY(user_id, game_id, event_id)
     );
 
+    -- xG-victim shots already rolled (posted or not), so a restart never re-rolls one
+    CREATE TABLE IF NOT EXISTS xg_shots_rolled (
+      guild_id TEXT,
+      game_id INTEGER,
+      shot_id TEXT,
+      PRIMARY KEY(guild_id, game_id, shot_id)
+    );
+
     DROP TABLE IF EXISTS rewards_pings;
     CREATE TABLE IF NOT EXISTS rewards_schedule (
       guild_id TEXT,

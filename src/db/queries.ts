@@ -256,6 +256,11 @@ export function getFollowersOf(playerIds: number[]): Map<string, Set<number>> {
   return result;
 }
 
+/** Claims the one roll for an xG-victim shot. False if it was already rolled. */
+export function claimXgShot(guildId: string, gameId: number, shotId: string): boolean {
+  return getDb().prepare('INSERT OR IGNORE INTO xg_shots_rolled (guild_id, game_id, shot_id) VALUES (?, ?, ?)').run(guildId, gameId, shotId).changes > 0;
+}
+
 /** Claims the DM for this user + goal. False if another tracker already sent it. */
 export function claimFollowDm(userId: string, gameId: number, eventId: number): boolean {
   return getDb().prepare('INSERT OR IGNORE INTO follow_dms_sent (user_id, game_id, event_id) VALUES (?, ?, ?)').run(userId, gameId, eventId).changes > 0;

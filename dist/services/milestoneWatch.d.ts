@@ -1,5 +1,8 @@
+import type { InjuryEntry } from './injuries.js';
 export interface WatchPlayer {
     name: string;
+    fullName?: string;
+    dayToDay?: boolean;
     careerGamesPlayed: number;
     careerGoals: number;
     careerPoints: number;
@@ -12,6 +15,11 @@ export interface WatchPlayer {
  * Uses the same thresholds as the goal-card milestones.
  */
 export declare function findUpcomingMilestones(players: WatchPlayer[]): string[];
+/**
+ * Drops players who are out (injured reserve, out) per the injury report and flags
+ * day-to-day ones. With no report (null), everyone is kept.
+ */
+export declare function excludeInjured(players: WatchPlayer[], injuries: Map<string, InjuryEntry> | null): WatchPlayer[];
 /**
  * Loads the current roster's regular-season stats. `season` is the game's season id
  * (e.g. 20262027); until a player's featured season matches it, his season goals are 0

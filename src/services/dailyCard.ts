@@ -4,7 +4,9 @@ import pino from 'pino';
 import * as nhlClient from '../nhl/client.js';
 import { getGuildConfig, hasDailyCardBeenPosted, markDailyCardPosted } from '../db/queries.js';
 import { getTeamEmoji } from './goalCard.js';
-import { findUpcomingMilestones, loadWatchPlayers } from './milestoneWatch.js';
+import { excludeInjured, findUpcomingMilestones, loadWatchPlayers } from './milestoneWatch.js';
+import { formatInjuryLines, loadTeamInjuries } from './injuries.js';
+import type { InjuryEntry } from './injuries.js';
 import { standingsForSeason } from './standings.js';
 import type { ScheduleGame, TeamStanding } from '../nhl/types.js';
 
@@ -100,10 +102,14 @@ async function processGuild(client: Client, guildId: string): Promise<void> {
     let embed: EmbedBuilder;
     if (selection.kind === 'game') {
       const standingsResponse = await nhlClient.getStandings();
-      const milestoneLines = await loadMilestoneLines(selection.game, config.primary_team);
+      const teamName = standingsResponse?.standings.find(s => s.teamAbbrev.default === config.primary_team)?.teamName.default;
+      const injuries = teamName ? await loadTeamInjuries(teamName) : null;
+      if (!injuries) logger.warn({ teamName }, 'No injury report: card has no injury section and milestone watch may include injured players');
+      const milestoneLines = await loadMilestoneLines(selection.game, config.primary_team, injuries);
+      const injuryLines = injuries ? formatInjuryLines(injuries, todayISO) : [];
       // Only this season's standings — during preseason the NHL still serves last season's
       const standings = standingsForSeason(standingsResponse, selection.game.season);
-      embed = buildPreGameCard(selection.game, games, config.primary_team, standings, guild, milestoneLines);
+      embed = buildPreGameCard(selection.game, games, config.primary_team, standings, guild, milestoneLines, injuryLines);
     } else {
       const phrase = pickOffDayPhrase(todayISO);
       embed = buildOffDayCard(phrase, selection.nextGame, config.primary_team);
@@ -117,11 +123,13 @@ async function processGuild(client: Client, guildId: string): Promise<void> {
 }
 
 // Regular season only: the watched stats are regular-season totals. Never blocks the card.
-async function loadMilestoneLines(game: ScheduleGame, primaryTeam: string): Promise<string[]> {
+// Injured players (IR / out) are left off; day-to-day ones are flagged.
+async function loadMilestoneLines(game: ScheduleGame, primaryTeam: string, injuries: Map<string, InjuryEntry> | null): Promise<string[]> {
   if (game.gameType !== 2) return [];
   try {
     const players = await loadWatchPlayers(primaryTeam, game.season);
-    return players ? findUpcomingMilestones(players) : [];
+    if (!players) return [];
+    return findUpcomingMilestones(excludeInjured(players, injuries));
   } catch (err) {
     logger.warn({ err }, 'Milestone watch failed, posting card without it');
     return [];
@@ -178,6 +186,21 @@ export const OFF_DAY_PHRASES: string[] = [
   'No puck drop tonight. Go for a walk.',
   "Off night. Do the dishes you've been avoiding.",
   "No game. Take a break. We'll be here tomorrow.",
+  'No game today. Go stare at a frozen pond and think about what could be.',
+  'Off day. Your blood pressure thanks you.',
+  'No hockey tonight. Try talking to the people you live with.',
+  'Nothing scheduled. Rewatch the goals, nobody will judge you.',
+  'Day off. The power play is resting too. Thankfully.',
+  'No game tonight. Go make a sandwich worthy of a playoff run.',
+  'Off night. Refresh the standings like it will change anything.',
+  'No puck drop. Do some laundry before your jersey becomes a biohazard.',
+  'Rest day. Even the Zamboni is taking it easy.',
+  'No game. Text a friend who isn\'t in this server.',
+  'Off day. Go outside, the sun misses you.',
+  'Nothing on tonight. Practice your celly in the mirror.',
+  'No game today. Fall asleep at a reasonable hour for once.',
+  'Off night. Argue about line combos responsibly.',
+  'No hockey. Somewhere, Hayton is working on finishing.',
 ];
 
 export function pickOffDayPhrase(todayISO: string): string {
@@ -252,7 +275,8 @@ export function buildPreGameCard(
   primaryTeam: string,
   standings: TeamStanding[] | null,
   guild?: Guild,
-  milestoneLines: string[] = []
+  milestoneLines: string[] = [],
+  injuryLines: string[] = []
 ): EmbedBuilder {
   const homeEmoji = getTeamEmoji(game.homeTeam.abbrev, guild);
   const awayEmoji = getTeamEmoji(game.awayTeam.abbrev, guild);
@@ -285,6 +309,10 @@ export function buildPreGameCard(
     if (gamesPlayed > 0) {
       lines.push(`**Season series:** ${formatSeasonSeries(series)}`);
     }
+  }
+
+  if (injuryLines.length > 0) {
+    lines.push('', '🩹 **Injury report**', ...injuryLines);
   }
 
   if (milestoneLines.length > 0) {

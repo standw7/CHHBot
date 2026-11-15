@@ -106,8 +106,8 @@ async function getPlayByPlay(gameId) {
 async function getBoxscore(gameId) {
     return fetchJson(endpoints.boxscoreUrl(gameId));
 }
-async function getLanding(gameId) {
-    return fetchJson(endpoints.landingUrl(gameId));
+async function getLanding(gameId, bypassCache = false) {
+    return fetchJson(endpoints.landingUrl(gameId), DEFAULT_CACHE_TTL, bypassCache);
 }
 async function getGoalReplay(gameId, eventNumber) {
     return fetchJson(endpoints.goalReplayUrl(gameId, eventNumber));

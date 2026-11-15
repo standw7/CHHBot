@@ -38,6 +38,20 @@ export interface PlayByPlayResponse {
     plays: Play[];
     homeTeam: PbpTeam;
     awayTeam: PbpTeam;
+    rosterSpots?: RosterSpot[];
+}
+export interface RosterSpot {
+    teamId: number;
+    playerId: number;
+    firstName: {
+        default: string;
+    };
+    lastName: {
+        default: string;
+    };
+    sweaterNumber?: number;
+    positionCode?: string;
+    headshot?: string;
 }
 export interface PbpTeam {
     id: number;
@@ -62,11 +76,14 @@ export interface Play {
     };
     timeInPeriod: string;
     timeRemaining: string;
+    situationCode?: string;
     details?: PlayDetails;
     pptReplayUrl?: string;
 }
 export interface PlayDetails {
     scoringPlayerId?: number;
+    shootingPlayerId?: number;
+    reason?: string;
     scoringPlayerTotal?: number;
     assist1PlayerId?: number;
     assist1PlayerTotal?: number;

@@ -57,6 +57,8 @@ export declare function listFollows(userId: string): {
 }[];
 /** userId → set of followed playerIds, for users following any of `playerIds`. */
 export declare function getFollowersOf(playerIds: number[]): Map<string, Set<number>>;
+/** Claims the one roll for an xG-victim shot. False if it was already rolled. */
+export declare function claimXgShot(guildId: string, gameId: number, shotId: string): boolean;
 /** Claims the DM for this user + goal. False if another tracker already sent it. */
 export declare function claimFollowDm(userId: string, gameId: number, eventId: number): boolean;
 export declare function addMemberFollow(guildId: string, followerId: string, targetId: string): void;

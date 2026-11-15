@@ -46,6 +46,10 @@ const queries_js_1 = require("../db/queries.js");
 const goalCard_js_1 = require("./goalCard.js");
 const finalCard_js_1 = require("./finalCard.js");
 const milestones_js_1 = require("./milestones.js");
+const pbpGoal_js_1 = require("./pbpGoal.js");
+const shootoutCard_js_1 = require("./shootoutCard.js");
+const xgVictim_js_1 = require("./xgVictim.js");
+const xgVictimTracker_js_1 = require("./xgVictimTracker.js");
 const leaders_js_1 = require("./leaders.js");
 const rewardsReminder_js_1 = require("./rewardsReminder.js");
 const postGame_js_1 = require("./postGame.js");
@@ -81,6 +85,9 @@ function startTracker(client, guildId) {
         seasonCache: new Map(),
         leadersBefore: null,
         replayPollTimers: new Set(),
+        shootout: null,
+        xgLastCheck: 0,
+        xgCheckRunning: false,
     };
     trackers.set(guildId, ctx);
     logger.info({ guildId, teamCode: ctx.teamCode }, 'Starting game tracker');
@@ -224,6 +231,9 @@ async function handleLive(client, ctx) {
         scheduleNext(client, ctx, 10_000);
         return;
     }
+    // Before the FINAL check: the deciding attempt and game end land in the same poll
+    queueShootoutUpdate(client, ctx, pbp);
+    maybeCheckXgVictim(client, ctx, pbp);
     // Check if game ended
     if (pbp.gameState === 'FINAL' || pbp.gameState === 'OFF') {
         ctx.state = 'FINAL';
@@ -253,6 +263,9 @@ async function handleLive(client, ctx) {
     const spoilerMode = (config.spoiler_mode ?? 'off');
     const delayMs = (config.spoiler_delay_seconds ?? 30) * 1000;
     for (const goal of goals) {
+        // Shootout goals go on the shootout card instead (see queueShootoutUpdate)
+        if (goal.periodDescriptor?.periodType === 'SO')
+            continue;
         if ((0, queries_js_1.hasGoalBeenPosted)(ctx.guildId, ctx.currentGame.id, goal.eventId)) {
             continue;
         }
@@ -288,10 +301,11 @@ async function handleLive(client, ctx) {
                 // build goalsSoFar (all goals up to and including this one, tagged with periodType)
                 let landingGoal;
                 let goalsSoFar = [];
+                const flattened = [];
                 try {
-                    const landing = await nhlClient.getLanding(gameId);
+                    // Bypass the cache: a landing fetched moment ago (e.g. by the replay poller) won't have this goal yet
+                    const landing = await nhlClient.getLanding(gameId, true);
                     if (landing?.summary?.scoring) {
-                        const flattened = [];
                         for (const period of landing.summary.scoring) {
                             for (const g of period.goals) {
                                 flattened.push({ ...g, periodType: period.periodDescriptor?.periodType });
@@ -306,6 +320,19 @@ async function handleLive(client, ctx) {
                 }
                 catch (err) {
                     logger.warn({ err, gameId, eventId }, 'Failed to fetch landing for goal details');
+                }
+                // Landing lags the play-by-play; fall back to it so the card never says "Unknown"
+                if (!landingGoal) {
+                    const latestPbp = (await nhlClient.getPlayByPlay(gameId)) ?? pbp;
+                    const fromPbp = (0, pbpGoal_js_1.goalsSoFarFromPlays)(latestPbp, eventId, flattened);
+                    if (fromPbp) {
+                        goalsSoFar = fromPbp;
+                        landingGoal = fromPbp[fromPbp.length - 1];
+                        logger.info({ gameId, eventId }, 'Goal not in landing yet, built card from play-by-play');
+                    }
+                    else {
+                        logger.warn({ gameId, eventId }, 'Goal missing from both landing and play-by-play roster');
+                    }
                 }
                 // Career totals for the scorer and assisters (regular season, primary team only), cached per game
                 let careerBefore;
@@ -329,6 +356,11 @@ async function handleLive(client, ctx) {
                         assistersCareerBefore,
                     })
                     : undefined;
+                // The xG victim actually scored: debt payment banner (gold, like other celebrations)
+                if (landingGoal && isPrimaryTeam && landingGoal.playerId === xgVictim_js_1.XG_VICTIM.playerId && (0, xgVictimTracker_js_1.appliesTo)({ gameType, teamCode: ctx.teamCode })) {
+                    const goalsTonight = goalsSoFar.filter(g => g.playerId === xgVictim_js_1.XG_VICTIM.playerId && g.periodType !== 'SO').length;
+                    milestones?.push(await (0, xgVictimTracker_js_1.debtPaymentMilestone)({ gameId, gameType, season: gameSeason }, goalsTonight));
+                }
                 // NHL top-3 moves (regular season, primary team, snapshot taken at puck drop)
                 const leaderAlerts = landingGoal && isPrimaryTeam && gameType === 2 && ctx.leadersBefore
                     ? (0, leaders_js_1.leaderAlertsForGoal)({
@@ -448,6 +480,62 @@ function pollForReplay(ctx, gameId, eventId, cardData, spoilerMode, message, att
             logger.info({ guildId: ctx.guildId, eventId }, 'Gave up polling for replay link');
         }
     }, REPLAY_POLL_INTERVAL_MS);
+    ctx.replayPollTimers.add(timer);
+}
+const XG_CHECK_INTERVAL_MS = 60_000;
+// Runs in the background so a slow MoneyPuck response never delays goal detection.
+function maybeCheckXgVictim(client, ctx, pbp) {
+    const game = ctx.currentGame;
+    const channelId = (0, queries_js_1.getGuildConfig)(ctx.guildId)?.gameday_channel_id;
+    if (!game || !channelId || ctx.xgCheckRunning || Date.now() - ctx.xgLastCheck < XG_CHECK_INTERVAL_MS)
+        return;
+    const xgGame = { guildId: ctx.guildId, gameId: game.id, gameType: game.gameType, season: game.season, teamCode: ctx.teamCode, channelId };
+    if (!(0, xgVictimTracker_js_1.appliesTo)(xgGame))
+        return;
+    ctx.xgLastCheck = Date.now();
+    ctx.xgCheckRunning = true;
+    (0, xgVictimTracker_js_1.checkVictimShots)(client, xgGame, pbp)
+        .catch(err => logger.error({ err, gameId: game.id }, 'xG-victim check failed'))
+        .finally(() => { ctx.xgCheckRunning = false; });
+}
+// Posts a new shootout card after every attempt — an edited card would be buried by chat —
+// on the same spoiler delay as goal cards. The card for the deciding attempt shows the winner.
+// Goal posts are deduped in the DB, but these aren't: a restart mid-shootout re-posts the current state once.
+function queueShootoutUpdate(client, ctx, pbp) {
+    const game = ctx.currentGame;
+    const config = (0, queries_js_1.getGuildConfig)(ctx.guildId);
+    if (!game || !config?.gameday_channel_id)
+        return;
+    const state = (0, shootoutCard_js_1.shootoutState)(pbp);
+    if (!state || state.attempts.length === 0)
+        return;
+    if (ctx.shootout?.gameId !== game.id) {
+        ctx.shootout = { gameId: game.id, lastQueued: 0, chain: Promise.resolve() };
+    }
+    const tracking = ctx.shootout;
+    if (state.attempts.length <= tracking.lastQueued)
+        return;
+    tracking.lastQueued = state.attempts.length;
+    const spoilerMode = (config.spoiler_mode ?? 'off');
+    const delayMs = (config.spoiler_delay_seconds ?? 30) * 1000;
+    const channelId = config.gameday_channel_id;
+    const timer = setTimeout(() => {
+        ctx.replayPollTimers.delete(timer);
+        tracking.chain = tracking.chain.then(async () => {
+            try {
+                const guild = client.guilds.cache.get(ctx.guildId);
+                const embed = (0, shootoutCard_js_1.buildShootoutCard)(state, spoilerMode, ctx.teamCode, guild);
+                const channel = await client.channels.fetch(channelId);
+                if (!channel || !channel.isTextBased())
+                    return;
+                await channel.send({ embeds: [embed] });
+                logger.info({ guildId: ctx.guildId, gameId: game.id, attempts: state.attempts.length, complete: state.complete }, 'Shootout card posted');
+            }
+            catch (err) {
+                logger.error({ err, gameId: game.id }, 'Failed to post shootout card');
+            }
+        });
+    }, delayMs);
     ctx.replayPollTimers.add(timer);
 }
 async function handleFinal(client, ctx) {

@@ -2,7 +2,14 @@ import pino from 'pino';
 
 const logger = pino({ name: 'moneypuck' });
 
-const SKATERS_CSV_URL = 'https://moneypuck.com/moneypuck/playerData/seasonSummary/2025/regular/skaters.csv';
+/** MoneyPuck names seasons by start year: 2026 = 2026-27. Before October, the season that just ended. */
+export function currentSeasonStartYear(now: Date = new Date()): number {
+  return now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
+}
+
+function skatersCsvUrl(seasonStartYear: number): string {
+  return `https://moneypuck.com/moneypuck/playerData/seasonSummary/${seasonStartYear}/regular/skaters.csv`;
+}
 
 export interface MoneyPuckSkater {
   playerId: string;
@@ -16,9 +23,11 @@ export interface MoneyPuckSkater {
   giveaways: number;
   blockedShots: number;
   xGoals: number;
+  goals: number;
 }
 
 interface CacheEntry {
+  url: string;
   data: MoneyPuckSkater[];
   expiresAt: number;
 }
@@ -27,14 +36,16 @@ interface CacheEntry {
 let cache: CacheEntry | null = null;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
-export async function getMoneyPuckSkaters(teamCode: string): Promise<MoneyPuckSkater[] | null> {
+// Regular-season totals through the last completed game (MoneyPuck updates these overnight).
+export async function getMoneyPuckSkaters(teamCode: string, seasonStartYear = currentSeasonStartYear()): Promise<MoneyPuckSkater[] | null> {
+  const url = skatersCsvUrl(seasonStartYear);
   // Check cache
-  if (cache && cache.expiresAt > Date.now()) {
+  if (cache && cache.url === url && cache.expiresAt > Date.now()) {
     return filterByTeam(cache.data, teamCode);
   }
 
   try {
-    const response = await fetch(SKATERS_CSV_URL, {
+    const response = await fetch(url, {
       headers: { 'User-Agent': 'Tusky-Discord-Bot/1.0' },
     });
 
@@ -46,7 +57,7 @@ export async function getMoneyPuckSkaters(teamCode: string): Promise<MoneyPuckSk
     const csv = await response.text();
     const skaters = parseCSVEfficient(csv);
 
-    cache = { data: skaters, expiresAt: Date.now() + CACHE_TTL };
+    cache = { url, data: skaters, expiresAt: Date.now() + CACHE_TTL };
     logger.info({ playerCount: skaters.length }, 'MoneyPuck data cached');
 
     return filterByTeam(skaters, teamCode);
@@ -75,6 +86,7 @@ function parseCSVEfficient(csv: string): MoneyPuckSkater[] {
     giveaways: headers.indexOf('I_F_giveaways'),
     blockedShots: headers.indexOf('shotsBlockedByPlayer'),
     xGoals: headers.indexOf('I_F_xGoals'),
+    goals: headers.indexOf('I_F_goals'),
   };
 
   const skaters: MoneyPuckSkater[] = [];
@@ -99,6 +111,7 @@ function parseCSVEfficient(csv: string): MoneyPuckSkater[] {
       giveaways: parseInt(values[idx.giveaways] ?? '0', 10),
       blockedShots: parseInt(values[idx.blockedShots] ?? '0', 10),
       xGoals: parseFloat(values[idx.xGoals] ?? '0'),
+      goals: parseFloat(values[idx.goals] ?? '0'),
     });
   }
 

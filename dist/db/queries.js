@@ -36,6 +36,7 @@ exports.addFollow = addFollow;
 exports.removeFollow = removeFollow;
 exports.listFollows = listFollows;
 exports.getFollowersOf = getFollowersOf;
+exports.claimXgShot = claimXgShot;
 exports.claimFollowDm = claimFollowDm;
 exports.addMemberFollow = addMemberFollow;
 exports.removeMemberFollow = removeMemberFollow;
@@ -256,6 +257,10 @@ function getFollowersOf(playerIds) {
         result.get(r.user_id).add(r.player_id);
     }
     return result;
+}
+/** Claims the one roll for an xG-victim shot. False if it was already rolled. */
+function claimXgShot(guildId, gameId, shotId) {
+    return (0, database_js_1.getDb)().prepare('INSERT OR IGNORE INTO xg_shots_rolled (guild_id, game_id, shot_id) VALUES (?, ?, ?)').run(guildId, gameId, shotId).changes > 0;
 }
 /** Claims the DM for this user + goal. False if another tracker already sent it. */
 function claimFollowDm(userId, gameId, eventId) {

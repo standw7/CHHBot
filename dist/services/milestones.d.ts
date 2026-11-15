@@ -14,7 +14,7 @@ export interface MilestoneInput {
     assistersCareerBefore?: Map<number, CareerTotals>;
 }
 export interface Milestone {
-    kind: 'hat_trick' | 'four_goal' | 'ot_winner' | 'first_nhl_goal' | 'season_goals' | 'career_goals' | 'career_points' | 'career_assists';
+    kind: 'hat_trick' | 'four_goal' | 'ot_winner' | 'first_nhl_goal' | 'season_goals' | 'career_goals' | 'career_points' | 'career_assists' | 'debt_payment';
     label: string;
     celebrate: boolean;
 }

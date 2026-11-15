@@ -85,8 +85,8 @@ export async function getBoxscore(gameId: number): Promise<BoxscoreResponse | nu
   return fetchJson<BoxscoreResponse>(endpoints.boxscoreUrl(gameId));
 }
 
-export async function getLanding(gameId: number): Promise<LandingResponse | null> {
-  return fetchJson<LandingResponse>(endpoints.landingUrl(gameId));
+export async function getLanding(gameId: number, bypassCache = false): Promise<LandingResponse | null> {
+  return fetchJson<LandingResponse>(endpoints.landingUrl(gameId), DEFAULT_CACHE_TTL, bypassCache);
 }
 
 export async function getGoalReplay(gameId: number, eventNumber: number): Promise<GoalReplayResponse | null> {
