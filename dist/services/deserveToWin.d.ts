@@ -35,6 +35,11 @@ export interface MeterInput {
     teamCode: string;
     endedIn?: string;
 }
+/**
+ * Half-circle gauge: away fills from the left, home from the right, meeting at the split.
+ * Our team in Mountain Blue, the opponent in grey, round-capped strokes with a small gap
+ * at the split, a scale of ticks inside, and our share as the big centre number.
+ */
 export declare function buildMeterSvg(m: MeterInput): string;
 /**
  * Renders the meter once MoneyPuck has the whole game (its GEND row). 'incomplete'

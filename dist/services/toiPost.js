@@ -86,8 +86,10 @@ function toiChartInputFromGame(rows, home, away, teamCode) {
     const five = (0, toiChart_js_1.computeFiveOnFive)(shifts, goalieIds, us.abbrev, them.abbrev);
     const ours = (0, toiChart_js_1.orderPlayers)(chartPlayers(us), five);
     const theirs = (0, toiChart_js_1.orderPlayers)(chartPlayers(them), five);
+    // Our rows: forwards, then defense, each sorted by total game TOI (the number on the right edge), most first
+    const byToi = (players) => [...players].sort((a, b) => (boxToi.get(b.id) ?? 0) - (boxToi.get(a.id) ?? 0));
     return {
-        rows: [...ours.forwards, ...ours.defense],
+        rows: [...byToi(ours.forwards), ...byToi(ours.defense)],
         cols: [...theirs.forwards, ...theirs.defense],
         rowDividerAfter: ours.forwards.length,
         colDividerAfter: theirs.forwards.length,

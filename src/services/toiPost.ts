@@ -59,8 +59,11 @@ export function toiChartInputFromGame(
   const ours = orderPlayers(chartPlayers(us), five);
   const theirs = orderPlayers(chartPlayers(them), five);
 
+  // Our rows: forwards, then defense, each sorted by total game TOI (the number on the right edge), most first
+  const byToi = (players: ChartPlayer[]) => [...players].sort((a, b) => (boxToi.get(b.id) ?? 0) - (boxToi.get(a.id) ?? 0));
+
   return {
-    rows: [...ours.forwards, ...ours.defense],
+    rows: [...byToi(ours.forwards), ...byToi(ours.defense)],
     cols: [...theirs.forwards, ...theirs.defense],
     rowDividerAfter: ours.forwards.length,
     colDividerAfter: theirs.forwards.length,

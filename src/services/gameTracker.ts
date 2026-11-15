@@ -65,6 +65,9 @@ interface ShootoutTracking {
 
 const trackers = new Map<string, TrackerContext>();
 
+// lastAnnouncedPeriod sentinel: the next poll records the current period without announcing it
+const ADOPT_CURRENT_PERIOD = -1;
+
 export function startTracker(client: Client, guildId: string): void {
   if (trackers.has(guildId)) {
     logger.info({ guildId }, 'Tracker already running');
@@ -164,6 +167,8 @@ async function handleIdle(client: Client, ctx: TrackerContext): Promise<void> {
     ctx.state = 'LIVE';
     ctx.careerCache.clear();
     ctx.watchedFromStart = false;
+    // Joined mid-game (e.g. a restart): adopt the current period on the first poll instead of re-announcing it
+    ctx.lastAnnouncedPeriod = ADOPT_CURRENT_PERIOD;
     ctx.standingsBefore = standingsForSeason(await nhlClient.getStandings(true), ctx.currentGame.season);
     ctx.seasonCache.clear();
     ctx.leadersBefore = ctx.currentGame.gameType === 2 ? await loadLeaderSnapshot() : null;
@@ -274,7 +279,9 @@ async function handleLive(client: Client, ctx: TrackerContext): Promise<void> {
   // Check for period changes and post period start notification (no ping, no delay)
   // Skip period 1 since "Game is starting!" already covers that
   const currentPeriod = pbp.period;
-  if (currentPeriod > ctx.lastAnnouncedPeriod && currentPeriod > 1 && !pbp.clock.inIntermission) {
+  if (ctx.lastAnnouncedPeriod === ADOPT_CURRENT_PERIOD) {
+    ctx.lastAnnouncedPeriod = currentPeriod; // later periods still get announced
+  } else if (currentPeriod > ctx.lastAnnouncedPeriod && currentPeriod > 1 && !pbp.clock.inIntermission) {
     ctx.lastAnnouncedPeriod = currentPeriod;
     await postPeriodStartNotification(client, ctx, currentPeriod, pbp.plays);
   } else if (currentPeriod > ctx.lastAnnouncedPeriod) {

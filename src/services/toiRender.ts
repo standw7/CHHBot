@@ -1,6 +1,7 @@
 import path from 'path';
 import { Resvg } from '@resvg/resvg-js';
 import type { ChartPlayer } from './toiChart.js';
+import { THEME, mix, textOn } from './chartTheme.js';
 
 // Fonts ship in the repo so local renders and the VM match (repo root/assets/fonts,
 // resolved from src/services or dist/services alike).
@@ -8,15 +9,14 @@ const FONT_DIR = path.join(__dirname, '..', '..', 'assets', 'fonts');
 const FONT_FILES = ['IBMPlexSans-Regular.ttf', 'IBMPlexSans-SemiBold.ttf'].map(f => path.join(FONT_DIR, f));
 
 const COLORS = {
-  background: '#1c1b1f',
-  rowLabel: '#b9b4bd',
-  colLabel: '#b9b4bd',
-  value: '#f2e6dc',
-  divider: '#55505c',
-  toi: '#7d7884', // total TOI next to names
-  footer: '#8c8794',
-  low: '#34251e',
-  high: '#94562f',
+  background: THEME.background,
+  rowLabel: THEME.label,
+  colLabel: THEME.label,
+  divider: THEME.divider,
+  toi: THEME.muted, // total TOI next to names
+  footer: THEME.muted,
+  low: THEME.accentDeep,
+  high: THEME.accent, // Mountain Blue
 };
 
 const LAYOUT = {
@@ -29,6 +29,7 @@ const LAYOUT = {
   gap: 6,
   footerHeight: 64,
   labelAngle: -55,
+  groupGap: 16, // extra space between forwards and defense, rows and columns
 };
 
 export interface ToiChartInput {
@@ -40,17 +41,10 @@ export interface ToiChartInput {
   teamCode: string;
 }
 
-function hexToRgb(hex: string): [number, number, number] {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-/** Continuous deep brown (min) → warm amber (max) scale. */
+/** Continuous deep navy (min) → Mountain Blue (max) scale. */
 export function cellColor(value: number, min: number, max: number): string {
-  const t = max > min ? Math.min(1, Math.max(0, (value - min) / (max - min))) : 0;
-  const lo = hexToRgb(COLORS.low);
-  const hi = hexToRgb(COLORS.high);
-  return '#' + lo.map((c, i) => Math.round(c + (hi[i] - c) * t).toString(16).padStart(2, '0')).join('');
+  const t = max > min ? (value - min) / (max - min) : 0;
+  return mix(COLORS.low, COLORS.high, t);
 }
 
 function esc(text: string): string {
@@ -64,8 +58,13 @@ export function buildToiSvg(input: ToiChartInput): string {
   const pitchY = cellH + gap;
   const gridX = pad + labelWidth;
   const gridY = pad + headerHeight;
-  const gridW = cols.length * pitchX - gap;
-  const gridH = rows.length * pitchY - gap;
+  const splitCols = colDividerAfter > 0 && colDividerAfter < cols.length;
+  const splitRows = rowDividerAfter > 0 && rowDividerAfter < rows.length;
+  const gridW = cols.length * pitchX - gap + (splitCols ? LAYOUT.groupGap : 0);
+  const gridH = rows.length * pitchY - gap + (splitRows ? LAYOUT.groupGap : 0);
+  // Left/top edge of column j / row i, with the forwards/defense gap added after the divider
+  const colX = (j: number) => gridX + j * pitchX + (splitCols && j >= colDividerAfter ? LAYOUT.groupGap : 0);
+  const rowY = (i: number) => gridY + i * pitchY + (splitRows && i >= rowDividerAfter ? LAYOUT.groupGap : 0);
   // Total TOI sits opposite the names: right of the rows, under the columns
   const showToi = rows.some(r => r.toi) || cols.some(c => c.toi);
   const toiGutter = showToi ? LAYOUT.toiGutter : 0;
@@ -85,37 +84,38 @@ export function buildToiSvg(input: ToiChartInput): string {
   ];
 
   cols.forEach((c, j) => {
-    const x = gridX + j * pitchX + cellW / 2 - 4;
+    const x = colX(j) + cellW / 2 - 4;
     const y = gridY - 10;
     parts.push(
       `<text x="${x}" y="${y}" transform="rotate(${labelAngle} ${x} ${y})" font-size="15" font-weight="500" fill="${COLORS.colLabel}">${esc(c.label)}</text>`,
-      c.toi ? `<text x="${gridX + j * pitchX + cellW / 2}" y="${gridY + gridH + 24}" text-anchor="middle" font-size="13" fill="${COLORS.toi}">${esc(c.toi)}</text>` : ''
+      c.toi ? `<text x="${colX(j) + cellW / 2}" y="${gridY + gridH + 24}" text-anchor="middle" font-size="13" fill="${COLORS.toi}">${esc(c.toi)}</text>` : ''
     );
   });
 
   rows.forEach((r, i) => {
-    const y = gridY + i * pitchY;
+    const y = rowY(i);
     parts.push(
       `<text x="${gridX - 14}" y="${y + cellH / 2 + 5.5}" text-anchor="end" font-size="16" font-weight="500" fill="${COLORS.rowLabel}">${esc(r.label)}</text>`,
       r.toi ? `<text x="${gridX + gridW + 14}" y="${y + cellH / 2 + 5}" text-anchor="start" font-size="14" fill="${COLORS.toi}">${esc(r.toi)}</text>` : ''
     );
     cols.forEach((c, j) => {
-      const x = gridX + j * pitchX;
+      const x = colX(j);
       const value = minutes[i][j];
+      const fill = cellColor(value, min, max);
       parts.push(
-        `<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" rx="5" fill="${cellColor(value, min, max)}"/>`,
-        `<text x="${x + cellW / 2}" y="${y + cellH / 2 + 4.5}" text-anchor="middle" font-size="13" font-weight="600" fill="${COLORS.value}">${value.toFixed(1)}</text>`
+        `<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" rx="5" fill="${fill}"/>`,
+        `<text x="${x + cellW / 2}" y="${y + cellH / 2 + 4.5}" text-anchor="middle" font-size="13" font-weight="600" fill="${textOn(fill)}">${value.toFixed(1)}</text>`
       );
     });
   });
 
   // Forwards / defense dividers, centred in the gap
-  if (colDividerAfter > 0 && colDividerAfter < cols.length) {
-    const x = gridX + colDividerAfter * pitchX - gap / 2;
+  if (splitCols) {
+    const x = colX(colDividerAfter) - (gap + LAYOUT.groupGap) / 2;
     parts.push(`<line x1="${x}" y1="${gridY - 4}" x2="${x}" y2="${gridY + gridH + 4}" stroke="${COLORS.divider}" stroke-width="1.5"/>`);
   }
-  if (rowDividerAfter > 0 && rowDividerAfter < rows.length) {
-    const y = gridY + rowDividerAfter * pitchY - gap / 2;
+  if (splitRows) {
+    const y = rowY(rowDividerAfter) - (gap + LAYOUT.groupGap) / 2;
     parts.push(`<line x1="${gridX - 4}" y1="${y}" x2="${gridX + gridW + 4}" y2="${y}" stroke="${COLORS.divider}" stroke-width="1.5"/>`);
   }
 

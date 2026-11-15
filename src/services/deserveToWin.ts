@@ -8,6 +8,7 @@
 import pino from 'pino';
 import { AttachmentBuilder, MessageCreateOptions } from 'discord.js';
 import * as nhlClient from '../nhl/client.js';
+import { THEME } from './chartTheme.js';
 import { renderPng } from './toiRender.js';
 
 const logger = pino({ name: 'deserve-to-win' });
@@ -101,17 +102,6 @@ export function simulateHomeWinShare(shots: MpShot[], n = SIMULATIONS, random: (
 
 // ---- Rendering ----
 
-const COLORS = {
-  background: '#1c1b1f',
-  text: '#f2e6dc',
-  muted: '#b9b4bd',
-  footer: '#8c8794',
-  track: '#2b2930',
-  us: '#c8834f', // warm amber, matches the TOI chart
-  them: '#6f7d8c',
-  needle: '#f2e6dc',
-};
-
 export interface MeterInput {
   awayAbbrev: string;
   homeAbbrev: string;
@@ -126,44 +116,81 @@ function pct(share: number): string {
   return `${Math.round(share * 100)}%`;
 }
 
-function point(cx: number, cy: number, r: number, deg: number): string {
+function polar(cx: number, cy: number, r: number, deg: number): [number, number] {
   const rad = (deg * Math.PI) / 180;
-  return `${(cx + r * Math.cos(rad)).toFixed(2)} ${(cy - r * Math.sin(rad)).toFixed(2)}`;
+  return [cx + r * Math.cos(rad), cy - r * Math.sin(rad)];
 }
 
+/** An arc path from angle `from` to `to` (degrees, 180 = left, 0 = right), drawn clockwise. */
+function arcPath(cx: number, cy: number, r: number, from: number, to: number): string {
+  const [x1, y1] = polar(cx, cy, r, from);
+  const [x2, y2] = polar(cx, cy, r, to);
+  return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+}
+
+/**
+ * Half-circle gauge: away fills from the left, home from the right, meeting at the split.
+ * Our team in Mountain Blue, the opponent in grey, round-capped strokes with a small gap
+ * at the split, a scale of ticks inside, and our share as the big centre number.
+ */
 export function buildMeterSvg(m: MeterInput): string {
   const W = 760;
-  const H = 500;
+  const H = 540;
+  const pad = 48;
   const cx = W / 2;
-  const cy = 330;
-  const r = 200;
-  const stroke = 44;
+  const cy = 350;
+  const r = 230;
+  const stroke = 46;
   const awayShare = 1 - m.homeShare;
-  // Away fills from the left (180°) toward the needle, home from the right (0°)
-  const boundary = 180 - awayShare * 180;
-  const awayColor = m.awayAbbrev === m.teamCode ? COLORS.us : COLORS.them;
-  const homeColor = m.homeAbbrev === m.teamCode ? COLORS.us : COLORS.them;
-  const arc = (from: number, to: number, color: string) =>
-    from === to ? '' : `<path d="M ${point(cx, cy, r, from)} A ${r} ${r} 0 0 1 ${point(cx, cy, r, to)}" fill="none" stroke="${color}" stroke-width="${stroke}"/>`;
-  const final = `${m.awayAbbrev} ${m.awayScore} – ${m.homeScore} ${m.homeAbbrev} · Final${m.endedIn ? `/${m.endedIn}` : ''}`;
+  const awayIsUs = m.awayAbbrev === m.teamCode;
+  const ourShare = awayIsUs ? awayShare : m.homeShare;
+  const awayColor = awayIsUs ? THEME.accent : THEME.opponent;
+  const homeColor = awayIsUs ? THEME.opponent : THEME.accent;
+
+  // Split angle, kept off the very ends so both sides stay visible at 99/1
+  const split = Math.min(176, Math.max(4, 180 - awayShare * 180));
+  // Round caps reach stroke/2 past each end, so leave that plus a little air either side of the split
+  const capDeg = ((stroke / 2 + 4) / r) * (180 / Math.PI);
+  const awayEnd = split + capDeg;
+  const homeStart = split - capDeg;
+
+  // Scale: a tick every 10%, longer at 0/50/100
+  const ticks: string[] = [];
+  for (let k = 0; k <= 10; k++) {
+    const deg = 180 - k * 18;
+    const major = k % 5 === 0;
+    const [x1, y1] = polar(cx, cy, r - stroke / 2 - 12, deg);
+    const [x2, y2] = polar(cx, cy, r - stroke / 2 - (major ? 28 : 20), deg);
+    ticks.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${major ? THEME.muted : THEME.divider}" stroke-width="${major ? 2.5 : 2}" stroke-linecap="round"/>`);
+  }
+
+  // Split marker: a white pip on the arc's outer edge, pointing at the split
+  const [px, py] = polar(cx, cy, r + stroke / 2 + 12, split);
+  const final = `${m.awayAbbrev} ${m.awayScore} – ${m.homeScore} ${m.homeAbbrev} · FINAL${m.endedIn ? `/${m.endedIn}` : ''}`;
+  const endLabelY = cy + 56;
+  const sideLabel = (x: number, abbrev: string, share: number, isUs: boolean) =>
+    `<text x="${x}" y="${endLabelY}" text-anchor="middle" font-size="22" font-weight="600" letter-spacing="2.5" fill="${THEME.label}">${abbrev}</text>` +
+    `<text x="${x}" y="${endLabelY + 44}" text-anchor="middle" font-size="38" font-weight="600" fill="${isUs ? THEME.accent : THEME.text}">${pct(share)}</text>`;
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`,
-    `<rect width="100%" height="100%" fill="${COLORS.background}"/>`,
+    `<rect width="100%" height="100%" fill="${THEME.background}"/>`,
     `<g font-family="IBM Plex Sans">`,
-    `<text x="${cx}" y="58" text-anchor="middle" font-size="30" font-weight="600" fill="${COLORS.text}">Deserve To Win O'Meter</text>`,
-    `<text x="${cx}" y="92" text-anchor="middle" font-size="18" fill="${COLORS.muted}">${final}</text>`,
-    arc(180, boundary, awayColor),
-    arc(boundary, 0, homeColor),
-    // needle
-    `<line x1="${cx}" y1="${cy}" x2="${point(cx, cy, r - stroke / 2 - 10, boundary).replace(' ', '" y2="')}" stroke="${COLORS.needle}" stroke-width="6" stroke-linecap="round"/>`,
-    `<circle cx="${cx}" cy="${cy}" r="12" fill="${COLORS.needle}"/>`,
-    // team percentages under each end of the gauge
-    `<text x="${cx - r}" y="${cy + 62}" text-anchor="middle" font-size="44" font-weight="600" fill="${awayColor}">${pct(awayShare)}</text>`,
-    `<text x="${cx - r}" y="${cy + 92}" text-anchor="middle" font-size="20" fill="${COLORS.muted}">${m.awayAbbrev}</text>`,
-    `<text x="${cx + r}" y="${cy + 62}" text-anchor="middle" font-size="44" font-weight="600" fill="${homeColor}">${pct(m.homeShare)}</text>`,
-    `<text x="${cx + r}" y="${cy + 92}" text-anchor="middle" font-size="20" fill="${COLORS.muted}">${m.homeAbbrev}</text>`,
-    `<text x="${cx}" y="${H - 24}" text-anchor="middle" font-size="13" letter-spacing="3" fill="${COLORS.footer}">${SIMULATIONS.toLocaleString('en-US')} XG SIMULATIONS · DATA: MONEYPUCK.COM</text>`,
+    `<text x="${pad}" y="50" font-size="15" font-weight="600" letter-spacing="2.5" fill="${THEME.muted}">DESERVE TO WIN O'METER</text>`,
+    `<text x="${W - pad}" y="50" text-anchor="end" font-size="15" font-weight="600" letter-spacing="2.5" fill="${THEME.muted}">${final}</text>`,
+    // Track, then each side on top
+    `<path d="${arcPath(cx, cy, r, 180, 0)}" fill="none" stroke="${THEME.surface}" stroke-width="${stroke}" stroke-linecap="round"/>`,
+    `<path d="${arcPath(cx, cy, r, 180, awayEnd)}" fill="none" stroke="${awayColor}" stroke-width="${stroke}" stroke-linecap="round"/>`,
+    `<path d="${arcPath(cx, cy, r, homeStart, 0)}" fill="none" stroke="${homeColor}" stroke-width="${stroke}" stroke-linecap="round"/>`,
+    ...ticks,
+    `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="6" fill="${THEME.text}"/>`,
+    // Centre readout
+    `<text x="${cx}" y="${cy - 40}" text-anchor="middle" font-size="96" font-weight="600" fill="${THEME.accent}">${pct(ourShare)}</text>`,
+    `<text x="${cx}" y="${cy}" text-anchor="middle" font-size="15" font-weight="600" letter-spacing="2.5" fill="${THEME.label}">${m.teamCode} DESERVED TO WIN</text>`,
+    sideLabel(cx - r, m.awayAbbrev, awayShare, awayIsUs),
+    sideLabel(cx + r, m.homeAbbrev, m.homeShare, !awayIsUs),
+    `<line x1="${pad}" y1="${H - 62}" x2="${W - pad}" y2="${H - 62}" stroke="${THEME.divider}" stroke-width="1"/>`,
+    `<text x="${cx}" y="${H - 28}" text-anchor="middle" font-size="13" font-weight="600" letter-spacing="2.5" fill="${THEME.muted}">${SIMULATIONS.toLocaleString('en-US')} SIMULATED GAMES FROM EVERY SHOT'S XG · DATA: MONEYPUCK</text>`,
     `</g>`,
     `</svg>`,
   ].join('');

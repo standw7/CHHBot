@@ -13,7 +13,7 @@ const home: BoxTeam = { abbrev: fixture.box.home, ...fixture.box.homePlayers };
 const away: BoxTeam = { abbrev: fixture.box.away, ...fixture.box.awayPlayers };
 
 describe('toiChartInputFromGame', () => {
-  test('fixture: Utah rows vs Edmonton columns, forwards then defense, 5v5 seconds', () => {
+  test('fixture: Utah forwards then D, each sorted by total TOI, Edmonton columns forwards then defense, 5v5 seconds', () => {
     const input = toiChartInputFromGame(fixture.shifts, home, away, 'UTA');
     assert.ok(input && input !== 'incomplete');
     assert.equal(input.teamCode, 'UTA');
@@ -21,6 +21,13 @@ describe('toiChartInputFromGame', () => {
     assert.equal(input.cols.length, 18);
     assert.equal(input.rowDividerAfter, 12);
     assert.equal(input.colDividerAfter, 12);
+    // within forwards and within D: most total TOI first
+    const secs = input.rows.map(r => { const [m, sec] = r.toi!.split(':').map(Number); return m * 60 + sec; });
+    const desc = (xs: number[]) => [...xs].sort((a, b) => b - a);
+    assert.deepEqual(secs.slice(0, 12), desc(secs.slice(0, 12)));
+    assert.deepEqual(secs.slice(12), desc(secs.slice(12)));
+    assert.ok(input.rows.slice(0, 12).every(r => r.position === 'F'));
+    assert.equal(input.rows[12].label, 'M. Weegar'); // 22:38, the most among D
     const weegar = input.rows.find(r => r.label === 'M. Weegar')!;
     const drai = input.cols.find(c => c.label === 'L. Draisaitl')!;
     assert.equal(Math.round(input.seconds(weegar.id, drai.id) / 6) / 10, 11.3);

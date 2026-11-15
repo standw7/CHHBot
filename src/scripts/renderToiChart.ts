@@ -1,26 +1,18 @@
 /**
- * Render a TOI chart to a PNG for review (no Discord).
+ * Render a TOI chart to a PNG for review (no Discord). Uses the same loader as the
+ * post-game chart, including the fallback to the NHL's HTML shift reports.
  *   npx tsx src/scripts/renderToiChart.ts <gameId> <out.png> [teamCode=UTA]
  */
 import { writeFileSync } from 'fs';
-import * as nhlClient from '../nhl/client.js';
-import { toiChartInputFromGame } from '../services/toiPost.js';
-import { buildToiSvg, renderPng } from '../services/toiRender.js';
+import { loadToiChart } from '../services/toiPost.js';
 
 async function main(): Promise<void> {
   const [gameId, out, teamCode = 'UTA'] = process.argv.slice(2);
   if (!gameId || !out) throw new Error('usage: renderToiChart <gameId> <out.png> [teamCode]');
-  const [shifts, box] = await Promise.all([nhlClient.getShiftChart(Number(gameId)), nhlClient.getBoxscore(Number(gameId))]);
-  if (!shifts || !box?.playerByGameStats) throw new Error('could not load game');
-  const input = toiChartInputFromGame(
-    shifts.data,
-    { abbrev: box.homeTeam.abbrev, ...box.playerByGameStats.homeTeam },
-    { abbrev: box.awayTeam.abbrev, ...box.playerByGameStats.awayTeam },
-    teamCode
-  );
-  if (input === null || input === 'incomplete') throw new Error(`chart unavailable: ${input}`);
-  writeFileSync(out, renderPng(buildToiSvg(input)));
-  console.log(`wrote ${out}`);
+  const chart = await loadToiChart(Number(gameId), teamCode);
+  if (chart === null || chart === 'incomplete') throw new Error(`chart unavailable: ${chart}`);
+  writeFileSync(out, chart.png);
+  console.log(`wrote ${out} (${chart.title})`);
 }
 
 main().catch(err => {

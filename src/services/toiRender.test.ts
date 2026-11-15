@@ -20,8 +20,8 @@ function input(overrides: Partial<ToiChartInput> = {}): ToiChartInput {
 
 describe('cellColor', () => {
   test('min and max map to the ends of the scale', () => {
-    assert.equal(cellColor(1, 1, 13), '#34251e');
-    assert.equal(cellColor(13, 1, 13), '#94562f');
+    assert.equal(cellColor(1, 1, 13), '#16283a');
+    assert.equal(cellColor(13, 1, 13), '#6cace4');
   });
 
   test('midpoint lies strictly between', () => {

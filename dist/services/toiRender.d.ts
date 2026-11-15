@@ -7,7 +7,7 @@ export interface ToiChartInput {
     seconds: (rowId: number, colId: number) => number;
     teamCode: string;
 }
-/** Continuous deep brown (min) → warm amber (max) scale. */
+/** Continuous deep navy (min) → Mountain Blue (max) scale. */
 export declare function cellColor(value: number, min: number, max: number): string;
 export declare function buildToiSvg(input: ToiChartInput): string;
 export declare function renderPng(svg: string): Buffer;

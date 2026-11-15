@@ -74,6 +74,10 @@ describe('buildMeterSvg', () => {
     const svg = buildMeterSvg({ awayAbbrev: 'UTA', homeAbbrev: 'SEA', awayScore: 3, homeScore: 5, homeShare: 0.37, teamCode: 'UTA' });
     assert.match(svg, />63%</);
     assert.match(svg, />37%</);
-    assert.match(svg, /UTA 3 – 5 SEA · Final/);
+    assert.match(svg, /UTA 3 – 5 SEA · FINAL</);
+    assert.match(svg, /UTA DESERVED TO WIN/);
+    // our side in Mountain Blue, the opponent's share in white
+    assert.match(svg, /fill="#6cace4">63%</);
+    assert.match(svg, /fill="#ffffff">37%</);
   });
 });
