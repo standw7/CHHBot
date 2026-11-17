@@ -65,6 +65,8 @@ exports.hasBoardPost = hasBoardPost;
 exports.claimBoardPost = claimBoardPost;
 exports.setBoardMessageId = setBoardMessageId;
 exports.releaseBoardPost = releaseBoardPost;
+exports.getBoardMessageId = getBoardMessageId;
+exports.getBoardPosts = getBoardPosts;
 const database_js_1 = require("./database.js");
 const dailyCard_js_1 = require("../services/dailyCard.js");
 // --- Guild Config ---
@@ -178,11 +180,11 @@ function getHofEntry(guildId, messageId) {
 function getAllHofMessages(guildId) {
     return (0, database_js_1.getDb)().prepare('SELECT * FROM hof_messages WHERE guild_id = ? AND hof_message_id IS NOT NULL ORDER BY inducted_at ASC').all(guildId);
 }
-function updateHofMessageIds(guildId, originalMessageId, hofMessageId, hofFollowupId) {
-    (0, database_js_1.getDb)().prepare('UPDATE hof_messages SET hof_message_id = ?, hof_followup_id = ? WHERE guild_id = ? AND original_message_id = ?').run(hofMessageId, hofFollowupId, guildId, originalMessageId);
+function updateHofMessageIds(guildId, originalMessageId, hofMessageId, hofFollowupId, hofReplyFollowupId = null) {
+    (0, database_js_1.getDb)().prepare('UPDATE hof_messages SET hof_message_id = ?, hof_followup_id = ?, hof_reply_followup_id = ? WHERE guild_id = ? AND original_message_id = ?').run(hofMessageId, hofFollowupId, hofReplyFollowupId, guildId, originalMessageId);
 }
-function updateHofFollowup(guildId, originalMessageId, followupId) {
-    (0, database_js_1.getDb)().prepare('UPDATE hof_messages SET hof_followup_id = ? WHERE guild_id = ? AND original_message_id = ?').run(followupId, guildId, originalMessageId);
+function updateHofFollowup(guildId, originalMessageId, followupId, replyFollowupId = null) {
+    (0, database_js_1.getDb)().prepare('UPDATE hof_messages SET hof_followup_id = ?, hof_reply_followup_id = ? WHERE guild_id = ? AND original_message_id = ?').run(followupId, replyFollowupId, guildId, originalMessageId);
 }
 // --- Feed Sources ---
 function getFeedSources(guildId) {
@@ -391,5 +393,14 @@ function setBoardMessageId(board, guildId, messageId, boardMessageId) {
 }
 function releaseBoardPost(board, guildId, messageId) {
     (0, database_js_1.getDb)().prepare('DELETE FROM board_messages WHERE board = ? AND guild_id = ? AND original_message_id = ?').run(board, guildId, messageId);
+}
+function getBoardMessageId(board, guildId, messageId) {
+    const row = (0, database_js_1.getDb)().prepare('SELECT board_message_id FROM board_messages WHERE board = ? AND guild_id = ? AND original_message_id = ?')
+        .get(board, guildId, messageId);
+    return row?.board_message_id ?? null;
+}
+/** Posted board entries (board message exists), newest first. */
+function getBoardPosts(board, guildId) {
+    return (0, database_js_1.getDb)().prepare('SELECT original_message_id, original_channel_id, board_message_id FROM board_messages WHERE board = ? AND guild_id = ? AND board_message_id IS NOT NULL ORDER BY inducted_at DESC').all(board, guildId);
 }
 //# sourceMappingURL=queries.js.map

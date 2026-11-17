@@ -67,6 +67,7 @@ export interface HofMessage {
   hof_message_id: string | null;
   hof_channel_id: string | null;
   hof_followup_id: string | null;
+  hof_reply_followup_id: string | null; // links from the replied-to message (third post)
   inducted_at: string;
 }
 

@@ -264,4 +264,8 @@ function runMigrations(db: Database.Database): void {
   if (!hofColNames.includes('hof_followup_id')) {
     db.exec('ALTER TABLE hof_messages ADD COLUMN hof_followup_id TEXT');
   }
+  // Second follow-up: links from the message the inducted post replied to
+  if (!hofColNames.includes('hof_reply_followup_id')) {
+    db.exec('ALTER TABLE hof_messages ADD COLUMN hof_reply_followup_id TEXT');
+  }
 }

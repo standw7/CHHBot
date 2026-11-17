@@ -2,7 +2,7 @@ import { loadConfig } from './config/environment.js';
 import { getDb, closeDb } from './db/database.js';
 import { createClient, registerCommands } from './bot/client.js';
 import { registerMessageHandler } from './bot/events/messageCreate.js';
-import { registerReactionHandler } from './bot/events/reactionAdd.js';
+import { registerReactionHandler, refreshTomatoCounts } from './bot/events/reactionAdd.js';
 import { startTracker, stopAllTrackers } from './services/gameTracker.js';
 import { registerLinkFixer } from './bot/events/linkFixer.js';
 import { startFeedWatcher, stopFeedWatcher } from './services/feedWatcher.js';
@@ -56,6 +56,9 @@ async function main(): Promise<void> {
     startDailyCardService(client);
     startDailyCheckInService(client);
     startHscWatcher(client);
+
+    // One-time catch-up of Tomato Town 🍅 counts (sequential + throttled, in the background)
+    refreshTomatoCounts(client).catch(error => logger.error({ error }, 'Tomato Town count refresh failed'));
 
     // Ensure config exists for all guilds the bot is in, then start trackers
     for (const [guildId] of client.guilds.cache) {

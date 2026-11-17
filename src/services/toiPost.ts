@@ -4,10 +4,10 @@ import pino from 'pino';
 import * as nhlClient from '../nhl/client.js';
 import { getGuildConfig } from '../db/queries.js';
 import type { ShiftChartRow, BoxscoreTeamPlayers, ScheduleGame } from '../nhl/types.js';
-import { buildToiSvg, renderPng } from './toiRender.js';
+import { buildToiSvg, buildLinesSvg, renderPng } from './toiRender.js';
 import { normalizeShifts, hasOpenShifts, isShiftDataComplete, computeFiveOnFive, orderPlayers } from './toiChart.js';
 import type { ChartPlayer } from './toiChart.js';
-import type { ToiChartInput } from './toiRender.js';
+import type { ToiChartInput, LinesChartInput } from './toiRender.js';
 import { fetchShiftReports } from './toiHtmlReport.js';
 
 const logger = pino({ name: 'toi-post' });
@@ -34,16 +34,30 @@ function chartPlayers(team: BoxTeam): ChartPlayer[] {
   ];
 }
 
+/** Both post-game charts' inputs, from one pass over the shift data. */
+export interface ToiChartInputs {
+  against: ToiChartInput;
+  lines: LinesChartInput;
+}
+
+/** Sizes of consecutive groups of `size` (the last one may be short), as orderPlayers builds them. */
+function chunkSizes(count: number, size: number): number[] {
+  const out: number[] = [];
+  for (let left = count; left > 0; left -= size) out.push(Math.min(size, left));
+  return out;
+}
+
 /**
- * Chart input for `teamCode` (rows) vs its opponent (columns), or null if the team isn't
- * in this game, or 'incomplete' while shift data doesn't yet match the boxscore.
+ * Chart inputs for `teamCode`: time against its opponent (our rows × their columns) and our
+ * line pairings (our skaters × our skaters). null if the team isn't in this game, or
+ * 'incomplete' while shift data doesn't yet match the boxscore.
  */
 export function toiChartInputFromGame(
   rows: ShiftChartRow[],
   home: BoxTeam,
   away: BoxTeam,
   teamCode: string
-): ToiChartInput | 'incomplete' | null {
+): ToiChartInputs | 'incomplete' | null {
   const us = home.abbrev === teamCode ? home : away.abbrev === teamCode ? away : null;
   if (!us) return null;
   const them = us === home ? away : home;
@@ -63,17 +77,47 @@ export function toiChartInputFromGame(
   const byToi = (players: ChartPlayer[]) => [...players].sort((a, b) => (boxToi.get(b.id) ?? 0) - (boxToi.get(a.id) ?? 0));
 
   return {
-    rows: [...byToi(ours.forwards), ...byToi(ours.defense)],
-    cols: [...theirs.forwards, ...theirs.defense],
-    rowDividerAfter: ours.forwards.length,
-    colDividerAfter: theirs.forwards.length,
-    seconds: (rowId, colId) => five.against.get(`${rowId}-${colId}`) ?? 0,
-    teamCode,
+    against: {
+      rows: [...byToi(ours.forwards), ...byToi(ours.defense)],
+      cols: [...theirs.forwards, ...theirs.defense],
+      rowDividerAfter: ours.forwards.length,
+      colDividerAfter: theirs.forwards.length,
+      seconds: (rowId, colId) => five.against.get(`${rowId}-${colId}`) ?? 0,
+      teamCode,
+    },
+    // Line order as grouped (not by TOI) so trios and pairs sit as blocks on the diagonal
+    lines: {
+      players: [...ours.forwards, ...ours.defense],
+      dividerAfter: ours.forwards.length,
+      blocks: [...chunkSizes(ours.forwards.length, 3), ...chunkSizes(ours.defense.length, 2)],
+      together: (a, b) => five.together.get(`${Math.min(a, b)}-${Math.max(a, b)}`) ?? 0,
+      toi: id => five.toi.get(id) ?? 0,
+      teamCode,
+    },
   };
 }
 
+function matchup(awayAbbrev: string, homeAbbrev: string, gameDate: string): string {
+  return `${awayAbbrev} @ ${homeAbbrev} · ${DateTime.fromISO(gameDate).toFormat('LLL d')}`;
+}
+
 export function toiChartTitle(awayAbbrev: string, homeAbbrev: string, gameDate: string): string {
-  return `⏱️ Time against opponents · ${awayAbbrev} @ ${homeAbbrev} · ${DateTime.fromISO(gameDate).toFormat('LLL d')}`;
+  return `⏱️ Time against opponents · ${matchup(awayAbbrev, homeAbbrev, gameDate)}`;
+}
+
+export function linesChartTitle(awayAbbrev: string, homeAbbrev: string, gameDate: string): string {
+  return `🤝 Line combinations · ${matchup(awayAbbrev, homeAbbrev, gameDate)}`;
+}
+
+export interface RenderedChart {
+  png: Buffer;
+  title: string;
+}
+
+/** The post-game TOI charts: time against opponents, then line combinations. */
+export interface ToiCharts {
+  against: RenderedChart;
+  lines: RenderedChart;
 }
 
 /** Latest finished regular-season or playoff game, or null. */
@@ -90,11 +134,11 @@ export async function latestCompletedGameId(teamCode: string): Promise<number | 
 }
 
 /**
- * Fetch, check and render. null if the game can't be loaded or doesn't involve the team.
+ * Fetch, check and render both charts. null if the game can't be loaded or doesn't involve the team.
  * Uses the shiftcharts API, falling back to the HTML shift reports when the API's data
  * is missing or incomplete (the API is never populated for some games).
  */
-export async function loadToiChart(gameId: number, teamCode: string): Promise<{ png: Buffer; title: string } | 'incomplete' | null> {
+export async function loadToiChart(gameId: number, teamCode: string): Promise<ToiCharts | 'incomplete' | null> {
   const [shifts, box] = await Promise.all([nhlClient.getShiftChart(gameId), nhlClient.getBoxscore(gameId)]);
   if (!box?.playerByGameStats) return null;
   const home: BoxTeam = { abbrev: box.homeTeam.abbrev, ...box.playerByGameStats.homeTeam };
@@ -113,14 +157,22 @@ export async function loadToiChart(gameId: number, teamCode: string): Promise<{ 
     }
   }
   if (input === null || input === 'incomplete') return input;
+  const [awayAbbrev, homeAbbrev, date] = [box.awayTeam.abbrev, box.homeTeam.abbrev, box.gameDate ?? ''];
   return {
-    png: renderPng(buildToiSvg(input)),
-    title: toiChartTitle(box.awayTeam.abbrev, box.homeTeam.abbrev, box.gameDate ?? ''),
+    against: { png: renderPng(buildToiSvg(input.against)), title: toiChartTitle(awayAbbrev, homeAbbrev, date) },
+    lines: { png: renderPng(buildLinesSvg(input.lines)), title: linesChartTitle(awayAbbrev, homeAbbrev, date) },
   };
 }
 
-export function toiMessage(chart: { png: Buffer; title: string }, gameId: number): MessageCreateOptions {
-  return { content: `**${chart.title}**`, files: [new AttachmentBuilder(chart.png, { name: `toi-${gameId}.png` })] };
+/** One message, both charts: titles in image order. */
+export function toiMessage(charts: ToiCharts, gameId: number): MessageCreateOptions {
+  return {
+    content: `**${charts.against.title}**\n**${charts.lines.title}**`,
+    files: [
+      new AttachmentBuilder(charts.against.png, { name: `toi-${gameId}.png` }),
+      new AttachmentBuilder(charts.lines.png, { name: `lines-${gameId}.png` }),
+    ],
+  };
 }
 
 /** Send to the guild's news and gameday channels (whichever are configured). */

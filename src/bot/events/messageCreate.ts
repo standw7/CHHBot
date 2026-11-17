@@ -1319,7 +1319,7 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
 
   if (sub === 'update') {
     const { getAllHofMessages, updateHofMessageIds } = await import('../../db/queries.js');
-    const { buildHofPost } = await import('./reactionAdd.js');
+    const { buildHofPost, sendBoardFollowups } = await import('./reactionAdd.js');
 
     const entries = getAllHofMessages(guildId);
     if (entries.length === 0) {
@@ -1343,10 +1343,11 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
           await msg.delete();
         } catch { /* already gone */ }
 
-        // Delete follow-up if exists
-        if (entry.hof_followup_id) {
+        // Delete follow-ups (own links, replied-to links) if they exist
+        for (const followupMsgId of [entry.hof_followup_id, entry.hof_reply_followup_id]) {
+          if (!followupMsgId) continue;
           try {
-            const followup = await tc.messages.fetch(entry.hof_followup_id);
+            const followup = await tc.messages.fetch(followupMsgId);
             await followup.delete();
           } catch { /* already gone */ }
         }
@@ -1385,7 +1386,7 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
         }
 
         // Rebuild the HOF post
-        const { embed, embedLinks, files } = await buildHofPost(
+        const post = await buildHofPost(
           origMessage, guildId, entry.original_channel_id, entry.original_message_id
         );
 
@@ -1398,20 +1399,13 @@ async function handlePrefixHof(message: Message, args: string[]): Promise<void> 
         const tc = hofChannel as TextChannel;
 
         // Send new HOF embed
-        const newHofMsg = await tc.send({ embeds: [embed] });
+        const newHofMsg = await tc.send({ embeds: [post.embed], allowedMentions: { parse: [] } });
 
-        // Send follow-up with fxtwitter links and/or videos
-        let followupId: string | null = null;
-        if (embedLinks.length > 0 || files.length > 0) {
-          const followup = await tc.send({
-            content: embedLinks.length > 0 ? embedLinks.join('\n') : undefined,
-            files,
-          });
-          followupId = followup.id;
-        }
+        // Follow-ups: own links/videos, then the replied-to message's links
+        const { followupId, replyFollowupId } = await sendBoardFollowups(tc, post, '🔥');
 
         // Update DB with new message IDs
-        updateHofMessageIds(guildId, entry.original_message_id, newHofMsg.id, followupId);
+        updateHofMessageIds(guildId, entry.original_message_id, newHofMsg.id, followupId, replyFollowupId);
 
         updated++;
       } catch (error) {

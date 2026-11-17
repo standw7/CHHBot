@@ -66,6 +66,9 @@ function createClient() {
         partials: [
             discord_js_1.Partials.Message,
             discord_js_1.Partials.Reaction,
+            // messageReactionRemove carries no member payload; without this partial, removals by
+            // uncached users are dropped (Tomato Town keeps its 🍅 count live on removals)
+            discord_js_1.Partials.User,
         ],
     });
     const commandCollection = new discord_js_1.Collection();

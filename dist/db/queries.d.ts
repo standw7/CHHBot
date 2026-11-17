@@ -32,8 +32,8 @@ export declare function hasMessageBeenInducted(guildId: string, messageId: strin
 export declare function markMessageInducted(guildId: string, messageId: string, channelId: string, hofMessageId?: string, hofChannelId?: string): void;
 export declare function getHofEntry(guildId: string, messageId: string): HofMessage | undefined;
 export declare function getAllHofMessages(guildId: string): HofMessage[];
-export declare function updateHofMessageIds(guildId: string, originalMessageId: string, hofMessageId: string, hofFollowupId: string | null): void;
-export declare function updateHofFollowup(guildId: string, originalMessageId: string, followupId: string | null): void;
+export declare function updateHofMessageIds(guildId: string, originalMessageId: string, hofMessageId: string, hofFollowupId: string | null, hofReplyFollowupId?: string | null): void;
+export declare function updateHofFollowup(guildId: string, originalMessageId: string, followupId: string | null, replyFollowupId?: string | null): void;
 export declare function getFeedSources(guildId: string): FeedSource[];
 export declare function addFeedSource(guildId: string, url: string, label: string, addedBy: string): void;
 export declare function removeFeedSource(guildId: string, idOrLabel: string): boolean;
@@ -95,4 +95,12 @@ export declare function hasBoardPost(board: string, guildId: string, messageId: 
 export declare function claimBoardPost(board: string, guildId: string, messageId: string, channelId: string): boolean;
 export declare function setBoardMessageId(board: string, guildId: string, messageId: string, boardMessageId: string): void;
 export declare function releaseBoardPost(board: string, guildId: string, messageId: string): void;
+export declare function getBoardMessageId(board: string, guildId: string, messageId: string): string | null;
+export interface BoardPostRow {
+    original_message_id: string;
+    original_channel_id: string | null;
+    board_message_id: string;
+}
+/** Posted board entries (board message exists), newest first. */
+export declare function getBoardPosts(board: string, guildId: string): BoardPostRow[];
 //# sourceMappingURL=queries.d.ts.map

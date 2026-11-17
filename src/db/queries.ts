@@ -157,16 +157,16 @@ export function getAllHofMessages(guildId: string): HofMessage[] {
   ).all(guildId) as HofMessage[];
 }
 
-export function updateHofMessageIds(guildId: string, originalMessageId: string, hofMessageId: string, hofFollowupId: string | null): void {
+export function updateHofMessageIds(guildId: string, originalMessageId: string, hofMessageId: string, hofFollowupId: string | null, hofReplyFollowupId: string | null = null): void {
   getDb().prepare(
-    'UPDATE hof_messages SET hof_message_id = ?, hof_followup_id = ? WHERE guild_id = ? AND original_message_id = ?'
-  ).run(hofMessageId, hofFollowupId, guildId, originalMessageId);
+    'UPDATE hof_messages SET hof_message_id = ?, hof_followup_id = ?, hof_reply_followup_id = ? WHERE guild_id = ? AND original_message_id = ?'
+  ).run(hofMessageId, hofFollowupId, hofReplyFollowupId, guildId, originalMessageId);
 }
 
-export function updateHofFollowup(guildId: string, originalMessageId: string, followupId: string | null): void {
+export function updateHofFollowup(guildId: string, originalMessageId: string, followupId: string | null, replyFollowupId: string | null = null): void {
   getDb().prepare(
-    'UPDATE hof_messages SET hof_followup_id = ? WHERE guild_id = ? AND original_message_id = ?'
-  ).run(followupId, guildId, originalMessageId);
+    'UPDATE hof_messages SET hof_followup_id = ?, hof_reply_followup_id = ? WHERE guild_id = ? AND original_message_id = ?'
+  ).run(followupId, replyFollowupId, guildId, originalMessageId);
 }
 
 // --- Feed Sources ---
@@ -428,4 +428,23 @@ export function setBoardMessageId(board: string, guildId: string, messageId: str
 
 export function releaseBoardPost(board: string, guildId: string, messageId: string): void {
   getDb().prepare('DELETE FROM board_messages WHERE board = ? AND guild_id = ? AND original_message_id = ?').run(board, guildId, messageId);
+}
+
+export function getBoardMessageId(board: string, guildId: string, messageId: string): string | null {
+  const row = getDb().prepare('SELECT board_message_id FROM board_messages WHERE board = ? AND guild_id = ? AND original_message_id = ?')
+    .get(board, guildId, messageId) as { board_message_id: string | null } | undefined;
+  return row?.board_message_id ?? null;
+}
+
+export interface BoardPostRow {
+  original_message_id: string;
+  original_channel_id: string | null;
+  board_message_id: string;
+}
+
+/** Posted board entries (board message exists), newest first. */
+export function getBoardPosts(board: string, guildId: string): BoardPostRow[] {
+  return getDb().prepare(
+    'SELECT original_message_id, original_channel_id, board_message_id FROM board_messages WHERE board = ? AND guild_id = ? AND board_message_id IS NOT NULL ORDER BY inducted_at DESC'
+  ).all(board, guildId) as BoardPostRow[];
 }

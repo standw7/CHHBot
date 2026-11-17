@@ -45,6 +45,9 @@ export function createClient(): Client {
     partials: [
       Partials.Message,
       Partials.Reaction,
+      // messageReactionRemove carries no member payload; without this partial, removals by
+      // uncached users are dropped (Tomato Town keeps its 🍅 count live on removals)
+      Partials.User,
     ],
   });
 

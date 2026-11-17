@@ -50,6 +50,8 @@ async function main() {
         (0, dailyCard_js_1.startDailyCardService)(client);
         (0, rewardsReminder_js_1.startDailyCheckInService)(client);
         (0, hscBluesky_js_1.startHscWatcher)(client);
+        // One-time catch-up of Tomato Town 🍅 counts (sequential + throttled, in the background)
+        (0, reactionAdd_js_1.refreshTomatoCounts)(client).catch(error => logger.error({ error }, 'Tomato Town count refresh failed'));
         // Ensure config exists for all guilds the bot is in, then start trackers
         for (const [guildId] of client.guilds.cache) {
             let guildConfig = (0, queries_js_1.getGuildConfig)(guildId);

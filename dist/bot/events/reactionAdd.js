@@ -3,71 +3,62 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.HOF_EMOJIS = void 0;
+exports.isTomatoEmoji = exports.HOF_EMOJIS = void 0;
 exports.buildHofPost = buildHofPost;
+exports.sendBoardFollowups = sendBoardFollowups;
 exports.inductMessage = inductMessage;
-exports.isTomatoEmoji = isTomatoEmoji;
+exports.refreshTomatoCounts = refreshTomatoCounts;
 exports.registerReactionHandler = registerReactionHandler;
 const discord_js_1 = require("discord.js");
 const queries_js_1 = require("../../db/queries.js");
 const hofScan_js_1 = require("../../services/hofScan.js");
 Object.defineProperty(exports, "HOF_EMOJIS", { enumerable: true, get: function () { return hofScan_js_1.HOF_EMOJIS; } });
 const follows_js_1 = require("../../services/follows.js");
+const hofLinks_js_1 = require("../../services/hofLinks.js");
+Object.defineProperty(exports, "isTomatoEmoji", { enumerable: true, get: function () { return hofLinks_js_1.isTomatoEmoji; } });
+const socialCaption_js_1 = require("../../services/socialCaption.js");
 const pino_1 = __importDefault(require("pino"));
 const logger = (0, pino_1.default)({ name: 'hall-of-fame' });
-// Social link patterns: match all variants (original + embed-fix domains), normalize to embed-fix URL
-const SOCIAL_LINK_PATTERNS = [
-    {
-        // Twitter/X (all variants) — group 3 = user/status/id path
-        re: /https?:\/\/(www\.)?(x\.com|twitter\.com|fxtwitter\.com|vxtwitter\.com|xcancel\.com|fixupx\.com|twittpr\.com)\/([\w/]+\/status\/\d+\S*)/gi,
-        toEmbedUrl: (m) => `https://fxtwitter.com/${m[3]}`,
-    },
-    {
-        // Instagram (all variants) — group 3 = p|reel|reels, group 4 = post id
-        re: /https?:\/\/(www\.)?(instagram\.com|ddinstagram\.com|vxinstagram\.com)\/(p|reel|reels)\/([\w-]+\S*)/gi,
-        toEmbedUrl: (m) => `https://vxinstagram.com/${m[3]}/${m[4]}`,
-    },
-    {
-        // TikTok (all variants) — group 3 = path after domain
-        re: /https?:\/\/(www\.|vm\.)?(tiktok\.com|vxtiktok\.com|tiktxk\.com|tnktok\.com)\/(\S+)/gi,
-        toEmbedUrl: (m) => `https://${m[1] === 'vm.' ? 'vm.' : ''}tnktok.com/${m[3]}`,
-    },
-];
+// Nothing the bot posts on the boards should ever ping anyone
+const NO_PINGS = { parse: [] };
+function displayName(message) {
+    return message.member?.displayName ?? message.author?.displayName ?? message.author?.username ?? 'Unknown';
+}
+/** Adapt a discord.js message (plus forwarded snapshot) to the pure summarizer's input. */
+function toSummaryInput(message, attachments) {
+    const snapshot = message.messageSnapshots?.first();
+    const embeds = [...message.embeds, ...(snapshot?.embeds ?? [])].map(e => ({
+        title: e.title,
+        description: e.description,
+        authorName: e.author?.name,
+    }));
+    return {
+        content: message.content,
+        snapshotContent: snapshot?.content,
+        embeds,
+        attachments: attachments ?? [
+            ...message.attachments.values(),
+            ...(snapshot ? snapshot.attachments.values() : []),
+        ],
+        stickerNames: [...message.stickers.values(), ...(snapshot ? snapshot.stickers.values() : [])].map(s => s.name),
+    };
+}
 /**
  * Build a full HOF post from a Discord message.
- * Returns the embed, any fxtwitter links (to send as a separate follow-up), and file attachments.
- * Exported so the backfill command can reuse it.
+ * Returns the embed, the message's links (and the replied-to message's links) to send as
+ * follow-ups, and video attachments. Exported so the rebuild command can reuse it.
  */
 async function buildHofPost(message, guildId, channelId, messageId) {
     const author = message.author;
     // For forwarded messages, content and attachments live in messageSnapshots
     const snapshot = message.messageSnapshots?.first();
-    const rawContent = message.content || snapshot?.content || '';
-    const msgContent = rawContent;
-    const truncatedContent = msgContent.length > 1500
-        ? msgContent.slice(0, 1500) + '... (truncated)'
-        : msgContent;
     const messageUrl = `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
     // Merge attachments from message and snapshot (forwarded messages store them in snapshot)
     const msgAttachments = Array.from(message.attachments.values());
     const snapshotAttachments = snapshot ? Array.from(snapshot.attachments.values()) : [];
     const attachments = msgAttachments.length > 0 ? msgAttachments : snapshotAttachments;
-    // Build a description — if there's no text, describe what's attached
-    let description = truncatedContent;
-    if (!description) {
-        const hasVideo = attachments.some(a => a.contentType?.startsWith('video/'));
-        const hasImage = attachments.some(a => a.contentType?.startsWith('image/'));
-        if (hasVideo && hasImage)
-            description = '📎 Media attached';
-        else if (hasVideo)
-            description = '🎬 Video attached';
-        else if (hasImage)
-            description = '🖼 Image attached';
-        else if (attachments.length > 0)
-            description = '📎 Attachment';
-        else
-            description = '*No text content*';
-    }
+    // Text, else forwarded text, else embed text, else "what's attached"
+    const description = (0, hofLinks_js_1.summarizeMessage)(toSummaryInput(message, attachments), 1500);
     const embed = new discord_js_1.EmbedBuilder()
         .setAuthor({
         name: author?.displayName ?? author?.username ?? 'Unknown',
@@ -76,20 +67,22 @@ async function buildHofPost(message, guildId, channelId, messageId) {
         .setDescription(description)
         .setColor(0xFF4500)
         .setTimestamp(message.createdAt);
+    const embedLinks = (0, hofLinks_js_1.extractPostLinks)([message.content, snapshot?.content]);
     // --- Reply context ---
+    let replyLinks = [];
+    let replyAuthorName = null;
     if (message.reference) {
         try {
             const repliedTo = await message.fetchReference();
-            const replyAuthor = repliedTo.author?.displayName ?? repliedTo.author?.username ?? 'Unknown';
-            let replyContent = repliedTo.content || '*No text content*';
-            if (replyContent.length > 300) {
-                replyContent = replyContent.slice(0, 300) + '... (truncated)';
-            }
+            replyAuthorName = repliedTo.author?.displayName ?? repliedTo.author?.username ?? 'Unknown';
             embed.addFields({
-                name: `↩ Reply to ${replyAuthor}`,
-                value: replyContent,
+                name: `↩ Reply to ${replyAuthorName}`,
+                value: (0, hofLinks_js_1.summarizeMessage)(toSummaryInput(repliedTo), 300),
                 inline: false,
             });
+            const replySnapshot = repliedTo.messageSnapshots?.first();
+            replyLinks = (0, hofLinks_js_1.extractPostLinks)([repliedTo.content, replySnapshot?.content])
+                .filter(url => !embedLinks.includes(url));
         }
         catch {
             logger.warn({ messageId }, 'Failed to fetch replied-to message for HOF post');
@@ -134,25 +127,50 @@ async function buildHofPost(message, guildId, channelId, messageId) {
         const links = otherAttachments.map(a => `[${a.name ?? 'File'}](${a.url})`).join('\n');
         embed.addFields({ name: 'Attachments', value: links, inline: false });
     }
-    // --- Social link extraction (deduplicate by resolved URL) ---
-    const embedLinks = [];
-    const seenUrls = new Set();
-    for (const { re, toEmbedUrl } of SOCIAL_LINK_PATTERNS) {
-        re.lastIndex = 0;
-        let match;
-        while ((match = re.exec(msgContent)) !== null) {
-            const embedUrl = toEmbedUrl(match);
-            if (!seenUrls.has(embedUrl)) {
-                seenUrls.add(embedUrl);
-                embedLinks.push(embedUrl);
-            }
+    return { embed, embedLinks, files, authorName: displayName(message), replyLinks, replyAuthorName };
+}
+/**
+ * Send the follow-up messages that sit under a HoF / Tomato Town card:
+ *   - the inducted message's own links (+ Instagram captions) and video files. When a reply
+ *     follow-up is coming too, it is labelled `-# 🔥 <author>'s post` to tell them apart.
+ *   - if the replied-to message had links: `-# ↩ Replying to <author>` + those links.
+ * Shared by HoF inductions, the HoF rebuild command, and Tomato Town.
+ */
+async function sendBoardFollowups(tc, post, emoji) {
+    const ids = { followupId: null, replyFollowupId: null };
+    const allLinks = [...post.embedLinks, ...post.replyLinks];
+    if (allLinks.length === 0 && post.files.length === 0)
+        return ids;
+    // Instagram's embed hides its caption, so fetch it ourselves (in parallel, never throws)
+    const captions = new Map();
+    await Promise.all(allLinks.filter(socialCaption_js_1.isInstagramLink).map(async (url) => {
+        captions.set(url, await (0, socialCaption_js_1.fetchInstagramCaption)(url));
+    }));
+    const withCaptions = (urls) => urls.map(url => ({ url, caption: captions.get(url) ?? null }));
+    if (post.embedLinks.length > 0 || post.files.length > 0) {
+        const label = post.replyLinks.length > 0 ? `-# ${emoji} ${(0, discord_js_1.escapeMarkdown)(post.authorName)}'s post` : null;
+        const content = post.embedLinks.length > 0 || label ? (0, hofLinks_js_1.buildFollowupContent)(label, withCaptions(post.embedLinks)) : '';
+        const followup = await tc.send({ content: content || undefined, files: post.files, allowedMentions: NO_PINGS });
+        ids.followupId = followup.id;
+    }
+    if (post.replyLinks.length > 0) {
+        try {
+            const label = `-# ↩ Replying to ${(0, discord_js_1.escapeMarkdown)(post.replyAuthorName ?? 'Unknown')}`;
+            const replyFollowup = await tc.send({
+                content: (0, hofLinks_js_1.buildFollowupContent)(label, withCaptions(post.replyLinks)),
+                allowedMentions: NO_PINGS,
+            });
+            ids.replyFollowupId = replyFollowup.id;
+        }
+        catch (error) {
+            logger.warn({ error }, 'Failed to send reply-links follow-up');
         }
     }
-    return { embed, embedLinks, files };
+    return ids;
 }
 /**
  * Build a HoF post for the given message and post it to the guild's HoF channel,
- * marking it inducted (and recording any follow-up message) in the DB.
+ * marking it inducted (and recording any follow-up messages) in the DB.
  * Returns true when it posted, false if the HoF channel could not be resolved.
  * Shared by the reaction handler and the `!hof scan` backfill command.
  */
@@ -160,7 +178,7 @@ async function inductMessage(message, guildId, config, options = {}) {
     const channelId = message.channel.id;
     const messageId = message.id;
     // Build the HoF post
-    const { embed, embedLinks, files } = await buildHofPost(message, guildId, channelId, messageId);
+    const post = await buildHofPost(message, guildId, channelId, messageId);
     // Post to HoF channel
     const hofChannel = await message.guild.channels.fetch(config.hof_channel_id);
     if (!hofChannel || !hofChannel.isTextBased()) {
@@ -169,16 +187,12 @@ async function inductMessage(message, guildId, config, options = {}) {
     }
     const tc = hofChannel;
     // Send the main HOF embed (no files — videos go in follow-up so they render below)
-    const hofMessage = await tc.send({ embeds: [embed] });
+    const hofMessage = await tc.send({ embeds: [post.embed], allowedMentions: NO_PINGS });
     (0, queries_js_1.markMessageInducted)(guildId, messageId, channelId, hofMessage.id, config.hof_channel_id);
-    // Send follow-up with fxtwitter links and/or video files (renders below the card)
-    if (embedLinks.length > 0 || files.length > 0) {
-        const followup = await tc.send({
-            content: embedLinks.length > 0 ? embedLinks.join('\n') : undefined,
-            files,
-        });
-        (0, queries_js_1.updateHofFollowup)(guildId, messageId, followup.id);
-    }
+    // Follow-ups with links and/or video files (render below the card)
+    const { followupId, replyFollowupId } = await sendBoardFollowups(tc, post, '🔥');
+    if (followupId || replyFollowupId)
+        (0, queries_js_1.updateHofFollowup)(guildId, messageId, followupId, replyFollowupId);
     // Live inductions only — `!hof scan` backfills don't DM
     if (options.notifyFollowers) {
         const authorName = message.member?.displayName ?? message.author.displayName;
@@ -189,17 +203,59 @@ async function inductMessage(message, guildId, config, options = {}) {
 // ---- Tomato Town: like the HoF, but for 🍅 ----
 const TOMATO_BOARD = 'tomato';
 const TOMATO_COLOR = 0xE5322D;
-/** 🍅, or a custom server emoji named like "tomato". */
-function isTomatoEmoji(name) {
-    return name === '🍅' || (!!name && name.toLowerCase().includes('tomato'));
+const TOMATO_EDIT_DEBOUNCE_MS = 2000;
+function tomatoTotal(message) {
+    return (0, hofLinks_js_1.sumTomatoCount)([...message.reactions.cache.values()].map(r => ({ emojiName: r.emoji.name, count: r.count })));
 }
-async function handleTomatoReaction(reaction, config) {
+// Last count written to each board post (by original message id), so repeat edits are skipped
+const lastTomatoCount = new Map();
+// Pending debounced count edits: a burst of 🍅 becomes one edit
+const pendingTomatoEdits = new Map();
+/** Edit an existing Tomato Town post's header to the message's current tomato total (debounced). */
+function scheduleTomatoCountUpdate(message, guild, boardChannelId) {
+    const messageId = message.id;
+    const existing = pendingTomatoEdits.get(messageId);
+    if (existing)
+        clearTimeout(existing);
+    pendingTomatoEdits.set(messageId, setTimeout(() => {
+        pendingTomatoEdits.delete(messageId);
+        void (async () => {
+            try {
+                const boardMessageId = (0, queries_js_1.getBoardMessageId)(TOMATO_BOARD, guild.id, messageId);
+                if (!boardMessageId)
+                    return;
+                // A partial (uncached) message has no reaction counts; fetch it to get them
+                const fresh = message.partial ? await message.fetch() : message;
+                const count = tomatoTotal(fresh);
+                if (lastTomatoCount.get(messageId) === count)
+                    return;
+                const board = await guild.channels.fetch(boardChannelId);
+                if (!board?.isTextBased())
+                    return;
+                await board.messages.edit(boardMessageId, { content: (0, hofLinks_js_1.tomatoHeader)(count), allowedMentions: NO_PINGS });
+                lastTomatoCount.set(messageId, count);
+            }
+            catch (error) {
+                logger.warn({ error, messageId }, 'Failed to update Tomato Town count');
+            }
+        })();
+    }, TOMATO_EDIT_DEBOUNCE_MS));
+}
+async function handleTomatoReaction(reaction, config, kind) {
     const guild = reaction.message.guild;
     const messageId = reaction.message.id;
     const channelId = reaction.message.channel.id;
     const boardChannelId = config.tomato_channel_id;
     // Never repost the boards' own posts
     if (channelId === boardChannelId || channelId === config.hof_channel_id)
+        return;
+    // Already on the board: keep its count live
+    if ((0, queries_js_1.getBoardMessageId)(TOMATO_BOARD, guild.id, messageId)) {
+        const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
+        scheduleTomatoCountUpdate(message, guild, boardChannelId);
+        return;
+    }
+    if (kind === 'remove')
         return;
     if ((reaction.count ?? 0) < (config.tomato_threshold ?? hofScan_js_1.DEFAULT_THRESHOLD))
         return;
@@ -216,20 +272,74 @@ async function handleTomatoReaction(reaction, config) {
             (0, queries_js_1.releaseBoardPost)(TOMATO_BOARD, guild.id, messageId);
             return;
         }
-        const { embed, embedLinks, files } = await buildHofPost(message, guild.id, channelId, messageId);
-        embed.setColor(TOMATO_COLOR);
+        const post = await buildHofPost(message, guild.id, channelId, messageId);
+        post.embed.setColor(TOMATO_COLOR);
         const tc = board;
-        const post = await tc.send({ content: `🍅 **${reaction.count}**`, embeds: [embed] });
-        (0, queries_js_1.setBoardMessageId)(TOMATO_BOARD, guild.id, messageId, post.id);
-        if (embedLinks.length > 0 || files.length > 0) {
-            await tc.send({ content: embedLinks.length > 0 ? embedLinks.join('\n') : undefined, files });
-        }
-        logger.info({ guildId: guild.id, messageId, channelId, reactionCount: reaction.count }, 'Message sent to Tomato Town');
+        const count = tomatoTotal(message);
+        const boardPost = await tc.send({ content: (0, hofLinks_js_1.tomatoHeader)(count), embeds: [post.embed], allowedMentions: NO_PINGS });
+        (0, queries_js_1.setBoardMessageId)(TOMATO_BOARD, guild.id, messageId, boardPost.id);
+        lastTomatoCount.set(messageId, count);
+        await sendBoardFollowups(tc, post, '🍅');
+        logger.info({ guildId: guild.id, messageId, channelId, reactionCount: count }, 'Message sent to Tomato Town');
+        // 🍅 that landed while we were posting were skipped by the board-post check above; catch up
+        scheduleTomatoCountUpdate(message, guild, boardChannelId);
     }
     catch (error) {
-        (0, queries_js_1.releaseBoardPost)(TOMATO_BOARD, guild.id, messageId); // let the next 🍅 retry
+        // let the next 🍅 retry — unless the board post went out, in which case keep it
+        if (!(0, queries_js_1.getBoardMessageId)(TOMATO_BOARD, guild.id, messageId))
+            (0, queries_js_1.releaseBoardPost)(TOMATO_BOARD, guild.id, messageId);
         throw error;
     }
+}
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+/**
+ * One-time startup pass: bring every Tomato Town post's `🍅 **N**` header up to date
+ * (posts made before counts went live all froze at the threshold). Sequential and throttled;
+ * deleted posts/messages/channels are skipped. Only posts whose count differs are edited.
+ */
+async function refreshTomatoCounts(client) {
+    let edited = 0;
+    let checked = 0;
+    for (const guild of client.guilds.cache.values()) {
+        const config = (0, queries_js_1.getGuildConfig)(guild.id);
+        if (!config?.tomato_channel_id)
+            continue;
+        let board;
+        try {
+            const ch = await guild.channels.fetch(config.tomato_channel_id);
+            if (!ch?.isTextBased())
+                continue;
+            board = ch;
+        }
+        catch {
+            continue;
+        }
+        for (const row of (0, queries_js_1.getBoardPosts)(TOMATO_BOARD, guild.id)) {
+            if (!row.original_channel_id)
+                continue;
+            try {
+                checked++;
+                const boardMsg = await board.messages.fetch(row.board_message_id);
+                const current = (0, hofLinks_js_1.parseTomatoHeader)(boardMsg.content);
+                const origChannel = await guild.channels.fetch(row.original_channel_id);
+                if (!origChannel?.isTextBased())
+                    continue;
+                const orig = await origChannel.messages.fetch(row.original_message_id);
+                const count = tomatoTotal(orig);
+                lastTomatoCount.set(row.original_message_id, count);
+                if (current !== count) {
+                    await boardMsg.edit({ content: (0, hofLinks_js_1.tomatoHeader)(count), allowedMentions: NO_PINGS });
+                    edited++;
+                }
+            }
+            catch {
+                // board post, original message, or channel deleted — nothing to update
+            }
+            await sleep(1000);
+        }
+    }
+    if (checked > 0)
+        logger.info({ checked, edited }, 'Refreshed Tomato Town counts');
 }
 function registerReactionHandler(client) {
     client.on('messageReactionAdd', async (reaction, user) => {
@@ -247,10 +357,10 @@ function registerReactionHandler(client) {
             if (!reaction.message.guild)
                 return;
             const emojiName = reaction.emoji.name;
-            if (isTomatoEmoji(emojiName)) {
+            if ((0, hofLinks_js_1.isTomatoEmoji)(emojiName)) {
                 const config = (0, queries_js_1.getGuildConfig)(reaction.message.guild.id);
                 if (config?.tomato_channel_id)
-                    await handleTomatoReaction(reaction, config);
+                    await handleTomatoReaction(reaction, config, 'add');
                 return;
             }
             // Check if this is a qualifying emoji
@@ -282,6 +392,23 @@ function registerReactionHandler(client) {
         }
         catch (error) {
             logger.error({ error }, 'Error in hall of fame reaction handler');
+        }
+    });
+    // Only Tomato Town cares about removals (its post shows a live 🍅 count).
+    // Don't fetch the partial reaction here: if the last 🍅 was removed it no longer exists.
+    client.on('messageReactionRemove', async (reaction) => {
+        try {
+            if (!(0, hofLinks_js_1.isTomatoEmoji)(reaction.emoji.name))
+                return;
+            const guild = reaction.message.guild;
+            if (!guild)
+                return;
+            const config = (0, queries_js_1.getGuildConfig)(guild.id);
+            if (config?.tomato_channel_id)
+                await handleTomatoReaction(reaction, config, 'remove');
+        }
+        catch (error) {
+            logger.error({ error }, 'Error in Tomato Town reaction-remove handler');
         }
     });
 }

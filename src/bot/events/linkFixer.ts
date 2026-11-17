@@ -1,5 +1,7 @@
 import { Client, Message } from 'discord.js';
 import { getGuildConfig } from '../../db/queries.js';
+import { buildFollowupContent } from '../../services/hofLinks.js';
+import { fetchInstagramCaption } from '../../services/socialCaption.js';
 import pino from 'pino';
 
 const logger = pino({ name: 'link-fixer' });
@@ -39,7 +41,7 @@ export function registerLinkFixer(client: Client): void {
     const config = getGuildConfig(message.guild.id);
     if (!config || !config.link_fix_enabled) return;
 
-    const fixedLinks: string[] = [];
+    const fixedLinks: { url: string; label: string }[] = [];
 
     for (const { pattern, replace, label } of LINK_REPLACEMENTS) {
       // Reset regex state since it's global
@@ -47,7 +49,7 @@ export function registerLinkFixer(client: Client): void {
       let match;
       while ((match = pattern.exec(message.content)) !== null) {
         const fixed = match[0].replace(new RegExp(pattern.source, 'i'), replace);
-        fixedLinks.push(fixed);
+        fixedLinks.push({ url: fixed, label });
       }
     }
 
@@ -63,9 +65,16 @@ export function registerLinkFixer(client: Client): void {
         }
       }
 
+      // vxinstagram's player-card embed hides the caption, so post it under the link ourselves.
+      // (Twitter/TikTok embeds already show their text.)
+      const links = await Promise.all(fixedLinks.map(async ({ url, label }) => ({
+        url,
+        caption: label === 'Instagram' ? await fetchInstagramCaption(url) : null,
+      })));
+
       await message.reply({
-        content: fixedLinks.join('\n'),
-        allowedMentions: { repliedUser: false },
+        content: buildFollowupContent(null, links),
+        allowedMentions: { parse: [], repliedUser: false },
       });
     } catch (error) {
       logger.error({ error }, 'Failed to post fixed links');

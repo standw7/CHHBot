@@ -5,6 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerLinkFixer = registerLinkFixer;
 const queries_js_1 = require("../../db/queries.js");
+const hofLinks_js_1 = require("../../services/hofLinks.js");
+const socialCaption_js_1 = require("../../services/socialCaption.js");
 const pino_1 = __importDefault(require("pino"));
 const logger = (0, pino_1.default)({ name: 'link-fixer' });
 // Patterns and their replacements for better Discord embeds
@@ -49,7 +51,7 @@ function registerLinkFixer(client) {
             let match;
             while ((match = pattern.exec(message.content)) !== null) {
                 const fixed = match[0].replace(new RegExp(pattern.source, 'i'), replace);
-                fixedLinks.push(fixed);
+                fixedLinks.push({ url: fixed, label });
             }
         }
         if (fixedLinks.length === 0)
@@ -64,9 +66,15 @@ function registerLinkFixer(client) {
                     // May lack permission, that's fine
                 }
             }
+            // vxinstagram's player-card embed hides the caption, so post it under the link ourselves.
+            // (Twitter/TikTok embeds already show their text.)
+            const links = await Promise.all(fixedLinks.map(async ({ url, label }) => ({
+                url,
+                caption: label === 'Instagram' ? await (0, socialCaption_js_1.fetchInstagramCaption)(url) : null,
+            })));
             await message.reply({
-                content: fixedLinks.join('\n'),
-                allowedMentions: { repliedUser: false },
+                content: (0, hofLinks_js_1.buildFollowupContent)(null, links),
+                allowedMentions: { parse: [], repliedUser: false },
             });
         }
         catch (error) {
