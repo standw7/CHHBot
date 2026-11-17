@@ -14,12 +14,19 @@ const LINK_REPLACEMENTS: { pattern: RegExp; replace: string; label: string }[] =
   },
   {
     pattern: /https?:\/\/(www\.)?instagram\.com\/(p|reel|reels)\/([\w-]+\S*)/gi,
-    replace: 'https://ddinstagram.com/$2/$3',
+    // ddinstagram.com is dead (no longer resolves); vxinstagram verified 2026-11-17
+    replace: 'https://vxinstagram.com/$2/$3',
     label: 'Instagram',
   },
+  // vxtiktok.com no longer serves video embeds; tnktok (fxTikTok) verified 2026-11-17
   {
-    pattern: /https?:\/\/(www\.|vm\.)?tiktok\.com\/(\S+)/gi,
-    replace: 'https://vxtiktok.com/$2',
+    pattern: /https?:\/\/vm\.tiktok\.com\/(\S+)/gi,
+    replace: 'https://vm.tnktok.com/$1',
+    label: 'TikTok',
+  },
+  {
+    pattern: /https?:\/\/(www\.)?tiktok\.com\/(\S+)/gi,
+    replace: 'https://tnktok.com/$2',
     label: 'TikTok',
   },
 ];

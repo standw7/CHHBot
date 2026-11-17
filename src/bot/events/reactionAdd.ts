@@ -19,13 +19,13 @@ const SOCIAL_LINK_PATTERNS: { re: RegExp; toEmbedUrl: (match: RegExpExecArray) =
   },
   {
     // Instagram (all variants) — group 3 = p|reel|reels, group 4 = post id
-    re: /https?:\/\/(www\.)?(instagram\.com|ddinstagram\.com)\/(p|reel|reels)\/([\w-]+\S*)/gi,
-    toEmbedUrl: (m) => `https://ddinstagram.com/${m[3]}/${m[4]}`,
+    re: /https?:\/\/(www\.)?(instagram\.com|ddinstagram\.com|vxinstagram\.com)\/(p|reel|reels)\/([\w-]+\S*)/gi,
+    toEmbedUrl: (m) => `https://vxinstagram.com/${m[3]}/${m[4]}`,
   },
   {
     // TikTok (all variants) — group 3 = path after domain
-    re: /https?:\/\/(www\.|vm\.)?(tiktok\.com|vxtiktok\.com|tiktxk\.com)\/(\S+)/gi,
-    toEmbedUrl: (m) => `https://vxtiktok.com/${m[3]}`,
+    re: /https?:\/\/(www\.|vm\.)?(tiktok\.com|vxtiktok\.com|tiktxk\.com|tnktok\.com)\/(\S+)/gi,
+    toEmbedUrl: (m) => `https://${m[1] === 'vm.' ? 'vm.' : ''}tnktok.com/${m[3]}`,
   },
 ];
 
