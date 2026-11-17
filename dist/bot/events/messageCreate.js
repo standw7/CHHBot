@@ -1073,7 +1073,7 @@ async function handlePrefixToi(message, arg) {
         await message.reply('You need Manage Server permission.');
         return;
     }
-    const { loadToiChart, latestCompletedGameId, toiMessage } = await import('../../services/toiPost.js');
+    const { loadToiChart, latestCompletedGameId, toiMessage, linesMessage } = await import('../../services/toiPost.js');
     const teamCode = (0, queries_js_1.getGuildConfig)(message.guild.id)?.primary_team ?? 'UTA';
     const gameId = !arg || arg === 'last' ? await latestCompletedGameId(teamCode) : Number(arg);
     if (!gameId || Number.isNaN(gameId)) {
@@ -1089,6 +1089,7 @@ async function handlePrefixToi(message, arg) {
     }
     else if (message.channel.isSendable()) {
         await message.channel.send(toiMessage(chart, gameId));
+        await message.channel.send(linesMessage(chart, gameId));
     }
 }
 // Admin test command: render the Deserve To Win O'Meter for a game in the current channel

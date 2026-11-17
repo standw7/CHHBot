@@ -167,18 +167,29 @@ export async function loadToiChart(gameId: number, teamCode: string): Promise<To
 /** One message, both charts: titles in image order. */
 export function toiMessage(charts: ToiCharts, gameId: number): MessageCreateOptions {
   return {
-    content: `**${charts.against.title}**\n**${charts.lines.title}**`,
-    files: [
-      new AttachmentBuilder(charts.against.png, { name: `toi-${gameId}.png` }),
-      new AttachmentBuilder(charts.lines.png, { name: `lines-${gameId}.png` }),
-    ],
+    content: `**${charts.against.title}**`,
+    files: [new AttachmentBuilder(charts.against.png, { name: `toi-${gameId}.png` })],
+  };
+}
+
+/** Line combinations matrix — posted to the news channel only, not gameday. */
+export function linesMessage(charts: ToiCharts, gameId: number): MessageCreateOptions {
+  return {
+    content: `**${charts.lines.title}**`,
+    files: [new AttachmentBuilder(charts.lines.png, { name: `lines-${gameId}.png` })],
   };
 }
 
 /** Send to the guild's news and gameday channels (whichever are configured). */
-export async function postToChannels(client: Client, guildId: string, payload: MessageCreateOptions): Promise<void> {
+export async function postToChannels(
+  client: Client,
+  guildId: string,
+  payload: MessageCreateOptions,
+  channels: 'news+gameday' | 'news' = 'news+gameday'
+): Promise<void> {
   const config = getGuildConfig(guildId);
-  for (const channelId of [config?.news_channel_id, config?.gameday_channel_id]) {
+  const ids = channels === 'news' ? [config?.news_channel_id] : [config?.news_channel_id, config?.gameday_channel_id];
+  for (const channelId of ids) {
     if (!channelId) continue;
     try {
       const channel = await client.channels.fetch(channelId);

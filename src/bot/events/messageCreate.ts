@@ -1235,7 +1235,7 @@ async function handlePrefixToi(message: Message, arg: string | undefined): Promi
     await message.reply('You need Manage Server permission.');
     return;
   }
-  const { loadToiChart, latestCompletedGameId, toiMessage } = await import('../../services/toiPost.js');
+  const { loadToiChart, latestCompletedGameId, toiMessage, linesMessage } = await import('../../services/toiPost.js');
   const teamCode = getGuildConfig(message.guild!.id)?.primary_team ?? 'UTA';
   const gameId = !arg || arg === 'last' ? await latestCompletedGameId(teamCode) : Number(arg);
   if (!gameId || Number.isNaN(gameId)) {
@@ -1249,6 +1249,7 @@ async function handlePrefixToi(message: Message, arg: string | undefined): Promi
     await message.reply("Couldn't load that game.");
   } else if (message.channel.isSendable()) {
     await message.channel.send(toiMessage(chart, gameId));
+    await message.channel.send(linesMessage(chart, gameId));
   }
 }
 

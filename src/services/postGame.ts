@@ -4,7 +4,7 @@ import * as nhlClient from '../nhl/client.js';
 import { getTeamEmoji } from './goalCard.js';
 import { sendFirstStarDms } from './follows.js';
 import { getGuildConfig } from '../db/queries.js';
-import { loadToiChart, postToChannels, toiMessage } from './toiPost.js';
+import { loadToiChart, postToChannels, toiMessage, linesMessage } from './toiPost.js';
 import { loadDeserveToWin, meterMessage } from './deserveToWin.js';
 import type { TeamStanding, ThreeStar } from '../nhl/types.js';
 
@@ -171,6 +171,7 @@ export function startPostGameFollowUp(f: PostGameFollowUp): void {
         if (chart && chart !== 'incomplete') {
           toiDone = true;
           await postToChannels(f.client, f.guildId, toiMessage(chart, f.gameId));
+          await postToChannels(f.client, f.guildId, linesMessage(chart, f.gameId), 'news');
           logger.info({ guildId: f.guildId, gameId: f.gameId }, 'TOI chart posted');
         }
       } catch (error) {

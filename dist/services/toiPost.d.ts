@@ -40,6 +40,8 @@ export declare function latestCompletedGameId(teamCode: string): Promise<number 
 export declare function loadToiChart(gameId: number, teamCode: string): Promise<ToiCharts | 'incomplete' | null>;
 /** One message, both charts: titles in image order. */
 export declare function toiMessage(charts: ToiCharts, gameId: number): MessageCreateOptions;
+/** Line combinations matrix — posted to the news channel only, not gameday. */
+export declare function linesMessage(charts: ToiCharts, gameId: number): MessageCreateOptions;
 /** Send to the guild's news and gameday channels (whichever are configured). */
-export declare function postToChannels(client: Client, guildId: string, payload: MessageCreateOptions): Promise<void>;
+export declare function postToChannels(client: Client, guildId: string, payload: MessageCreateOptions, channels?: 'news+gameday' | 'news'): Promise<void>;
 //# sourceMappingURL=toiPost.d.ts.map

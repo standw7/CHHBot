@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
-import { toiChartInputFromGame, toiChartTitle, linesChartTitle, pickLatestCompletedGame, toiMessage } from './toiPost.js';
+import { toiChartInputFromGame, toiChartTitle, linesChartTitle, pickLatestCompletedGame, toiMessage, linesMessage } from './toiPost.js';
 import type { BoxTeam } from './toiPost.js';
 import type { ShiftChartRow, ScheduleGame } from '../nhl/types.js';
 
@@ -113,15 +113,18 @@ describe('toiChartTitle', () => {
   });
 });
 
-describe('toiMessage', () => {
-  test('both charts in one message, titles in image order', () => {
-    const msg = toiMessage(
-      { against: { png: Buffer.from('a'), title: 'A' }, lines: { png: Buffer.from('b'), title: 'B' } },
-      42
-    );
-    assert.equal(msg.content, '**A**\n**B**');
-    const files = msg.files as { name: string | null }[];
-    assert.deepEqual(files.map(f => f.name), ['toi-42.png', 'lines-42.png']);
+describe('toiMessage / linesMessage', () => {
+  const charts = { against: { png: Buffer.from('a'), title: 'A' }, lines: { png: Buffer.from('b'), title: 'B' } };
+  const names = (m: { files?: unknown }) => (m.files as { name: string | null }[]).map(f => f.name);
+  test('TOI chart message has only the against chart', () => {
+    const msg = toiMessage(charts, 42);
+    assert.equal(msg.content, '**A**');
+    assert.deepEqual(names(msg), ['toi-42.png']);
+  });
+  test('lines message has only the line combinations chart', () => {
+    const msg = linesMessage(charts, 42);
+    assert.equal(msg.content, '**B**');
+    assert.deepEqual(names(msg), ['lines-42.png']);
   });
 });
 

@@ -188,6 +188,7 @@ function startPostGameFollowUp(f) {
                 if (chart && chart !== 'incomplete') {
                     toiDone = true;
                     await (0, toiPost_js_1.postToChannels)(f.client, f.guildId, (0, toiPost_js_1.toiMessage)(chart, f.gameId));
+                    await (0, toiPost_js_1.postToChannels)(f.client, f.guildId, (0, toiPost_js_1.linesMessage)(chart, f.gameId), 'news');
                     logger.info({ guildId: f.guildId, gameId: f.gameId }, 'TOI chart posted');
                 }
             }

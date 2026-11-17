@@ -44,6 +44,7 @@ exports.pickLatestCompletedGame = pickLatestCompletedGame;
 exports.latestCompletedGameId = latestCompletedGameId;
 exports.loadToiChart = loadToiChart;
 exports.toiMessage = toiMessage;
+exports.linesMessage = linesMessage;
 exports.postToChannels = postToChannels;
 const discord_js_1 = require("discord.js");
 const luxon_1 = require("luxon");
@@ -172,17 +173,22 @@ async function loadToiChart(gameId, teamCode) {
 /** One message, both charts: titles in image order. */
 function toiMessage(charts, gameId) {
     return {
-        content: `**${charts.against.title}**\n**${charts.lines.title}**`,
-        files: [
-            new discord_js_1.AttachmentBuilder(charts.against.png, { name: `toi-${gameId}.png` }),
-            new discord_js_1.AttachmentBuilder(charts.lines.png, { name: `lines-${gameId}.png` }),
-        ],
+        content: `**${charts.against.title}**`,
+        files: [new discord_js_1.AttachmentBuilder(charts.against.png, { name: `toi-${gameId}.png` })],
+    };
+}
+/** Line combinations matrix — posted to the news channel only, not gameday. */
+function linesMessage(charts, gameId) {
+    return {
+        content: `**${charts.lines.title}**`,
+        files: [new discord_js_1.AttachmentBuilder(charts.lines.png, { name: `lines-${gameId}.png` })],
     };
 }
 /** Send to the guild's news and gameday channels (whichever are configured). */
-async function postToChannels(client, guildId, payload) {
+async function postToChannels(client, guildId, payload, channels = 'news+gameday') {
     const config = (0, queries_js_1.getGuildConfig)(guildId);
-    for (const channelId of [config?.news_channel_id, config?.gameday_channel_id]) {
+    const ids = channels === 'news' ? [config?.news_channel_id] : [config?.news_channel_id, config?.gameday_channel_id];
+    for (const channelId of ids) {
         if (!channelId)
             continue;
         try {
