@@ -23,6 +23,7 @@ export interface GuildConfig {
     gif_log_channel_id: string | null;
     tomato_channel_id: string | null;
     tomato_threshold: number;
+    ask_enabled: number;
 }
 export interface FeedSource {
     id: number;
@@ -78,5 +79,30 @@ export interface Reminder {
     fire_at: string;
     dm: number;
     created_at: string;
+}
+export type AskTier = 'preset' | 'data' | 'llm' | 'deflect' | 'capped' | 'error';
+export interface AskPreset {
+    id: number;
+    guild_id: string;
+    trigger: string;
+    response: string;
+    exact_only: number;
+    created_by: string | null;
+    created_at: string;
+}
+export interface AskLogEntry {
+    id: number;
+    created_at: string;
+    day: string;
+    guild_id: string;
+    channel_id: string | null;
+    user_id: string;
+    question: string;
+    tier: AskTier;
+    answer: string | null;
+    llm_used: number;
+    input_tokens: number;
+    output_tokens: number;
+    reply_message_id: string | null;
 }
 //# sourceMappingURL=models.d.ts.map

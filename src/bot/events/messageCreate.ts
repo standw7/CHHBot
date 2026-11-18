@@ -103,6 +103,11 @@ export function registerMessageHandler(client: Client): void {
         case 'reminders':
           await handlePrefixReminders(message);
           break;
+        case 'ask': {
+          const { handlePrefixAsk } = await import('../../services/ask/admin.js');
+          await handlePrefixAsk(message, args.slice(1));
+          break;
+        }
         default:
           // Check if it's a registered gif key
           await handlePrefixGif(message, command, args[1]);
@@ -161,6 +166,7 @@ function buildHelpPages(gifKeysText: string): EmbedBuilder[] {
         { name: 'Media Commands', value: `\`!<key>\` - Post a random gif from a collection (e.g. \`!goal\`)\n\`!<key> <#>\` - Post a specific one by its number in \`!gif list\` (e.g. \`!goal 4\`)\nRegistered keys: ${gifKeysText}`, inline: false },
         { name: 'Hall of Fame', value: 'Messages that get enough 🔥 😂 or 🤣 reactions are automatically posted to the Hall of Fame channel.\nHOF posts include reply context, media, and rendered Twitter links.', inline: false },
         { name: 'Tomato Town', value: 'Messages that get 8 🍅 reactions are reposted to the Tomato Town channel.', inline: false },
+        { name: 'Ask Tusky', value: '@mention me with a question about the Mammoth, the NHL, or Clean Hits Hockey (or reply to one of my answers). Next game, standings, last game, player stats, and the newest episode are looked up live.', inline: false },
         { name: 'Auto Link Fix', value: 'Twitter/X links are automatically replied to with embeddable versions so you can see the content without clicking.', inline: false },
       )
       .setFooter({ text: 'Page 2/3 — Use buttons to navigate' })
@@ -175,6 +181,7 @@ function buildHelpPages(gifKeysText: string): EmbedBuilder[] {
         { name: 'Gif Management', value: '`!gif add <k> url:<u>` - Add gif to a key (or attach a file, or reply to a message with media)\n`!gif remove key:<k> <#>` - Remove gif\n`!gif list key:<k>` - List URLs for a key\n`!gif keys` - List all registered keys\n`!gif delete <k>` / `!gif rename <old> to <new>` - Manage Server only\nAdd/remove also work for the gif contributor role (`/config set gif_contributor_role`). Changes are posted to `gif_log_channel`.', inline: false },
         { name: 'News Feeds', value: '`!feed add <url> [label]` - Add RSS or Twitter feed\n`!feed remove <label>` - Remove a feed\n`!feed list` - List all feeds\n`!feed status` - Check feed health\n`!feed check [label]` - Force-check feeds now\n`!feed reset <label>` - Reset feed tracking', inline: false },
         { name: 'Hall of Fame', value: '`!hof` - Show HOF settings\n`!hof threshold <n>` - Set reaction threshold (1-100)\n`!hof update` - Rebuild all existing HOF posts\nTomato Town: `/config set setting:tomato_channel` and `tomato_threshold` (default 8)', inline: false },
+        { name: 'Ask Tusky', value: '`!ask add <trigger> => <response>` - Add a canned answer (`exact:` prefix = whole message only)\n`!ask list` / `!ask remove <id>` - Manage canned answers\n`!ask misses` - Recent questions that went to the LLM or got deflected\n`/config set setting:ask value:off` - Turn Ask Tusky off', inline: false },
         { name: 'Config', value: '`/config show` - View all settings\n`/config set setting:<name> value:<value>` - Change a setting', inline: false },
         { name: 'Testing', value: '`!sim` - Run game simulation\n`!sim reset` - Reset simulation data', inline: false },
       )
@@ -246,60 +253,17 @@ async function handlePrefixHelp(message: Message): Promise<void> {
 }
 
 async function handlePrefixNext(message: Message): Promise<void> {
-  const guildId = message.guild!.id;
-  const config = getGuildConfig(guildId);
+  const config = getGuildConfig(message.guild!.id);
   const teamCode = config?.primary_team ?? 'UTA';
   const timezone = config?.timezone ?? 'America/Denver';
 
-  const { getSchedule } = await import('../../nhl/client.js');
-  const { gamecenterWebUrl } = await import('../../nhl/endpoints.js');
-  const { EmbedBuilder } = await import('discord.js');
-
-  const schedule = await getSchedule(teamCode);
-  if (!schedule?.games?.length) {
+  const { lookupNextGame } = await import('../../services/teamLookups.js');
+  const result = await lookupNextGame(teamCode, timezone);
+  if (result.kind !== 'ok') {
     await message.reply('No upcoming games found.');
     return;
   }
-
-  const now = new Date();
-  const nextGame = schedule.games.find(g => {
-    const gameDate = new Date(g.startTimeUTC);
-    return gameDate > now && (g.gameState === 'FUT' || g.gameState === 'PRE');
-  });
-
-  if (!nextGame) {
-    await message.reply('No upcoming games found.');
-    return;
-  }
-
-  const gameDate = new Date(nextGame.startTimeUTC);
-  const formattedDate = gameDate.toLocaleDateString('en-US', {
-    timeZone: timezone, weekday: 'long', month: 'long', day: 'numeric',
-  });
-  const formattedTime = gameDate.toLocaleTimeString('en-US', {
-    timeZone: timezone, hour: 'numeric', minute: '2-digit',
-  });
-
-  const isHome = nextGame.homeTeam.abbrev === teamCode;
-  const opponent = isHome ? nextGame.awayTeam : nextGame.homeTeam;
-
-  const embed = new EmbedBuilder()
-    .setTitle('Next Game')
-    .setDescription(`**${nextGame.awayTeam.abbrev}** @ **${nextGame.homeTeam.abbrev}**`)
-    .addFields(
-      { name: 'Opponent', value: opponent.abbrev, inline: true },
-      { name: 'Location', value: isHome ? 'Home' : 'Away', inline: true },
-      { name: 'Date', value: formattedDate, inline: true },
-      { name: 'Time', value: formattedTime, inline: true },
-    )
-    .setURL(gamecenterWebUrl(nextGame.id))
-    .setColor(0x006847);
-
-  if (nextGame.venue?.default) {
-    embed.addFields({ name: 'Venue', value: nextGame.venue.default, inline: true });
-  }
-
-  await message.reply({ embeds: [embed] });
+  await message.reply({ embeds: [result.embed] });
 }
 
 async function handlePrefixWatch(message: Message): Promise<void> {
@@ -620,247 +584,35 @@ async function handlePrefixSim(message: Message, args: string[]): Promise<void> 
 }
 
 async function handlePrefixPlayer(message: Message, args: string[]): Promise<void> {
-  const { searchPlayers, getPlayerStats, getClubStats } = await import('../../nhl/client.js');
-  const { EmbedBuilder } = await import('discord.js');
-
   const query = args.join(' ');
   if (!query) {
     await message.reply('Usage: `!player <name>` (e.g., `!player Keller`)');
     return;
   }
 
-  // Search for player
-  const results = await searchPlayers(query);
-  if (!results || results.length === 0) {
+  const { lookupPlayer } = await import('../../services/teamLookups.js');
+  const result = await lookupPlayer(query);
+  if (result.kind === 'not_found') {
     await message.reply(`No player found matching "${query}".`);
     return;
   }
-
-  // Get the first active player, or just the first result
-  const player = results.find(p => p.active) || results[0];
-  const playerId = parseInt(player.playerId, 10);
-
-  // Fetch detailed stats
-  const stats = await getPlayerStats(playerId);
-  if (!stats) {
-    await message.reply(`Could not fetch stats for ${player.name}.`);
+  if (result.kind === 'unavailable') {
+    await message.reply(`Could not fetch stats for ${result.name}.`);
     return;
   }
-
-  // Fetch club stats to get season TOI and FO%
-  let seasonToi: string | null = null;
-  let seasonFoPct: string | null = null;
-  if (stats.currentTeamAbbrev) {
-    const clubStats = await getClubStats(stats.currentTeamAbbrev);
-    if (clubStats?.skaters) {
-      const playerClubStats = clubStats.skaters.find(s => s.playerId === playerId);
-      if (playerClubStats) {
-        // Convert seconds to MM:SS
-        const toiSeconds = playerClubStats.avgTimeOnIcePerGame;
-        if (toiSeconds > 0) {
-          const mins = Math.floor(toiSeconds / 60);
-          const secs = Math.round(toiSeconds % 60);
-          seasonToi = `${mins}:${secs.toString().padStart(2, '0')}`;
-        }
-        // FO% - already a percentage (0.51 = 51%)
-        if (playerClubStats.faceoffWinPctg > 0) {
-          const foPct = playerClubStats.faceoffWinPctg > 1
-            ? playerClubStats.faceoffWinPctg
-            : playerClubStats.faceoffWinPctg * 100;
-          seasonFoPct = foPct.toFixed(1);
-        }
-      }
-    }
-  }
-
-  const embed = new EmbedBuilder()
-    .setTitle(`${stats.firstName.default} ${stats.lastName.default}`)
-    .setColor(0x006847);
-
-  if (stats.headshot) {
-    embed.setThumbnail(stats.headshot);
-  }
-
-  // Basic info
-  const position = stats.position === 'G' ? 'Goalie' :
-    stats.position === 'D' ? 'Defenseman' :
-    stats.position === 'C' ? 'Center' :
-    stats.position === 'L' ? 'Left Wing' :
-    stats.position === 'R' ? 'Right Wing' : stats.position;
-
-  const heightFt = Math.floor(stats.heightInInches / 12);
-  const heightIn = stats.heightInInches % 12;
-
-  let info = `**#${stats.sweaterNumber}** | **${position}** | **${stats.currentTeamAbbrev || 'FA'}**\n`;
-  info += `${heightFt}'${heightIn}" | ${stats.weightInPounds} lbs | Shoots: ${stats.shootsCatches}\n`;
-  const birthplace = stats.birthStateProvince?.default
-    ? `${stats.birthCity.default}, ${stats.birthStateProvince.default}, ${stats.birthCountry}`
-    : `${stats.birthCity.default}, ${stats.birthCountry}`;
-  info += `Born: ${birthplace}`;
-
-  embed.setDescription(info);
-
-  // Season stats
-  const seasonStats = stats.featuredStats?.regularSeason?.subSeason;
-  if (seasonStats) {
-    if (stats.position === 'G') {
-      // Goalie stats
-      const gaa = seasonStats.goalsAgainstAvg?.toFixed(2) || '0.00';
-      const svPct = seasonStats.savePctg ? (seasonStats.savePctg * 100).toFixed(1) : '0.0';
-      embed.addFields({
-        name: '2024-25 Season',
-        value: `GP: **${seasonStats.gamesPlayed}** | W: **${seasonStats.wins}** | L: **${seasonStats.losses}** | OT: **${seasonStats.otLosses}**\n` +
-               `GAA: **${gaa}** | SV%: **${svPct}%** | SO: **${seasonStats.shutouts}**`,
-        inline: false,
-      });
-    } else {
-      // Skater stats
-      const spct = seasonStats.shootingPctg
-        ? (seasonStats.shootingPctg > 1 ? seasonStats.shootingPctg.toFixed(1) : (seasonStats.shootingPctg * 100).toFixed(1))
-        : '0.0';
-
-      // Use season TOI and FO% from club stats (not career averages)
-      const avgToi = seasonToi || 'N/A';
-
-      let statsText = `GP: **${seasonStats.gamesPlayed}** | G: **${seasonStats.goals}** | A: **${seasonStats.assists}** | P: **${seasonStats.points}**\n` +
-               `+/-: **${seasonStats.plusMinus > 0 ? '+' : ''}${seasonStats.plusMinus}** | PIM: **${seasonStats.pim}** | Shots: **${seasonStats.shots}** | S%: **${spct}%**\n` +
-               `PPG: **${seasonStats.powerPlayGoals}** | TOI: **${avgToi}**`;
-      if (seasonFoPct) {
-        statsText += ` | FO%: **${seasonFoPct}%**`;
-      }
-      embed.addFields({
-        name: '2024-25 Season',
-        value: statsText,
-        inline: false,
-      });
-    }
-  }
-
-  // Last 5 games
-  if (stats.last5Games && stats.last5Games.length > 0) {
-    const last5Lines = stats.last5Games.slice(0, 5).map(g => {
-      const date = new Date(g.gameDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      if (stats.position === 'G') {
-        const decision = g.decision || '-';
-        const svPct = g.savePctg ? (g.savePctg * 100).toFixed(1) : '-';
-        return `${date} vs ${g.opponentAbbrev}: **${decision}** | ${g.goalsAgainst} GA | ${svPct}%`;
-      } else {
-        return `${date} vs ${g.opponentAbbrev}: **${g.goals}G ${g.assists}A** | ${g.plusMinus && g.plusMinus > 0 ? '+' : ''}${g.plusMinus || 0} | ${g.shots || 0} SOG`;
-      }
-    });
-    embed.addFields({
-      name: 'Last 5 Games',
-      value: last5Lines.join('\n'),
-      inline: false,
-    });
-  }
-
-  await message.reply({ embeds: [embed] });
+  await message.reply({ embeds: [result.embed] });
 }
 
 async function handlePrefixStandings(message: Message, args: string[]): Promise<void> {
-  const { getStandings } = await import('../../nhl/client.js');
-  const { EmbedBuilder } = await import('discord.js');
-
-  const guildId = message.guild!.id;
-  const config = getGuildConfig(guildId);
+  const config = getGuildConfig(message.guild!.id);
   const teamCode = config?.primary_team ?? 'UTA';
 
-  const standings = await getStandings();
-  if (!standings?.standings) {
+  const { lookupStandingsEmbed } = await import('../../services/teamLookups.js');
+  const embed = await lookupStandingsEmbed(teamCode, args[0]?.toLowerCase());
+  if (!embed) {
     await message.reply('Could not fetch standings.');
     return;
   }
-
-  const filter = args[0]?.toLowerCase();
-
-  // Find the user's team to get their division/conference
-  const userTeam = standings.standings.find(t => t.teamAbbrev.default === teamCode);
-  const userDivision = userTeam?.divisionName || 'Central';
-  const userConference = userTeam?.conferenceName || 'Western';
-
-  // Helper to format a team line
-  const formatTeam = (team: typeof standings.standings[0], rank: number | string, showDiff?: number) => {
-    const streak = team.streakCode === 'OT' ? 'OT' : `${team.streakCode}${team.streakCount}`;
-    const highlight = team.teamAbbrev.default === teamCode ? '**' : '';
-    let line = `${rank}. ${highlight}${team.teamAbbrev.default}${highlight} | ${team.gamesPlayed} | ${team.wins}-${team.losses}-${team.otLosses} | ${team.points}`;
-    if (showDiff !== undefined && showDiff !== 0) {
-      line += ` (${showDiff > 0 ? '+' : ''}${showDiff})`;
-    }
-    return line;
-  };
-
-  let embed: InstanceType<typeof EmbedBuilder>;
-
-  const header = '`   Team | GP | W-L-OT | PTS`\n\n';
-
-  if (filter === 'league' || filter === 'nhl') {
-    // Show top 16 league-wide
-    const sorted = [...standings.standings].sort((a, b) => b.points - a.points).slice(0, 16);
-    const lines = sorted.map((team, i) => formatTeam(team, i + 1));
-    embed = new EmbedBuilder()
-      .setTitle('NHL Standings (Top 16)')
-      .setDescription(header + lines.join('\n'))
-      .setColor(0x006847);
-  } else {
-    // Playoff picture - default to user's conference, or specified conference
-    let conference = userConference;
-    if (filter === 'east' || filter === 'eastern') {
-      conference = 'Eastern';
-    } else if (filter === 'west' || filter === 'western') {
-      conference = 'Western';
-    }
-
-    const confTeams = standings.standings.filter(t => t.conferenceName === conference);
-
-    // Get divisions in this conference
-    const div1Name = conference === 'Western' ? 'Central' : 'Atlantic';
-    const div2Name = conference === 'Western' ? 'Pacific' : 'Metropolitan';
-
-    const div1Teams = confTeams.filter(t => t.divisionName === div1Name).sort((a, b) => b.points - a.points);
-    const div2Teams = confTeams.filter(t => t.divisionName === div2Name).sort((a, b) => b.points - a.points);
-
-    // Top 3 from each division make playoffs
-    const div1Playoff = div1Teams.slice(0, 3);
-    const div2Playoff = div2Teams.slice(0, 3);
-
-    // Wild card: remaining teams sorted by points, top 2 get in
-    const wildCardEligible = [...div1Teams.slice(3), ...div2Teams.slice(3)].sort((a, b) => b.points - a.points);
-    const wildCardIn = wildCardEligible.slice(0, 2);
-    const wildCardChase = wildCardEligible.slice(2, 8); // Next 6 teams chasing
-
-    // Calculate point difference from WC2 cutoff
-    const wc2Points = wildCardIn[1]?.points || 0;
-
-    let description = header;
-    description += `**${div1Name} Division**\n`;
-    div1Playoff.forEach((team, i) => {
-      description += formatTeam(team, i + 1) + '\n';
-    });
-
-    description += `\n**${div2Name} Division**\n`;
-    div2Playoff.forEach((team, i) => {
-      description += formatTeam(team, i + 1) + '\n';
-    });
-
-    description += `\n**Wild Card**\n`;
-    wildCardIn.forEach((team, i) => {
-      description += formatTeam(team, `WC${i + 1}`) + '\n';
-    });
-
-    description += `\n**In The Hunt**\n`;
-    wildCardChase.forEach((team, i) => {
-      const diff = team.points - wc2Points;
-      description += formatTeam(team, i + 1, diff) + '\n';
-    });
-
-    embed = new EmbedBuilder()
-      .setTitle(`${conference} Conference Playoff Picture`)
-      .setDescription(description)
-      .setColor(0x006847)
-      .setFooter({ text: 'Points diff from WC2 | !standings [west|east|league]' });
-  }
-
   await message.reply({ embeds: [embed] });
 }
 

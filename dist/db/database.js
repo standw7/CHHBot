@@ -233,6 +233,48 @@ function runMigrations(db) {
     if (!colNames.includes('tomato_threshold')) {
         db.exec('ALTER TABLE guild_config ADD COLUMN tomato_threshold INTEGER DEFAULT 8');
     }
+    if (!colNames.includes('ask_enabled')) {
+        db.exec('ALTER TABLE guild_config ADD COLUMN ask_enabled INTEGER DEFAULT 1');
+    }
+    // Ask Tusky: preset trigger → response pairs (several rows per trigger = random pick),
+    // a marker so the starter set is seeded once per guild, and a log of every ask
+    // (feeds !ask misses and the daily LLM caps, so restarts don't reset them).
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS ask_presets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      trigger TEXT NOT NULL,
+      response TEXT NOT NULL,
+      exact_only INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_ask_presets_guild ON ask_presets(guild_id);
+
+    CREATE TABLE IF NOT EXISTS ask_presets_seeded (
+      guild_id TEXT PRIMARY KEY,
+      seeded_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ask_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at TEXT NOT NULL,
+      day TEXT NOT NULL,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT,
+      user_id TEXT NOT NULL,
+      question TEXT NOT NULL,
+      tier TEXT NOT NULL,
+      answer TEXT,
+      llm_used INTEGER NOT NULL DEFAULT 0,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      reply_message_id TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_ask_log_guild_day ON ask_log(guild_id, day);
+    CREATE INDEX IF NOT EXISTS idx_ask_log_user_day ON ask_log(user_id, day);
+    CREATE INDEX IF NOT EXISTS idx_ask_log_reply ON ask_log(reply_message_id);
+  `);
     // Reaction boards other than the Hall of Fame (e.g. 'tomato'); one post per board per message
     db.exec(`
     CREATE TABLE IF NOT EXISTS board_messages (

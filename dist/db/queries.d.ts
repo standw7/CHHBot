@@ -1,4 +1,4 @@
-import type { GuildConfig, GifCommand, HofMessage, FeedSource, Reminder } from './models.js';
+import type { GuildConfig, GifCommand, HofMessage, FeedSource, Reminder, AskPreset, AskLogEntry, AskTier } from './models.js';
 export declare function getGuildConfig(guildId: string): GuildConfig | undefined;
 export declare function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildConfig, 'guild_id'>>): void;
 export declare function getGifEntries(guildId: string, key: string): {
@@ -103,4 +103,38 @@ export interface BoardPostRow {
 }
 /** Posted board entries (board message exists), newest first. */
 export declare function getBoardPosts(board: string, guildId: string): BoardPostRow[];
+export declare function getAskPresets(guildId: string): AskPreset[];
+export declare function addAskPreset(guildId: string, trigger: string, response: string, exactOnly: boolean, createdBy: string | null): number;
+export declare function removeAskPreset(guildId: string, id: number): boolean;
+/**
+ * Seeds the starter presets the first time a guild is seen. Marked in ask_presets_seeded,
+ * so a guild that later removes every preset doesn't get them back.
+ */
+export declare function seedAskPresetsOnce(guildId: string, presets: {
+    trigger: string;
+    response: string;
+    exactOnly: boolean;
+}[]): boolean;
+export declare function logAsk(entry: {
+    guildId: string;
+    channelId: string | null;
+    userId: string;
+    day: string;
+    question: string;
+    tier: AskTier;
+    answer: string | null;
+    llmUsed: boolean;
+    inputTokens: number;
+    outputTokens: number;
+}): number;
+export declare function setAskReplyMessageId(logId: number, replyMessageId: string): void;
+/** True if `messageId` is one of Tusky's Ask answers (replying to it continues the conversation). */
+export declare function isAskReply(messageId: string): boolean;
+/** LLM calls made today (America/Denver day) by a user (across guilds) and by a guild. */
+export declare function countAskLlmUsage(guildId: string, userId: string, day: string): {
+    user: number;
+    guild: number;
+};
+/** Recent questions that went to the LLM or were deflected — candidates for new presets. */
+export declare function getAskMisses(guildId: string, limit: number): AskLogEntry[];
 //# sourceMappingURL=queries.d.ts.map

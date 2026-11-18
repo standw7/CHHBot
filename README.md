@@ -90,6 +90,7 @@ After inviting Tusky, you need to tell it which channels to use. Run these slash
 | `daily_card_hour` | Guild-local hour (in `timezone`) to post the daily card | 0 to 23 | 9 |
 | `season_start` | First day of the in-season off-day card window | ISO date (YYYY-MM-DD) | 2026-09-29 |
 | `season_end` | Last day of the in-season off-day card window (playoff games extend it) | ISO date (YYYY-MM-DD) | 2027-04-10 |
+| `ask` | Ask Tusky: answer @mention questions (see [Ask Tusky](#ask-tusky)) | `on` or `off` | on |
 
 **Examples:**
 ```
@@ -420,6 +421,16 @@ When any message in your server gets **5 fire emoji reactions** (🔥), Tusky au
 Each message can only be inducted once, even if it gets more reactions later.
 
 **Backfill missed messages** (admin, e.g. after downtime): `!hof scan <YYYY-MM-DD>` scans every readable text channel for messages posted since that date that meet the threshold but were never inducted, and shows a dry-run preview. Add `go` (`!hof scan <YYYY-MM-DD> go`) to actually post them, oldest first, up to 50 per run.
+
+### Ask Tusky
+
+@mention Tusky with a question (or reply to one of its answers) in any channel. It only answers questions about the Utah Mammoth, the NHL/hockey, and the Clean Hits Hockey podcast, and it keeps it short.
+
+1. **Canned answers** for greetings, thanks, "what can you do", where to listen to Clean Hits, and so on. Admins manage them with `!ask add <trigger> => <response>` (prefix the trigger with `exact:` to match only the whole message), `!ask list`, `!ask remove <id>`.
+2. **Live lookups** for clean questions like "when is the next game", "where are we in the standings", "did we win last night", "how many goals does Cooley have", "newest episode".
+3. **Claude Haiku** for everything else, if `ANTHROPIC_API_KEY` is set. It uses the same lookups, answers in three sentences at most, and gets a canned deflection when the question is off topic. Capped per day (20 per user, 300 per server by default).
+
+One question per user every 5 seconds. `!ask misses` shows recent questions that went to the LLM or were deflected, which is a good source of new canned answers. Turn it off with `/config set setting:ask value:off`.
 
 ### Auto Link Fix
 

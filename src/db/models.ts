@@ -23,6 +23,7 @@ export interface GuildConfig {
   gif_log_channel_id: string | null; // gif add/remove/delete/rename actions are posted here
   tomato_channel_id: string | null; // Tomato Town: messages with enough 🍅 reactions are reposted here
   tomato_threshold: number; // 🍅 reactions needed for Tomato Town
+  ask_enabled: number; // 1 = Ask Tusky answers @mentions, 0 = off
 }
 
 export interface FeedSource {
@@ -85,4 +86,32 @@ export interface Reminder {
   fire_at: string;
   dm: number;
   created_at: string;
+}
+
+export type AskTier = 'preset' | 'data' | 'llm' | 'deflect' | 'capped' | 'error';
+
+export interface AskPreset {
+  id: number;
+  guild_id: string;
+  trigger: string; // normalized
+  response: string;
+  exact_only: number; // 1 = only when the whole message is the trigger
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface AskLogEntry {
+  id: number;
+  created_at: string; // ISO timestamp
+  day: string; // YYYY-MM-DD in America/Denver (daily caps)
+  guild_id: string;
+  channel_id: string | null;
+  user_id: string;
+  question: string;
+  tier: AskTier;
+  answer: string | null;
+  llm_used: number; // 1 = an API call was made (counts toward caps)
+  input_tokens: number;
+  output_tokens: number;
+  reply_message_id: string | null;
 }

@@ -5,6 +5,7 @@ import { registerMessageHandler } from './bot/events/messageCreate.js';
 import { registerReactionHandler, refreshTomatoCounts } from './bot/events/reactionAdd.js';
 import { startTracker, stopAllTrackers } from './services/gameTracker.js';
 import { registerLinkFixer } from './bot/events/linkFixer.js';
+import { registerAskHandler } from './services/ask/index.js';
 import { startFeedWatcher, stopFeedWatcher } from './services/feedWatcher.js';
 import { startReminderService, stopReminderService } from './services/reminderService.js';
 import { startDailyCardService, stopDailyCardService } from './services/dailyCard.js';
@@ -41,6 +42,10 @@ async function main(): Promise<void> {
   registerMessageHandler(client);
   registerReactionHandler(client);
   registerLinkFixer(client);
+  registerAskHandler(client, {
+    apiKey: config.anthropicApiKey,
+    caps: { user: config.askUserDailyCap, guild: config.askGuildDailyCap },
+  });
 
   // When bot is ready, start game trackers for all configured guilds
   client.once('ready', () => {

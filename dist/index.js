@@ -10,6 +10,7 @@ const messageCreate_js_1 = require("./bot/events/messageCreate.js");
 const reactionAdd_js_1 = require("./bot/events/reactionAdd.js");
 const gameTracker_js_1 = require("./services/gameTracker.js");
 const linkFixer_js_1 = require("./bot/events/linkFixer.js");
+const index_js_1 = require("./services/ask/index.js");
 const feedWatcher_js_1 = require("./services/feedWatcher.js");
 const reminderService_js_1 = require("./services/reminderService.js");
 const dailyCard_js_1 = require("./services/dailyCard.js");
@@ -39,6 +40,10 @@ async function main() {
     (0, messageCreate_js_1.registerMessageHandler)(client);
     (0, reactionAdd_js_1.registerReactionHandler)(client);
     (0, linkFixer_js_1.registerLinkFixer)(client);
+    (0, index_js_1.registerAskHandler)(client, {
+        apiKey: config.anthropicApiKey,
+        caps: { user: config.askUserDailyCap, guild: config.askGuildDailyCap },
+    });
     // When bot is ready, start game trackers for all configured guilds
     client.once('ready', () => {
         logger.info({ user: client.user?.tag }, 'Tusky is online!');

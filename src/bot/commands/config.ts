@@ -41,6 +41,7 @@ export const data = new SlashCommandBuilder()
             { name: 'gif_log_channel', value: 'gif_log_channel_id' },
             { name: 'tomato_channel', value: 'tomato_channel_id' },
             { name: 'tomato_threshold', value: 'tomato_threshold' },
+            { name: 'ask', value: 'ask_enabled' },
           )
       )
       .addStringOption(opt =>
@@ -103,6 +104,7 @@ async function handleShow(interaction: ChatInputCommandInteraction, guildId: str
     `**Tomato Town Channel:** ${config.tomato_channel_id ? `<#${config.tomato_channel_id}>` : 'Not set'}`,
     `**Tomato Town Threshold:** ${config.tomato_threshold ?? 8} 🍅`,
     `**Gif Log Channel:** ${config.gif_log_channel_id ? `<#${config.gif_log_channel_id}>` : 'Not set'}`,
+    `**Ask Tusky (@mention Q&A):** ${(config.ask_enabled ?? 1) ? 'on' : 'off'}`,
   ];
 
   await interaction.reply({ content: `**Tusky Configuration**\n${lines.join('\n')}`, ephemeral: true });
@@ -191,6 +193,15 @@ async function handleSet(interaction: ChatInputCommandInteraction, guildId: stri
         return;
       }
       updates.daily_card_enabled = (lower === 'on' || lower === '1') ? 1 : 0;
+      break;
+    }
+    case 'ask_enabled': {
+      const lower = value.toLowerCase();
+      if (!['on', 'off', '1', '0'].includes(lower)) {
+        await interaction.reply({ content: 'Ask must be: on or off', ephemeral: true });
+        return;
+      }
+      updates.ask_enabled = (lower === 'on' || lower === '1') ? 1 : 0;
       break;
     }
     case 'hsc_charts_enabled': {

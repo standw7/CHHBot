@@ -47,6 +47,8 @@ CHHBot/
 │       ├── feedWatcher.ts        # RSS polling loop, posts to news channel
 │       ├── feedBridge.ts         # Twitter-to-RSS bridge discovery (nitter, rsshub)
 │       ├── statsLookup.ts        # Natural-language stat query → embed builder
+│       ├── teamLookups.ts        # Shared next-game / last-game / standings / player embeds (!next, /next, !standings, !player, Ask Tusky) (+ .test.ts)
+│       ├── ask/                  # Ask Tusky: @mention Q&A (presets → live data → Claude Haiku); see §4
 │       ├── gameStats.ts          # Per-game boxscore stat lookup
 │       ├── moneyPuck.ts          # Fetches/caches MoneyPuck CSV for advanced stats
 │       ├── parseTime.ts          # Natural-language time parser for reminders
@@ -143,7 +145,8 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 - Gif/media commands saving files → `src/services/media.ts` (`isDownloadableFile`, `addGifEntry`, `buildMediaMessage`, `uploadLimitBytes`); `gif_commands.file_path` (relative to `media/`, gitignored, VM only); handlers in `src/bot/commands/gif.ts` and `messageCreate.ts` `handlePrefixGif`/`handlePrefixGifAdmin`; one-off backfill `src/scripts/backfillMedia.ts`
 - NHL top-3 leader alerts → `src/services/leaders.ts` (`evaluateLeaderMove` = trigger/tie rules, `leaderAlertsForGoal`, `MAX_TOP3_ROWS`); snapshot `TrackerContext.leadersBefore` taken on LIVE; season totals in `ctx.seasonCache` filled by `getCareerBefore`; rendered as fields in `goalCard.ts`
 - Game charts (impact card + TOI) → gated per guild by `guild_config.hsc_charts_enabled` (`/config set game_charts on`); TOI math `toiChart.ts`, look `toiRender.ts` (`COLORS`, `LAYOUT`), posting `toiPost.ts`, auto-post after games in `postGame.ts` (`shouldPostToiChart`), Bluesky watcher `hscBluesky.ts` (table `hsc_posts_seen`, seeds on first run); test commands `!toi last|<gameId>` and `!hsc last`; preview a chart locally with `npx tsx src/scripts/renderToiChart.ts <gameId> out.png`
-- Tests → `npm test` (`node --test` via tsx, `src/services/*.test.ts`)
+- Ask Tusky (@mention Q&A) → `src/services/ask/`: `index.ts` (trigger detection, tier routing, cooldown, caps, logging; registered from `index.ts`), `presets.ts` (starter presets, deflections, matching, `!ask add` parsing), `intents.ts` (tier-2 question patterns), `data.ts` (runs intents via `teamLookups.ts`/`follows.ts`/`podcast.ts`), `llm.ts` (system prompt, tools, Haiku tool loop, JSON answer parsing), `tools.ts` (LLM tool executors), `podcast.ts` (Clean Hits links, YouTube/Substack feeds, "Clean Hits Crew" role), `guards.ts` (cooldown, daily caps), `admin.ts` (`!ask add|list|remove|misses`). LLM knowledge file: `assets/ask/knowledge.md`. Tables `ask_presets`, `ask_presets_seeded`, `ask_log`; toggle `guild_config.ask_enabled` (`/config set setting:ask`)
+- Tests → `npm test` (`node --test` via tsx, `src/services/*.test.ts` and `src/services/ask/*.test.ts`)
 
 | Change | Files to edit |
 |--------|---------------|
@@ -186,6 +189,7 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 | `pino` | JSON logger |
 | `luxon` | Timezone-aware date parsing (reminders) |
 | `rss-parser` | RSS/Atom feed parsing |
+| `@anthropic-ai/sdk` | Ask Tusky's LLM fallback (Claude Haiku 5.5) |
 | `dotenv` | .env loading |
 
 ### External APIs
@@ -206,6 +210,8 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 | `LOG_LEVEL` | No | Default: `info` |
 | `DATABASE_PATH` | No | Default: `./tusky.db` |
 | `RSSHUB_URL` | No | Custom RSSHub instance URL for feed bridge |
+| `ANTHROPIC_API_KEY` | No | Ask Tusky LLM fallback; unset = presets + live data only, everything else deflected |
+| `ASK_USER_DAILY_CAP` / `ASK_GUILD_DAILY_CAP` | No | Daily Ask Tusky LLM calls per user / per guild (default 20 / 300, America/Denver day) |
 
 ---
 

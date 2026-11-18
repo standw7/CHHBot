@@ -67,6 +67,15 @@ exports.setBoardMessageId = setBoardMessageId;
 exports.releaseBoardPost = releaseBoardPost;
 exports.getBoardMessageId = getBoardMessageId;
 exports.getBoardPosts = getBoardPosts;
+exports.getAskPresets = getAskPresets;
+exports.addAskPreset = addAskPreset;
+exports.removeAskPreset = removeAskPreset;
+exports.seedAskPresetsOnce = seedAskPresetsOnce;
+exports.logAsk = logAsk;
+exports.setAskReplyMessageId = setAskReplyMessageId;
+exports.isAskReply = isAskReply;
+exports.countAskLlmUsage = countAskLlmUsage;
+exports.getAskMisses = getAskMisses;
 const database_js_1 = require("./database.js");
 const dailyCard_js_1 = require("../services/dailyCard.js");
 // --- Guild Config ---
@@ -402,5 +411,71 @@ function getBoardMessageId(board, guildId, messageId) {
 /** Posted board entries (board message exists), newest first. */
 function getBoardPosts(board, guildId) {
     return (0, database_js_1.getDb)().prepare('SELECT original_message_id, original_channel_id, board_message_id FROM board_messages WHERE board = ? AND guild_id = ? AND board_message_id IS NOT NULL ORDER BY inducted_at DESC').all(board, guildId);
+}
+// --- Ask Tusky ---
+function getAskPresets(guildId) {
+    return (0, database_js_1.getDb)().prepare('SELECT * FROM ask_presets WHERE guild_id = ? ORDER BY trigger, id').all(guildId);
+}
+function addAskPreset(guildId, trigger, response, exactOnly, createdBy) {
+    const { lastInsertRowid } = (0, database_js_1.getDb)().prepare(`
+    INSERT INTO ask_presets (guild_id, trigger, response, exact_only, created_by, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(guildId, trigger, response, exactOnly ? 1 : 0, createdBy, new Date().toISOString());
+    return Number(lastInsertRowid);
+}
+function removeAskPreset(guildId, id) {
+    return (0, database_js_1.getDb)().prepare('DELETE FROM ask_presets WHERE guild_id = ? AND id = ?').run(guildId, id).changes > 0;
+}
+/**
+ * Seeds the starter presets the first time a guild is seen. Marked in ask_presets_seeded,
+ * so a guild that later removes every preset doesn't get them back.
+ */
+function seedAskPresetsOnce(guildId, presets) {
+    const db = (0, database_js_1.getDb)();
+    return db.transaction(() => {
+        const already = db.prepare('SELECT 1 FROM ask_presets_seeded WHERE guild_id = ?').get(guildId);
+        if (already)
+            return false;
+        const now = new Date().toISOString();
+        db.prepare('INSERT INTO ask_presets_seeded (guild_id, seeded_at) VALUES (?, ?)').run(guildId, now);
+        const hasAny = db.prepare('SELECT 1 FROM ask_presets WHERE guild_id = ? LIMIT 1').get(guildId);
+        if (hasAny)
+            return false;
+        const insert = db.prepare(`
+      INSERT INTO ask_presets (guild_id, trigger, response, exact_only, created_by, created_at)
+      VALUES (?, ?, ?, ?, NULL, ?)
+    `);
+        for (const p of presets)
+            insert.run(guildId, p.trigger, p.response, p.exactOnly ? 1 : 0, now);
+        return true;
+    })();
+}
+function logAsk(entry) {
+    const { lastInsertRowid } = (0, database_js_1.getDb)().prepare(`
+    INSERT INTO ask_log (created_at, day, guild_id, channel_id, user_id, question, tier, answer, llm_used, input_tokens, output_tokens)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(new Date().toISOString(), entry.day, entry.guildId, entry.channelId, entry.userId, entry.question, entry.tier, entry.answer, entry.llmUsed ? 1 : 0, entry.inputTokens, entry.outputTokens);
+    return Number(lastInsertRowid);
+}
+function setAskReplyMessageId(logId, replyMessageId) {
+    (0, database_js_1.getDb)().prepare('UPDATE ask_log SET reply_message_id = ? WHERE id = ?').run(replyMessageId, logId);
+}
+/** True if `messageId` is one of Tusky's Ask answers (replying to it continues the conversation). */
+function isAskReply(messageId) {
+    return !!(0, database_js_1.getDb)().prepare('SELECT 1 FROM ask_log WHERE reply_message_id = ? LIMIT 1').get(messageId);
+}
+/** LLM calls made today (America/Denver day) by a user (across guilds) and by a guild. */
+function countAskLlmUsage(guildId, userId, day) {
+    const db = (0, database_js_1.getDb)();
+    const user = db.prepare('SELECT COUNT(*) AS n FROM ask_log WHERE user_id = ? AND day = ? AND llm_used = 1').get(userId, day);
+    const guild = db.prepare('SELECT COUNT(*) AS n FROM ask_log WHERE guild_id = ? AND day = ? AND llm_used = 1').get(guildId, day);
+    return { user: user.n, guild: guild.n };
+}
+/** Recent questions that went to the LLM or were deflected — candidates for new presets. */
+function getAskMisses(guildId, limit) {
+    return (0, database_js_1.getDb)().prepare(`
+    SELECT * FROM ask_log WHERE guild_id = ? AND tier IN ('llm', 'deflect')
+    ORDER BY id DESC LIMIT ?
+  `).all(guildId, limit);
 }
 //# sourceMappingURL=queries.js.map
