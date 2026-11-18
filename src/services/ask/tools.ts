@@ -6,6 +6,7 @@ import {
   CLEAN_HITS, formatEpisodeReply, formatSubstackReply, latestEpisode, latestSubstackPost,
 } from './podcast.js';
 import type { ToolExecutor } from './llm.js';
+import { resolveNameQuery, type Nickname } from './nicknames.js';
 
 // LLM tool implementations: thin wrappers over the same lookups as !next/!standings/!player/!stats
 // and the tier-2 intents, flattened to text.
@@ -13,6 +14,10 @@ import type { ToolExecutor } from './llm.js';
 export interface ToolContext {
   teamCode: string;
   timezone: string;
+  /** Player nicknames; get_player_stats maps one to the real name if the model passes it through. */
+  nicknames?: readonly Nickname[];
+  /** This guild's gif keys with item counts; list_gif_commands returns them. */
+  gifKeys?: () => { key: string; count: number }[];
 }
 
 function str(input: unknown, key: string): string {
@@ -41,7 +46,7 @@ export function createToolExecutor(ctx: ToolContext): ToolExecutor {
         return embed ? embedToText(embed, `Our team: ${ctx.teamCode}. Columns: rank. team | GP | W-L-OT | PTS`) : 'Standings unavailable (NHL API did not respond).';
       }
       case 'get_player_stats': {
-        const query = str(input, 'name').trim();
+        const query = resolveNameQuery(str(input, 'name').trim(), ctx.nicknames ?? []);
         if (!query) return 'No player name given.';
         const r = await lookupPlayer(query);
         if (r.kind === 'not_found') return `No NHL player found matching "${query}".`;
@@ -56,6 +61,11 @@ export function createToolExecutor(ctx: ToolContext): ToolExecutor {
       case 'get_latest_clean_hits_episode': {
         const item = await latestEpisode();
         return item ? formatEpisodeReply(item) : `YouTube did not respond. Channel: ${CLEAN_HITS.youtube}`;
+      }
+      case 'list_gif_commands': {
+        const keys = (ctx.gifKeys?.() ?? []).filter(k => /^[\w-]{1,40}$/.test(k.key));
+        if (keys.length === 0) return 'No gif commands are registered in this server.';
+        return `Gif commands (use as !<key>; !<key> <#> posts a specific one):\n` + keys.map(k => `!${k.key} (${k.count})`).join(', ');
       }
       case 'get_latest_clean_hits_substack_post': {
         const item = await latestSubstackPost();

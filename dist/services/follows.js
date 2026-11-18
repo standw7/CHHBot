@@ -52,7 +52,7 @@ const queries_js_1 = require("../db/queries.js");
 const logger = (0, pino_1.default)({ name: 'follows' });
 exports.MAX_FOLLOWS = 5;
 function normalize(s) {
-    return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+    return s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/['’‘`]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
 }
 function pick(players) {
     if (players.length === 1)

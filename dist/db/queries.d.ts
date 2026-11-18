@@ -1,4 +1,4 @@
-import type { GuildConfig, GifCommand, HofMessage, FeedSource, Reminder, AskPreset, AskLogEntry, AskTier } from './models.js';
+import type { GuildConfig, GifCommand, HofMessage, FeedSource, Reminder, AskPreset, AskLogEntry, AskTier, AskNickname } from './models.js';
 export declare function getGuildConfig(guildId: string): GuildConfig | undefined;
 export declare function upsertGuildConfig(guildId: string, updates: Partial<Omit<GuildConfig, 'guild_id'>>): void;
 export declare function getGifEntries(guildId: string, key: string): {
@@ -19,6 +19,11 @@ export declare function listAllGifEntries(): {
     file_path: string | null;
 }[];
 export declare function listGifKeys(guildId: string): string[];
+/** Every gif key in the guild with how many items it holds (for Ask Tusky's list_gif_commands tool). */
+export declare function listGifKeyCounts(guildId: string): {
+    key: string;
+    count: number;
+}[];
 /** Removes every entry for a key and returns them (callers delete their saved files). */
 export declare function deleteGifKey(guildId: string, key: string): GifCommand[];
 export declare function renameGifKey(guildId: string, oldKey: string, newKey: string): number;
@@ -137,4 +142,25 @@ export declare function countAskLlmUsage(guildId: string, userId: string, day: s
 };
 /** Recent questions that went to the LLM or were deflected — candidates for new presets. */
 export declare function getAskMisses(guildId: string, limit: number): AskLogEntry[];
+/** Stable order (player, then nickname) so the LLM system prompt built from it stays cacheable. */
+export declare function getAskNicknames(guildId: string): AskNickname[];
+/** Adds a nickname; returns the new id, or the existing row when the nickname is already taken. */
+export declare function addAskNickname(guildId: string, nickname: string, nicknameKey: string, player: string, createdBy: string | null): {
+    ok: true;
+    id: number;
+} | {
+    ok: false;
+    existing: AskNickname;
+};
+export declare function removeAskNicknameById(guildId: string, id: number): AskNickname | null;
+export declare function removeAskNicknameByKey(guildId: string, nicknameKey: string): AskNickname | null;
+/**
+ * Seeds the starter nicknames the first time a guild is seen (same rules as seedAskPresetsOnce:
+ * marked in ask_nicknames_seeded, so removing them all doesn't bring them back).
+ */
+export declare function seedAskNicknamesOnce(guildId: string, nicknames: {
+    nickname: string;
+    key: string;
+    player: string;
+}[]): boolean;
 //# sourceMappingURL=queries.d.ts.map

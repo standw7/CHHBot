@@ -2,7 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import Anthropic from '@anthropic-ai/sdk';
 import {
-  ASK_MODEL, buildSystemPrompt, buildUserTurn, classifyError, loadKnowledge, parseFinalAnswer, runAskLlm,
+  ASK_MODEL, buildSystemPrompt, buildUserTurn, classifyError, extractSections, loadCommandReference, loadKnowledge, parseFinalAnswer, runAskLlm,
   sanitizeAnswer, type MessagesClient,
 } from './llm.js';
 
@@ -168,5 +168,50 @@ describe('parsing and prompt helpers', () => {
     assert.match(sys, /never @mention/i);
     assert.match(sys, /\{crew_role\}/);
     assert.match(sys, /<knowledge>[\s\S]*Clean Hits Crew[\s\S]*<\/knowledge>/);
+  });
+
+  test('Tusky is a woolly mammoth, never a walrus (prompt and knowledge file)', () => {
+    const sys = buildSystemPrompt(loadKnowledge());
+    assert.match(sys, /woolly mammoth/);
+    assert.match(loadKnowledge(), /woolly mammoth/);
+    // "walrus" only ever appears negated ("never a walrus", "not a walrus")
+    for (const m of sys.matchAll(/.{0,20}walrus/gi)) assert.match(m[0], /(never|not) a walrus/i, m[0]);
+  });
+
+  test('nickname list goes in the system prompt in a stable order; omitted when empty', () => {
+    const a = [
+      { nickname: 'Tuna', player: 'Liam O\'Brien' },
+      { nickname: 'Cools', player: 'Logan Cooley' },
+      { nickname: 'Spicy Tuna', player: 'Liam O\'Brien' },
+    ];
+    const sys = buildSystemPrompt('kb', a);
+    assert.equal(sys, buildSystemPrompt('kb', [...a].reverse()));
+    assert.match(sys, /<player_nicknames>\n- Liam O'Brien: Spicy Tuna, Tuna\n- Logan Cooley: Cools\n<\/player_nicknames>/);
+    assert.match(sys, /never make one up/i);
+    assert.match(sys, /Tool inputs always use the real name/);
+    assert.doesNotMatch(buildSystemPrompt('kb'), /player_nicknames/);
+  });
+
+  test('runAskLlm puts the nicknames in the cached system block, not the user turn', async () => {
+    const client = mockClient([msg('end_turn', [text('{"on_topic":true,"answer":"Fine."}')])]);
+    await runAskLlm({ client, input: { question: 'how is cools', today: 'd' }, executeTool: async () => '', knowledge: 'kb', nicknames: [{ nickname: 'Cools', player: 'Logan Cooley' }] });
+    const body = client.calls[0];
+    assert.match(JSON.stringify(body.system), /Logan Cooley: Cools/);
+    assert.doesNotMatch(JSON.stringify(body.messages), /Logan Cooley/);
+  });
+});
+
+describe('command manual', () => {
+  test('extractSections keeps only the named ## sections', () => {
+    const md = '# T\n## Intro\nskip\n## Commands\n| `!next` | next game |\n### Sub\nkeep\n## Testing\nskip too\n';
+    assert.equal(extractSections(md, ['Commands']), '## Commands\n| `!next` | next game |\n### Sub\nkeep');
+  });
+  test('the real README yields a manual with core commands, and it lands in the system prompt', () => {
+    const ref = loadCommandReference();
+    for (const cmd of ['!next', '/gif keys', '!follow', '!standings']) assert.ok(ref.includes(cmd), cmd);
+    assert.doesNotMatch(ref, /## Troubleshooting/);
+    const sys = buildSystemPrompt('kb', [], ref);
+    assert.match(sys, /<tusky_manual>/);
+    assert.match(sys, /list_gif_commands/);
   });
 });

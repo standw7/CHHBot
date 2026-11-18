@@ -9,7 +9,10 @@ export declare function getGoalReplay(gameId: number, eventNumber: number): Prom
 export declare function getTvSchedule(date?: string): Promise<TvScheduleResponse | null>;
 export declare function getClubStats(teamCode: string): Promise<ClubStatsResponse | null>;
 export declare function getStandings(fresh?: boolean): Promise<StandingsResponse | null>;
-export declare function searchPlayers(query: string): Promise<PlayerSearchResult[] | null>;
+export declare function searchPlayers(query: string, opts?: {
+    activeOnly?: boolean;
+    limit?: number;
+}): Promise<PlayerSearchResult[] | null>;
 export declare function getPlayerStats(playerId: number): Promise<PlayerLandingResponse | null>;
 export declare function getRoster(teamCode: string): Promise<RosterResponse | null>;
 export declare function getSkaterLeaders(categories: string[], limit: number): Promise<SkaterLeadersResponse | null>;

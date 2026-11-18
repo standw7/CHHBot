@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import { ASK_NICKNAMES_SCHEMA, fixSeededAskPresets } from './askMigrations.js';
 
 let db: Database.Database;
 
@@ -274,6 +275,11 @@ function runMigrations(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_ask_log_user_day ON ask_log(user_id, day);
     CREATE INDEX IF NOT EXISTS idx_ask_log_reply ON ask_log(reply_message_id);
   `);
+
+  // Ask Tusky: player nicknames ("Cools" → Logan Cooley), and the seeded starter presets that
+  // called Tusky a walrus (he is a woolly mammoth). Exact-string rewrite, safe on every start.
+  db.exec(ASK_NICKNAMES_SCHEMA);
+  fixSeededAskPresets(db);
 
   // Reaction boards other than the Hall of Fame (e.g. 'tomato'); one post per board per message
   db.exec(`

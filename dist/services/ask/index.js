@@ -13,6 +13,7 @@ const data_js_1 = require("./data.js");
 const guards_js_1 = require("./guards.js");
 const intents_js_1 = require("./intents.js");
 const llm_js_1 = require("./llm.js");
+const nicknames_js_1 = require("./nicknames.js");
 const podcast_js_1 = require("./podcast.js");
 const presets_js_1 = require("./presets.js");
 const text_js_1 = require("./text.js");
@@ -93,21 +94,29 @@ async function handleMessage(client, message, options) {
         await replyText('preset', (0, presets_js_1.pickRandom)(presets_js_1.EMPTY_PING_REPLIES));
         return;
     }
-    // Tier 1: presets
     if (!seededGuilds.has(guild.id)) {
         if ((0, queries_js_1.seedAskPresetsOnce)(guild.id, (0, presets_js_1.starterPresetRows)()))
             logger.info({ guildId: guild.id }, 'Seeded Ask Tusky starter presets');
+        if ((0, queries_js_1.seedAskNicknamesOnce)(guild.id, (0, nicknames_js_1.starterNicknameRows)()))
+            logger.info({ guildId: guild.id }, 'Seeded Ask Tusky player nicknames');
         seededGuilds.add(guild.id);
     }
-    const preset = (0, presets_js_1.matchPreset)(normalized, (0, presets_js_1.groupPresets)((0, queries_js_1.getAskPresets)(guild.id)));
+    // Nicknames → real names ("how many goals does gunner have" → "... dylan guenther ...")
+    const nicknames = (0, queries_js_1.getAskNicknames)(guild.id).map(n => ({ nickname: n.nickname, key: n.nickname_key, player: n.player }));
+    const resolved = (0, nicknames_js_1.resolveNicknames)(normalized, nicknames);
+    // Tier 1: presets. The question as typed first, so a preset whose trigger contains a
+    // nickname-like word still fires; then with nicknames resolved.
+    const presetGroups = (0, presets_js_1.groupPresets)((0, queries_js_1.getAskPresets)(guild.id));
+    const preset = (0, presets_js_1.matchPreset)(normalized, presetGroups)
+        ?? (resolved.text !== normalized ? (0, presets_js_1.matchPreset)(resolved.text, presetGroups) : null);
     if (preset) {
         await replyText('preset', (0, presets_js_1.fillTemplate)((0, presets_js_1.pickRandom)(preset.responses).response, vars));
         return;
     }
     // Tier 2: live data
-    const intent = (0, intents_js_1.parseIntent)(normalized);
+    const intent = (0, intents_js_1.parseIntent)(resolved.text);
     if (intent) {
-        const data = await (0, data_js_1.runDataIntent)(intent, guild, config);
+        const data = await (0, data_js_1.runDataIntent)(intent, guild, config, resolved.hits);
         if (data) {
             await reply('data', { content: data.content, embeds: data.embeds }, data.logText);
             return;
@@ -132,7 +141,13 @@ async function handleMessage(client, message, options) {
         outcome = await (0, llm_js_1.runAskLlm)({
             client: options.llmClient,
             input: { question, repliedTo, today: (0, guards_js_1.todayLong)() },
-            executeTool: (0, tools_js_1.createToolExecutor)({ teamCode: config?.primary_team ?? 'UTA', timezone: config?.timezone ?? 'America/Denver' }),
+            nicknames,
+            executeTool: (0, tools_js_1.createToolExecutor)({
+                teamCode: config?.primary_team ?? 'UTA',
+                timezone: config?.timezone ?? 'America/Denver',
+                nicknames,
+                gifKeys: () => (0, queries_js_1.listGifKeyCounts)(guild.id),
+            }),
         });
     }
     finally {

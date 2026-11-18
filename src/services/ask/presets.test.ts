@@ -135,3 +135,16 @@ describe('parseAddPreset', () => {
     assert.ok(r.ok && r.response === 'YouTube: {youtube}\nSubstack: {substack}');
   });
 });
+
+describe('Tusky is a woolly mammoth', () => {
+  test('no "walrus" anywhere in starter presets, deflections or canned replies', () => {
+    const all = [
+      ...STARTER_PRESETS.flatMap(p => [...p.triggers, ...p.responses]),
+      ...DEFLECTIONS, ...EMPTY_PING_REPLIES, ...CAPPED_USER_REPLIES, ...CAPPED_GUILD_REPLIES, ...ERROR_REPLIES,
+    ];
+    for (const line of all) assert.doesNotMatch(line, /walrus/i, line);
+    assert.ok(all.includes('Fair. I am a woolly mammoth with a Wi-Fi connection.'));
+    assert.ok(all.includes('I am a bot. A mammoth-shaped one.'));
+    assert.ok(DEFLECTIONS.includes('I\'m a hockey mammoth. Ask me about hockey.'));
+  });
+});

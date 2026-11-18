@@ -1,1 +1,1 @@
-{"version":3,"file":"admin.d.ts","sourceRoot":"","sources":["../../../src/services/ask/admin.ts"],"names":[],"mappings":"AAAA,OAAO,EAA0C,KAAK,OAAO,EAAE,MAAM,YAAY,CAAC;AAkBlF,wBAAsB,eAAe,CAAC,OAAO,EAAE,OAAO,EAAE,IAAI,EAAE,MAAM,EAAE,GAAG,OAAO,CAAC,IAAI,CAAC,CA2ErF"}
+{"version":3,"file":"admin.d.ts","sourceRoot":"","sources":["../../../src/services/ask/admin.ts"],"names":[],"mappings":"AAAA,OAAO,EAA0C,KAAK,OAAO,EAAE,MAAM,YAAY,CAAC;AA0BlF,wBAAsB,eAAe,CAAC,OAAO,EAAE,OAAO,EAAE,IAAI,EAAE,MAAM,EAAE,GAAG,OAAO,CAAC,IAAI,CAAC,CAkFrF"}

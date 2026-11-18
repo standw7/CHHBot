@@ -3,7 +3,7 @@ import * as nhlClient from '../nhl/client.js';
 import { gamecenterWebUrl } from '../nhl/endpoints.js';
 import { buildFinalCard } from './finalCard.js';
 import type { SpoilerMode } from './spoiler.js';
-import type { PlayerLandingResponse, ScheduleGame, TeamStanding } from '../nhl/types.js';
+import type { PlayerLandingResponse, PlayerSearchResult, ScheduleGame, TeamStanding } from '../nhl/types.js';
 
 // Shared lookups behind !next, /next, !standings, !player and Ask Tusky (tier 2 + LLM tools).
 // Builders return embeds; Ask Tusky's LLM tools flatten them with embedToText().
@@ -195,13 +195,41 @@ export type PlayerLookup =
   | { kind: 'unavailable'; name: string };
 
 /** Search a player (any NHL player; active preferred) or fetch by id, and build the !player embed. */
+/** "Liam O'Brien" -> "liamobrien": compare names ignoring case, spaces and punctuation. */
+export function playerNameKey(name: string): string {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]/g, '');
+}
+
+/**
+ * Pick the search result for a name query: an exact full-name match (active first) wins.
+ * The NHL search mangles some full names (e.g. "Liam O'Brien" returns Liam Ohgren), so when
+ * there's no exact match, search the last name among active players and look for one there.
+ */
+export function pickSearchResult(query: string, results: PlayerSearchResult[]): PlayerSearchResult | undefined {
+  const key = playerNameKey(query);
+  const exact = results.filter(p => playerNameKey(p.name) === key);
+  return exact.find(p => p.active) ?? exact[0];
+}
+
+async function findPlayer(query: string): Promise<PlayerSearchResult | null> {
+  const results = (await nhlClient.searchPlayers(query)) ?? [];
+  const exact = pickSearchResult(query, results);
+  if (exact) return exact;
+  const words = query.trim().split(/\s+/);
+  if (words.length > 1) {
+    const byLast = (await nhlClient.searchPlayers(words[words.length - 1], { activeOnly: true, limit: 50 })) ?? [];
+    const hit = pickSearchResult(query, byLast);
+    if (hit) return hit;
+  }
+  return results.find(p => p.active) ?? results[0] ?? null;
+}
+
 export async function lookupPlayer(query: string | { playerId: number }): Promise<PlayerLookup> {
   let playerId: number;
   let searchName: string;
   if (typeof query === 'string') {
-    const results = await nhlClient.searchPlayers(query);
-    if (!results || results.length === 0) return { kind: 'not_found' };
-    const player = results.find(p => p.active) || results[0];
+    const player = await findPlayer(query);
+    if (!player) return { kind: 'not_found' };
     playerId = parseInt(player.playerId, 10);
     searchName = player.name;
   } else {

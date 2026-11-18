@@ -11,7 +11,10 @@ export declare function gamecenterWebUrl(gameId: number): string;
 export declare function standingsUrl(): string;
 export declare function playerSearchUrl(query: string): string;
 export declare function playerStatsUrl(playerId: number): string;
-export declare function searchPlayersUrl(query: string): string;
+export declare function searchPlayersUrl(query: string, opts?: {
+    activeOnly?: boolean;
+    limit?: number;
+}): string;
 export declare function rosterUrl(teamCode: string): string;
 export declare function skaterLeadersUrl(categories: string[], limit: number): string;
 export declare function shiftChartUrl(gameId: number): string;

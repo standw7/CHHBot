@@ -4,6 +4,7 @@ exports.createToolExecutor = createToolExecutor;
 const statsLookup_js_1 = require("../statsLookup.js");
 const teamLookups_js_1 = require("../teamLookups.js");
 const podcast_js_1 = require("./podcast.js");
+const nicknames_js_1 = require("./nicknames.js");
 function str(input, key) {
     const v = input?.[key];
     return typeof v === 'string' ? v.slice(0, 80) : '';
@@ -31,7 +32,7 @@ function createToolExecutor(ctx) {
                 return embed ? (0, teamLookups_js_1.embedToText)(embed, `Our team: ${ctx.teamCode}. Columns: rank. team | GP | W-L-OT | PTS`) : 'Standings unavailable (NHL API did not respond).';
             }
             case 'get_player_stats': {
-                const query = str(input, 'name').trim();
+                const query = (0, nicknames_js_1.resolveNameQuery)(str(input, 'name').trim(), ctx.nicknames ?? []);
                 if (!query)
                     return 'No player name given.';
                 const r = await (0, teamLookups_js_1.lookupPlayer)(query);
@@ -49,6 +50,12 @@ function createToolExecutor(ctx) {
             case 'get_latest_clean_hits_episode': {
                 const item = await (0, podcast_js_1.latestEpisode)();
                 return item ? (0, podcast_js_1.formatEpisodeReply)(item) : `YouTube did not respond. Channel: ${podcast_js_1.CLEAN_HITS.youtube}`;
+            }
+            case 'list_gif_commands': {
+                const keys = (ctx.gifKeys?.() ?? []).filter(k => /^[\w-]{1,40}$/.test(k.key));
+                if (keys.length === 0)
+                    return 'No gif commands are registered in this server.';
+                return `Gif commands (use as !<key>; !<key> <#> posts a specific one):\n` + keys.map(k => `!${k.key} (${k.count})`).join(', ');
             }
             case 'get_latest_clean_hits_substack_post': {
                 const item = await (0, podcast_js_1.latestSubstackPost)();

@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { EmbedBuilder } from 'discord.js';
-import { buildStandingsEmbed, embedToText, findLastCompletedGame, findNextGame, seasonLabel } from './teamLookups.js';
+import { buildStandingsEmbed, embedToText, findLastCompletedGame, findNextGame, pickSearchResult, seasonLabel } from './teamLookups.js';
 import type { ScheduleGame, TeamStanding } from '../nhl/types.js';
 
 const game = (id: number, start: string, state: string) =>
@@ -49,5 +49,18 @@ describe('embedToText', () => {
   test('flattens and strips markdown and custom emoji', () => {
     const e = new EmbedBuilder().setTitle('<:UTA:123> UTA @ COL').setDescription('**bold**').addFields({ name: 'Goals', value: '`3`' }).setFooter({ text: 'f' });
     assert.equal(embedToText(e, 'pre'), 'pre\nUTA UTA @ COL\nbold\nGoals: 3\nf');
+  });
+});
+
+describe('pickSearchResult', () => {
+  const r = (name: string, active: boolean) => ({ name, active, playerId: name }) as unknown as import('../nhl/types.js').PlayerSearchResult;
+  test('exact name match ignoring apostrophes and case, active first', () => {
+    const results = [r("Shane O'Brien", false), r("Liam O'Brien", false), r("Liam O'Brien", true)];
+    const hit = pickSearchResult("liam obrien", results);
+    assert.equal(hit?.name, "Liam O'Brien");
+    assert.equal(hit?.active, true);
+  });
+  test('no exact match → undefined (caller falls back to a last-name search)', () => {
+    assert.equal(pickSearchResult("Liam O'Brien", [r('Liam Ohgren', true)]), undefined);
   });
 });

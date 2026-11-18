@@ -42,7 +42,7 @@ export const STARTER_PRESETS: StarterPreset[] = [
     triggers: ['bad bot', 'bad tusky', 'dumb bot', 'stupid bot', 'you suck', 'worst bot', 'useless bot'],
     responses: [
       'Feedback received. Filed under later.',
-      'Fair. I am a walrus with a Wi-Fi connection.',
+      'Fair. I am a woolly mammoth with a Wi-Fi connection.',
       'I will raise it with management. Management is also me.',
     ],
   },
@@ -130,7 +130,7 @@ export const STARTER_PRESETS: StarterPreset[] = [
   },
   {
     triggers: ['are you a bot', 'are you real', 'are you ai', 'are you an ai', 'are you human', 'are you chatgpt', 'are you sentient'],
-    responses: ['I am a bot. A walrus-shaped one.', 'Bot. Hockey-specific. No feelings, strong opinions about icing.'],
+    responses: ['I am a bot. A mammoth-shaped one.', 'Bot. Hockey-specific. No feelings, strong opinions about icing.'],
   },
   {
     triggers: ['where can i watch', 'where can i watch the game', 'how do i watch the game', 'what channel is the game on', 'what channel', 'where is the game on', 'is the game on tv'],
@@ -178,7 +178,7 @@ export const EMPTY_PING_REPLIES = ['You rang? Ask me something about the Mammoth
 
 /** Off-topic questions (and everything the LLM tier can't take when it's disabled). */
 export const DEFLECTIONS = [
-  'I\'m a hockey walrus. Ask me about hockey.',
+  'I\'m a hockey mammoth. Ask me about hockey.',
   'That\'s outside my rink. Mammoth, NHL, or Clean Hits. Pick one.',
   'I only know hockey. It\'s a narrow life, but it\'s mine.',
   'Not my department. My department is hockey.',

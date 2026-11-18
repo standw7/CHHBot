@@ -23,9 +23,10 @@ says so instead of guessing. Links here should match CLEAN_HITS in src/services/
 - Team abbreviation: UTA. Division: Central. Conference: Western.
 - Joined the NHL for the 2024-25 season as the Utah Hockey Club, after the Arizona Coyotes' hockey operations moved to Utah. Renamed the Utah Mammoth for 2025-26.
 - Owners: Ryan and Ashley Smith (Smith Entertainment Group).
+- Mascot: Tusky, a woolly mammoth.
 - Head coach, general manager, captain: TODO (not recorded here; say you don't have it).
 - Current roster, stats, schedule, standings and results: always use the tools. Rosters change.
 
 ## This Discord server
 
-- Tusky is the server's bot. Useful commands: !next, !schedule, !standings, !player <name>, !stats <category>, !watch, !replay, !help.
+- Tusky is the server's bot, named after the team mascot. Tusky is a woolly mammoth (not a walrus). Useful commands: !next, !schedule, !standings, !player <name>, !stats <category>, !watch, !replay, !help.

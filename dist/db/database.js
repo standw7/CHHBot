@@ -7,6 +7,7 @@ exports.getDb = getDb;
 exports.closeDb = closeDb;
 const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
 const path_1 = __importDefault(require("path"));
+const askMigrations_js_1 = require("./askMigrations.js");
 let db;
 function getDb() {
     if (!db) {
@@ -275,6 +276,10 @@ function runMigrations(db) {
     CREATE INDEX IF NOT EXISTS idx_ask_log_user_day ON ask_log(user_id, day);
     CREATE INDEX IF NOT EXISTS idx_ask_log_reply ON ask_log(reply_message_id);
   `);
+    // Ask Tusky: player nicknames ("Cools" → Logan Cooley), and the seeded starter presets that
+    // called Tusky a walrus (he is a woolly mammoth). Exact-string rewrite, safe on every start.
+    db.exec(askMigrations_js_1.ASK_NICKNAMES_SCHEMA);
+    (0, askMigrations_js_1.fixSeededAskPresets)(db);
     // Reaction boards other than the Hall of Fame (e.g. 'tomato'); one post per board per message
     db.exec(`
     CREATE TABLE IF NOT EXISTS board_messages (

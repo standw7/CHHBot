@@ -3,6 +3,7 @@ import type { GuildConfig } from '../../db/models.js';
 import { loadFollowablePlayers, matchRosterPlayer } from '../follows.js';
 import { lookupLastGame, lookupNextGame, lookupPlayer, lookupStandingsEmbed, seasonLabel } from '../teamLookups.js';
 import { formatStatAnswer, playerNameCandidates, type AskIntent } from './intents.js';
+import { formatNicknamed, nicknameUsedFor, type ResolvedNicknames } from './nicknames.js';
 import {
   formatEpisodeReply, formatSubstackReply, latestEpisode, latestSubstackPost, SUBSTACK_UNREACHABLE, YOUTUBE_UNREACHABLE,
 } from './podcast.js';
@@ -18,9 +19,12 @@ const NHL_DOWN = 'The NHL API isn\'t answering. Try again in a bit.';
 /**
  * Runs a tier-2 intent against the existing lookups. Returns null when the match turns out
  * not to be confident (e.g. the name isn't someone on the roster), so the caller falls
- * through to the LLM.
+ * through to the LLM. `nicknameHits` (from resolveNicknames) lets a stat line echo the nickname
+ * the user asked with: 'Logan "Cools" Cooley has 11 goals...'.
  */
-export async function runDataIntent(intent: AskIntent, guild: Guild, config: GuildConfig | undefined): Promise<DataReply | null> {
+export async function runDataIntent(
+  intent: AskIntent, guild: Guild, config: GuildConfig | undefined, nicknameHits: ResolvedNicknames['hits'] = [],
+): Promise<DataReply | null> {
   const teamCode = config?.primary_team ?? 'UTA';
   const timezone = config?.timezone ?? 'America/Denver';
 
@@ -63,8 +67,10 @@ export async function runDataIntent(intent: AskIntent, guild: Guild, config: Gui
       if (playerId === null) return null;
       const r = await lookupPlayer({ playerId });
       if (r.kind !== 'ok') return { content: NHL_DOWN, logText: NHL_DOWN };
+      const nickname = nicknameUsedFor(intent.player, nicknameHits);
+      const displayName = nickname ? formatNicknamed(r.name, nickname) : r.name;
       const line = intent.stat
-        ? formatStatAnswer(r.name, r.stats.position, r.stats.featuredStats?.regularSeason?.subSeason, intent.stat, seasonLabel(r.stats.featuredStats?.season))
+        ? formatStatAnswer(displayName, r.stats.position, r.stats.featuredStats?.regularSeason?.subSeason, intent.stat, seasonLabel(r.stats.featuredStats?.season))
         : null;
       return { content: line ?? undefined, embeds: [r.embed], logText: line ?? `[player embed] ${r.name}` };
     }

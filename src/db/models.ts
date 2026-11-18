@@ -115,3 +115,13 @@ export interface AskLogEntry {
   output_tokens: number;
   reply_message_id: string | null;
 }
+
+export interface AskNickname {
+  id: number;
+  guild_id: string;
+  nickname: string; // as entered ("Spicy Tuna")
+  nickname_key: string; // normalized ("spicy tuna"), unique per guild
+  player: string; // full name ("Liam O'Brien")
+  created_by: string | null;
+  created_at: string;
+}

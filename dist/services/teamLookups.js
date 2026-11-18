@@ -42,6 +42,8 @@ exports.lookupLastGame = lookupLastGame;
 exports.buildStandingsEmbed = buildStandingsEmbed;
 exports.lookupStandingsEmbed = lookupStandingsEmbed;
 exports.seasonLabel = seasonLabel;
+exports.playerNameKey = playerNameKey;
+exports.pickSearchResult = pickSearchResult;
 exports.lookupPlayer = lookupPlayer;
 exports.embedToText = embedToText;
 const discord_js_1 = require("discord.js");
@@ -206,14 +208,41 @@ function seasonLabel(season) {
     return `${s.slice(0, 4)}-${s.slice(6, 8)} Season`;
 }
 /** Search a player (any NHL player; active preferred) or fetch by id, and build the !player embed. */
+/** "Liam O'Brien" -> "liamobrien": compare names ignoring case, spaces and punctuation. */
+function playerNameKey(name) {
+    return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]/g, '');
+}
+/**
+ * Pick the search result for a name query: an exact full-name match (active first) wins.
+ * The NHL search mangles some full names (e.g. "Liam O'Brien" returns Liam Ohgren), so when
+ * there's no exact match, search the last name among active players and look for one there.
+ */
+function pickSearchResult(query, results) {
+    const key = playerNameKey(query);
+    const exact = results.filter(p => playerNameKey(p.name) === key);
+    return exact.find(p => p.active) ?? exact[0];
+}
+async function findPlayer(query) {
+    const results = (await nhlClient.searchPlayers(query)) ?? [];
+    const exact = pickSearchResult(query, results);
+    if (exact)
+        return exact;
+    const words = query.trim().split(/\s+/);
+    if (words.length > 1) {
+        const byLast = (await nhlClient.searchPlayers(words[words.length - 1], { activeOnly: true, limit: 50 })) ?? [];
+        const hit = pickSearchResult(query, byLast);
+        if (hit)
+            return hit;
+    }
+    return results.find(p => p.active) ?? results[0] ?? null;
+}
 async function lookupPlayer(query) {
     let playerId;
     let searchName;
     if (typeof query === 'string') {
-        const results = await nhlClient.searchPlayers(query);
-        if (!results || results.length === 0)
+        const player = await findPlayer(query);
+        if (!player)
             return { kind: 'not_found' };
-        const player = results.find(p => p.active) || results[0];
         playerId = parseInt(player.playerId, 10);
         searchName = player.name;
     }

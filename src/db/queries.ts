@@ -1,5 +1,5 @@
 import { getDb } from './database.js';
-import type { GuildConfig, GifCommand, PostedGoal, HofMessage, FeedSource, Reminder, AskPreset, AskLogEntry, AskTier } from './models.js';
+import type { GuildConfig, GifCommand, PostedGoal, HofMessage, FeedSource, Reminder, AskPreset, AskLogEntry, AskTier, AskNickname } from './models.js';
 import { DEFAULT_SEASON_START, DEFAULT_SEASON_END } from '../services/dailyCard.js';
 
 // --- Guild Config ---
@@ -81,6 +81,11 @@ export function listAllGifEntries(): { id: number; guild_id: string; key: string
 export function listGifKeys(guildId: string): string[] {
   const rows = getDb().prepare('SELECT DISTINCT key FROM gif_commands WHERE guild_id = ? ORDER BY key').all(guildId) as { key: string }[];
   return rows.map(r => r.key);
+}
+
+/** Every gif key in the guild with how many items it holds (for Ask Tusky's list_gif_commands tool). */
+export function listGifKeyCounts(guildId: string): { key: string; count: number }[] {
+  return getDb().prepare('SELECT key, COUNT(*) AS count FROM gif_commands WHERE guild_id = ? GROUP BY key ORDER BY key').all(guildId) as { key: string; count: number }[];
 }
 
 /** Removes every entry for a key and returns them (callers delete their saved files). */
@@ -524,4 +529,63 @@ export function getAskMisses(guildId: string, limit: number): AskLogEntry[] {
     SELECT * FROM ask_log WHERE guild_id = ? AND tier IN ('llm', 'deflect')
     ORDER BY id DESC LIMIT ?
   `).all(guildId, limit) as AskLogEntry[];
+}
+
+// --- Ask Tusky: player nicknames ---
+
+/** Stable order (player, then nickname) so the LLM system prompt built from it stays cacheable. */
+export function getAskNicknames(guildId: string): AskNickname[] {
+  return getDb().prepare('SELECT * FROM ask_nicknames WHERE guild_id = ? ORDER BY player, nickname_key, id').all(guildId) as AskNickname[];
+}
+
+/** Adds a nickname; returns the new id, or the existing row when the nickname is already taken. */
+export function addAskNickname(
+  guildId: string, nickname: string, nicknameKey: string, player: string, createdBy: string | null,
+): { ok: true; id: number } | { ok: false; existing: AskNickname } {
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM ask_nicknames WHERE guild_id = ? AND nickname_key = ?').get(guildId, nicknameKey) as AskNickname | undefined;
+  if (existing) return { ok: false, existing };
+  const { lastInsertRowid } = db.prepare(`
+    INSERT INTO ask_nicknames (guild_id, nickname, nickname_key, player, created_by, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(guildId, nickname, nicknameKey, player, createdBy, new Date().toISOString());
+  return { ok: true, id: Number(lastInsertRowid) };
+}
+
+export function removeAskNicknameById(guildId: string, id: number): AskNickname | null {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM ask_nicknames WHERE guild_id = ? AND id = ?').get(guildId, id) as AskNickname | undefined;
+  if (!row) return null;
+  db.prepare('DELETE FROM ask_nicknames WHERE id = ?').run(row.id);
+  return row;
+}
+
+export function removeAskNicknameByKey(guildId: string, nicknameKey: string): AskNickname | null {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM ask_nicknames WHERE guild_id = ? AND nickname_key = ?').get(guildId, nicknameKey) as AskNickname | undefined;
+  if (!row) return null;
+  db.prepare('DELETE FROM ask_nicknames WHERE id = ?').run(row.id);
+  return row;
+}
+
+/**
+ * Seeds the starter nicknames the first time a guild is seen (same rules as seedAskPresetsOnce:
+ * marked in ask_nicknames_seeded, so removing them all doesn't bring them back).
+ */
+export function seedAskNicknamesOnce(guildId: string, nicknames: { nickname: string; key: string; player: string }[]): boolean {
+  const db = getDb();
+  return db.transaction(() => {
+    const already = db.prepare('SELECT 1 FROM ask_nicknames_seeded WHERE guild_id = ?').get(guildId);
+    if (already) return false;
+    const now = new Date().toISOString();
+    db.prepare('INSERT INTO ask_nicknames_seeded (guild_id, seeded_at) VALUES (?, ?)').run(guildId, now);
+    const hasAny = db.prepare('SELECT 1 FROM ask_nicknames WHERE guild_id = ? LIMIT 1').get(guildId);
+    if (hasAny) return false;
+    const insert = db.prepare(`
+      INSERT OR IGNORE INTO ask_nicknames (guild_id, nickname, nickname_key, player, created_by, created_at)
+      VALUES (?, ?, ?, ?, NULL, ?)
+    `);
+    for (const n of nicknames) insert.run(guildId, n.nickname, n.key, n.player, now);
+    return true;
+  })();
 }

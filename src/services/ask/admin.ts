@@ -1,9 +1,14 @@
 import { AttachmentBuilder, PermissionFlagsBits, type Message } from 'discord.js';
-import { addAskPreset, getAskMisses, getAskPresets, removeAskPreset, seedAskPresetsOnce } from '../../db/queries.js';
+import {
+  addAskNickname, addAskPreset, getAskMisses, getAskNicknames, getAskPresets, removeAskNicknameById, removeAskNicknameByKey,
+  removeAskPreset, seedAskNicknamesOnce, seedAskPresetsOnce,
+} from '../../db/queries.js';
+import { nicknameKey, parseAddNickname, starterNicknameRows } from './nicknames.js';
 import { parseAddPreset, starterPresetRows } from './presets.js';
 import { truncate } from './text.js';
 
-// !ask add <trigger> => <response> | !ask list | !ask remove <id> | !ask misses [n]  (Manage Server)
+// !ask add <trigger> => <response> | !ask list | !ask remove <id> | !ask misses [n]
+// !ask nick add <nickname> => <player> | !ask nick list | !ask nick remove <nickname or id>  (Manage Server)
 
 const USAGE = [
   '**Ask Tusky presets** (Manage Server)',
@@ -11,6 +16,9 @@ const USAGE = [
   '`!ask list` - all presets with ids',
   '`!ask remove <id>` - remove one response',
   '`!ask misses [n]` - recent questions that went to the LLM or got deflected (default 15)',
+  '`!ask nick add <nickname> => <player name>` - teach Tusky a player nickname (e.g. `!ask nick add Cools => Logan Cooley`)',
+  '`!ask nick list` - all nicknames with ids',
+  '`!ask nick remove <nickname or id>` - forget one',
   'Responses can use `{youtube}`, `{substack}`, `{crew_role}`. Toggle the feature with `/config set setting:ask value:on|off`.',
 ].join('\n');
 
@@ -25,8 +33,15 @@ export async function handlePrefixAsk(message: Message, args: string[]): Promise
   const sub = args[0]?.toLowerCase();
   // Seed first so `!ask list` on a fresh guild shows the starter set
   seedAskPresetsOnce(guildId, starterPresetRows());
+  seedAskNicknamesOnce(guildId, starterNicknameRows());
 
   switch (sub) {
+    case 'nick':
+    case 'nicks':
+    case 'nickname':
+    case 'nicknames':
+      await handleNick(message, guildId, args.slice(1));
+      return;
     case 'add': {
       const raw = message.content.replace(/^!ask\s+add\s*/i, '');
       const parsed = parseAddPreset(raw);
@@ -90,5 +105,61 @@ export async function handlePrefixAsk(message: Message, args: string[]): Promise
     }
     default:
       await message.reply({ content: USAGE, allowedMentions: NO_PINGS });
+  }
+}
+
+const NICK_USAGE = 'Usage: `!ask nick add <nickname> => <player name>`, `!ask nick list`, `!ask nick remove <nickname or id>`.';
+
+async function handleNick(message: Message, guildId: string, args: string[]): Promise<void> {
+  const sub = args[0]?.toLowerCase();
+  switch (sub) {
+    case 'add': {
+      const raw = message.content.replace(/^!ask\s+\S+\s+add\s*/i, '');
+      const parsed = parseAddNickname(raw);
+      if (!parsed.ok) {
+        await message.reply({ content: parsed.error, allowedMentions: NO_PINGS });
+        return;
+      }
+      const r = addAskNickname(guildId, parsed.nickname, parsed.key, parsed.player, message.author.id);
+      const content = r.ok
+        ? `Added #${r.id}: ${parsed.nickname} → ${parsed.player}`
+        : `\`${r.existing.nickname}\` already means ${r.existing.player} (#${r.existing.id}). Remove it first.`;
+      await message.reply({ content, allowedMentions: NO_PINGS });
+      return;
+    }
+    case 'list': {
+      const rows = getAskNicknames(guildId);
+      if (rows.length === 0) {
+        await message.reply({ content: 'No nicknames. Add one with `!ask nick add <nickname> => <player name>`.', allowedMentions: NO_PINGS });
+        return;
+      }
+      const text = `${rows.length} nicknames\n` + rows.map(r => `#${r.id} ${r.nickname} → ${r.player}`).join('\n');
+      if (text.length <= 1900) {
+        await message.reply({ content: '```\n' + text + '\n```', allowedMentions: NO_PINGS });
+      } else {
+        const file = new AttachmentBuilder(Buffer.from(text, 'utf8'), { name: 'ask-nicknames.txt' });
+        await message.reply({ content: `${rows.length} nicknames (attached).`, files: [file], allowedMentions: NO_PINGS });
+      }
+      return;
+    }
+    case 'remove':
+    case 'delete': {
+      const target = message.content.replace(/^!ask\s+\S+\s+(?:remove|delete)\s*/i, '').trim();
+      if (!target) {
+        await message.reply({ content: 'Usage: `!ask nick remove <nickname or id>` (ids are in `!ask nick list`).', allowedMentions: NO_PINGS });
+        return;
+      }
+      const idMatch = target.match(/^#?(\d+)$/);
+      const row = idMatch
+        ? removeAskNicknameById(guildId, parseInt(idMatch[1], 10)) ?? removeAskNicknameByKey(guildId, nicknameKey(target))
+        : removeAskNicknameByKey(guildId, nicknameKey(target));
+      await message.reply({
+        content: row ? `Removed #${row.id}: ${row.nickname} → ${row.player}` : `No nickname \`${truncate(target, 60)}\` here.`,
+        allowedMentions: NO_PINGS,
+      });
+      return;
+    }
+    default:
+      await message.reply({ content: NICK_USAGE, allowedMentions: NO_PINGS });
   }
 }

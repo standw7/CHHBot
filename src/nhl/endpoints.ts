@@ -52,8 +52,9 @@ export function playerStatsUrl(playerId: number): string {
   return `${BASE_URL}/v1/player/${playerId}/landing`;
 }
 
-export function searchPlayersUrl(query: string): string {
-  return `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=10&q=${encodeURIComponent(query)}`;
+export function searchPlayersUrl(query: string, opts: { activeOnly?: boolean; limit?: number } = {}): string {
+  const active = opts.activeOnly ? '&active=true' : '';
+  return `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=${opts.limit ?? 10}${active}&q=${encodeURIComponent(query)}`;
 }
 
 export function rosterUrl(teamCode: string): string {

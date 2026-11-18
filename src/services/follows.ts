@@ -21,7 +21,7 @@ export type MatchResult =
   | { kind: 'none' };
 
 function normalize(s: string): string {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/['’‘`]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
 function pick(players: FollowablePlayer[]): MatchResult | null {

@@ -105,4 +105,13 @@ export interface AskLogEntry {
     output_tokens: number;
     reply_message_id: string | null;
 }
+export interface AskNickname {
+    id: number;
+    guild_id: string;
+    nickname: string;
+    nickname_key: string;
+    player: string;
+    created_by: string | null;
+    created_at: string;
+}
 //# sourceMappingURL=models.d.ts.map

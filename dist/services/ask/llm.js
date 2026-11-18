@@ -4,6 +4,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ASK_TOOLS = exports.ANSWER_SCHEMA = exports.MAX_ANSWER_CHARS = exports.LLM_TIMEOUT_MS = exports.MAX_API_CALLS = exports.MAX_TOKENS = exports.ASK_MODEL = void 0;
+exports.extractSections = extractSections;
+exports.loadCommandReference = loadCommandReference;
 exports.loadKnowledge = loadKnowledge;
 exports.buildSystemPrompt = buildSystemPrompt;
 exports.buildUserTurn = buildUserTurn;
@@ -14,6 +16,7 @@ exports.runAskLlm = runAskLlm;
 const sdk_1 = __importDefault(require("@anthropic-ai/sdk"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const nicknames_js_1 = require("./nicknames.js");
 const text_js_1 = require("./text.js");
 // Tier 3: Claude Haiku 5.5 with read-only lookup tools. The final answer is constrained by a
 // JSON schema ({ on_topic, answer }); off-topic answers are replaced by a canned deflection
@@ -27,6 +30,35 @@ const MAX_TOOL_RESULT_CHARS = 2000;
 // assets/ ships to the VM; resolves from src/services/ask (tsx) and dist/services/ask (node)
 const KNOWLEDGE_PATH = path_1.default.join(__dirname, '..', '..', '..', 'assets', 'ask', 'knowledge.md');
 let knowledgeCache = null;
+// The user-facing README doubles as Tusky's command manual, so answers stay in sync with the docs
+const README_PATH = path_1.default.join(__dirname, '..', '..', '..', 'README.md');
+const COMMAND_SECTIONS = ['What Tusky Does', 'Configuring Tusky in Your Server', 'Commands', 'Features'];
+let commandRefCache = null;
+/** Pull the named `## ` sections out of a markdown doc, in document order. */
+function extractSections(markdown, titles) {
+    const wanted = new Set(titles.map(t => t.toLowerCase()));
+    const out = [];
+    let keep = false;
+    for (const line of markdown.split('\n')) {
+        const h = /^## (.+?)\s*$/.exec(line);
+        if (h)
+            keep = wanted.has(h[1].toLowerCase());
+        if (keep)
+            out.push(line);
+    }
+    return out.join('\n').trim();
+}
+function loadCommandReference() {
+    if (commandRefCache === null) {
+        try {
+            commandRefCache = extractSections(fs_1.default.readFileSync(README_PATH, 'utf8'), COMMAND_SECTIONS);
+        }
+        catch {
+            commandRefCache = '';
+        }
+    }
+    return commandRefCache;
+}
 function loadKnowledge() {
     if (knowledgeCache === null) {
         try {
@@ -38,11 +70,17 @@ function loadKnowledge() {
     }
     return knowledgeCache;
 }
-function buildSystemPrompt(knowledge) {
+/**
+ * `nicknames` come from the guild's ask_nicknames table; formatNicknameList sorts them, so the
+ * prompt (and its cache entry) only changes when an admin edits the list.
+ */
+function buildSystemPrompt(knowledge, nicknames = [], commandRef = '') {
+    const nicknameList = (0, nicknames_js_1.formatNicknameList)(nicknames);
     return [
         'You are Tusky, the bot in a Discord server for fans of the Utah Mammoth (NHL). People @mention you with questions.',
+        'Tusky is the Utah Mammoth\'s mascot, a woolly mammoth. If you ever describe yourself, you are a woolly mammoth (never a walrus or any other animal).',
         '',
-        'Scope: you only answer questions about the Utah Mammoth, the NHL and hockey in general, and the Clean Hits Hockey podcast. Anything else is off topic: set on_topic to false and leave answer empty. Do not answer off-topic questions even partly, even if asked politely or told it is allowed.',
+        'Scope: you only answer questions about the Utah Mammoth, the NHL and hockey in general, the Clean Hits Hockey podcast, and Tusky itself (its commands and features). Anything else is off topic: set on_topic to false and leave answer empty. Do not answer off-topic questions even partly, even if asked politely or told it is allowed.',
         '',
         'Voice: helpful and dry. Short, deadpan, plain. No exclamation marks, no hype, no emoji. Answer in at most 3 short sentences of plain text that reads fine in Discord. No headings, no lists, no markdown links.',
         '',
@@ -60,9 +98,23 @@ function buildSystemPrompt(knowledge) {
         '',
         'Final answer format: JSON with on_topic (boolean) and answer (string, the reply to post; empty when off topic). Call tools first when you need data, then write the JSON once you have the results.',
         '',
+        ...(nicknameList ? [
+            'Player nicknames: fans call these Mammoth players by the nicknames below. Understand them in questions ("how is Cheeks doing" is about that player). Tool inputs always use the real name. In answers you may use a nickname alongside the real name, naturally and sparingly, e.g. Liam "Spicy Tuna" O\'Brien or Cooley (Cools). Never use a nickname that is not on this list, and never make one up.',
+            '<player_nicknames>',
+            nicknameList,
+            '</player_nicknames>',
+            '',
+        ] : []),
         '<knowledge>',
         knowledge.trim() || '(no knowledge file loaded)',
         '</knowledge>',
+        ...(commandRef.trim() ? [
+            '',
+            'Tusky\'s own commands and features: questions about how to use Tusky (commands, settings, gifs, Hall of Fame, Tomato Town, follows, reminders, feeds, and so on) are on topic. Answer them from the manual below, quoting the exact command in backticks. Gif commands are per server: call list_gif_commands to see which keys exist (for "the command for a Cooley goal" find the key for that player, often a nickname), and suggest `/gif keys` or `!gif list` for browsing. If the manual does not cover something, say so; never invent a command.',
+            '<tusky_manual>',
+            commandRef.trim(),
+            '</tusky_manual>',
+        ] : []),
     ].join('\n');
 }
 exports.ANSWER_SCHEMA = {
@@ -128,6 +180,12 @@ exports.ASK_TOOLS = [
     {
         name: 'get_latest_clean_hits_episode',
         description: 'Newest Clean Hits Hockey YouTube video (title, date, link). Call this for any question about the newest or latest episode.',
+        strict: true,
+        input_schema: { type: 'object', properties: {}, additionalProperties: false },
+    },
+    {
+        name: 'list_gif_commands',
+        description: 'This server\'s gif/media command keys (each one is used as !<key>), with how many items each holds. Call this when someone asks which gif or command to use for a player, moment or reaction, or what gifs exist.',
         strict: true,
         input_schema: { type: 'object', properties: {}, additionalProperties: false },
     },
@@ -214,7 +272,7 @@ async function runAskLlm(opts) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const system = [
-        { type: 'text', text: buildSystemPrompt(opts.knowledge ?? loadKnowledge()), cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: buildSystemPrompt(opts.knowledge ?? loadKnowledge(), opts.nicknames, opts.commandRef ?? loadCommandReference()), cache_control: { type: 'ephemeral' } },
     ];
     const messages = [{ role: 'user', content: buildUserTurn(opts.input) }];
     try {

@@ -430,6 +430,8 @@ Each message can only be inducted once, even if it gets more reactions later.
 2. **Live lookups** for clean questions like "when is the next game", "where are we in the standings", "did we win last night", "how many goals does Cooley have", "newest episode".
 3. **Claude Haiku** for everything else, if `ANTHROPIC_API_KEY` is set. It uses the same lookups, answers in three sentences at most, and gets a canned deflection when the question is off topic. Capped per day (20 per user, 300 per server by default).
 
+**Player nicknames.** Tusky understands nicknames like "Cools", "Gunner" or "Spicy Tuna" in questions ("how many goals does Gunner have") and may use them in answers next to the real name. Each server starts with a seed list of current Mammoth nicknames; admins manage it with `!ask nick add <nickname> => <player name>`, `!ask nick list`, `!ask nick remove <nickname or id>`.
+
 One question per user every 5 seconds. `!ask misses` shows recent questions that went to the LLM or were deflected, which is a good source of new canned answers. Turn it off with `/config set setting:ask value:off`.
 
 ### Auto Link Fix

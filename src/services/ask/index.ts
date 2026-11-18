@@ -2,13 +2,15 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { Client, Message, MessageReplyOptions } from 'discord.js';
 import pino from 'pino';
 import {
-  countAskLlmUsage, getAskPresets, getGuildConfig, isAskReply, logAsk, seedAskPresetsOnce, setAskReplyMessageId,
+  countAskLlmUsage, getAskNicknames, getAskPresets, listGifKeyCounts, getGuildConfig, isAskReply, logAsk, seedAskNicknamesOnce,
+  seedAskPresetsOnce, setAskReplyMessageId,
 } from '../../db/queries.js';
 import type { AskTier } from '../../db/models.js';
 import { runDataIntent } from './data.js';
 import { askDay, checkCaps, Cooldown, isCapExempt, todayLong, type CapLimits } from './guards.js';
 import { parseIntent } from './intents.js';
 import { runAskLlm, type MessagesClient } from './llm.js';
+import { resolveNicknames, starterNicknameRows, type Nickname } from './nicknames.js';
 import { CLEAN_HITS, templateVars } from './podcast.js';
 import {
   CAPPED_GUILD_REPLIES, CAPPED_USER_REPLIES, DEFLECTIONS, EMPTY_PING_REPLIES, ERROR_REPLIES,
@@ -106,21 +108,30 @@ async function handleMessage(client: Client, message: Message, options: AskOptio
     return;
   }
 
-  // Tier 1: presets
   if (!seededGuilds.has(guild.id)) {
     if (seedAskPresetsOnce(guild.id, starterPresetRows())) logger.info({ guildId: guild.id }, 'Seeded Ask Tusky starter presets');
+    if (seedAskNicknamesOnce(guild.id, starterNicknameRows())) logger.info({ guildId: guild.id }, 'Seeded Ask Tusky player nicknames');
     seededGuilds.add(guild.id);
   }
-  const preset = matchPreset(normalized, groupPresets(getAskPresets(guild.id)));
+
+  // Nicknames → real names ("how many goals does gunner have" → "... dylan guenther ...")
+  const nicknames: Nickname[] = getAskNicknames(guild.id).map(n => ({ nickname: n.nickname, key: n.nickname_key, player: n.player }));
+  const resolved = resolveNicknames(normalized, nicknames);
+
+  // Tier 1: presets. The question as typed first, so a preset whose trigger contains a
+  // nickname-like word still fires; then with nicknames resolved.
+  const presetGroups = groupPresets(getAskPresets(guild.id));
+  const preset = matchPreset(normalized, presetGroups)
+    ?? (resolved.text !== normalized ? matchPreset(resolved.text, presetGroups) : null);
   if (preset) {
     await replyText('preset', fillTemplate(pickRandom(preset.responses).response, vars));
     return;
   }
 
   // Tier 2: live data
-  const intent = parseIntent(normalized);
+  const intent = parseIntent(resolved.text);
   if (intent) {
-    const data = await runDataIntent(intent, guild, config);
+    const data = await runDataIntent(intent, guild, config, resolved.hits);
     if (data) {
       await reply('data', { content: data.content, embeds: data.embeds }, data.logText);
       return;
@@ -151,7 +162,13 @@ async function handleMessage(client: Client, message: Message, options: AskOptio
     outcome = await runAskLlm({
       client: options.llmClient,
       input: { question, repliedTo, today: todayLong() },
-      executeTool: createToolExecutor({ teamCode: config?.primary_team ?? 'UTA', timezone: config?.timezone ?? 'America/Denver' }),
+      nicknames,
+      executeTool: createToolExecutor({
+        teamCode: config?.primary_team ?? 'UTA',
+        timezone: config?.timezone ?? 'America/Denver',
+        nicknames,
+        gifKeys: () => listGifKeyCounts(guild.id),
+      }),
     });
   } finally {
     stopTyping();

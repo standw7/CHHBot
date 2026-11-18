@@ -122,8 +122,8 @@ async function getClubStats(teamCode) {
 async function getStandings(fresh = false) {
     return fetchJson(endpoints.standingsUrl(), SCHEDULE_CACHE_TTL, fresh);
 }
-async function searchPlayers(query) {
-    return fetchJson(endpoints.searchPlayersUrl(query), SCHEDULE_CACHE_TTL);
+async function searchPlayers(query, opts = {}) {
+    return fetchJson(endpoints.searchPlayersUrl(query, opts), SCHEDULE_CACHE_TTL);
 }
 async function getPlayerStats(playerId) {
     return fetchJson(endpoints.playerStatsUrl(playerId), SCHEDULE_CACHE_TTL);

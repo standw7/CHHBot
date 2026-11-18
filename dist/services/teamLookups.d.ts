@@ -1,6 +1,6 @@
 import { EmbedBuilder, type Guild } from 'discord.js';
 import type { SpoilerMode } from './spoiler.js';
-import type { PlayerLandingResponse, ScheduleGame, TeamStanding } from '../nhl/types.js';
+import type { PlayerLandingResponse, PlayerSearchResult, ScheduleGame, TeamStanding } from '../nhl/types.js';
 /** First game after `now` that hasn't started (FUT/PRE). */
 export declare function findNextGame(games: ScheduleGame[], now: Date): ScheduleGame | undefined;
 /** Most recent finished game (FINAL/OFF) that started before `now`. */
@@ -47,6 +47,14 @@ export type PlayerLookup = {
     name: string;
 };
 /** Search a player (any NHL player; active preferred) or fetch by id, and build the !player embed. */
+/** "Liam O'Brien" -> "liamobrien": compare names ignoring case, spaces and punctuation. */
+export declare function playerNameKey(name: string): string;
+/**
+ * Pick the search result for a name query: an exact full-name match (active first) wins.
+ * The NHL search mangles some full names (e.g. "Liam O'Brien" returns Liam Ohgren), so when
+ * there's no exact match, search the last name among active players and look for one there.
+ */
+export declare function pickSearchResult(query: string, results: PlayerSearchResult[]): PlayerSearchResult | undefined;
 export declare function lookupPlayer(query: string | {
     playerId: number;
 }): Promise<PlayerLookup>;

@@ -1,11 +1,19 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { type Nickname } from './nicknames.js';
 export declare const ASK_MODEL = "claude-haiku-5-5";
 export declare const MAX_TOKENS = 1024;
 export declare const MAX_API_CALLS = 3;
 export declare const LLM_TIMEOUT_MS = 20000;
 export declare const MAX_ANSWER_CHARS = 600;
+/** Pull the named `## ` sections out of a markdown doc, in document order. */
+export declare function extractSections(markdown: string, titles: readonly string[]): string;
+export declare function loadCommandReference(): string;
 export declare function loadKnowledge(): string;
-export declare function buildSystemPrompt(knowledge: string): string;
+/**
+ * `nicknames` come from the guild's ask_nicknames table; formatNicknameList sorts them, so the
+ * prompt (and its cache entry) only changes when an admin edits the list.
+ */
+export declare function buildSystemPrompt(knowledge: string, nicknames?: readonly Nickname[], commandRef?: string): string;
 export declare const ANSWER_SCHEMA: {
     readonly type: "object";
     readonly properties: {
@@ -68,6 +76,8 @@ export interface RunAskLlmOptions {
     input: AskLlmInput;
     executeTool: ToolExecutor;
     knowledge?: string;
+    nicknames?: readonly Nickname[];
+    commandRef?: string;
     timeoutMs?: number;
     maxCalls?: number;
 }

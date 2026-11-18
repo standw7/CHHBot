@@ -4,14 +4,16 @@ exports.runDataIntent = runDataIntent;
 const follows_js_1 = require("../follows.js");
 const teamLookups_js_1 = require("../teamLookups.js");
 const intents_js_1 = require("./intents.js");
+const nicknames_js_1 = require("./nicknames.js");
 const podcast_js_1 = require("./podcast.js");
 const NHL_DOWN = 'The NHL API isn\'t answering. Try again in a bit.';
 /**
  * Runs a tier-2 intent against the existing lookups. Returns null when the match turns out
  * not to be confident (e.g. the name isn't someone on the roster), so the caller falls
- * through to the LLM.
+ * through to the LLM. `nicknameHits` (from resolveNicknames) lets a stat line echo the nickname
+ * the user asked with: 'Logan "Cools" Cooley has 11 goals...'.
  */
-async function runDataIntent(intent, guild, config) {
+async function runDataIntent(intent, guild, config, nicknameHits = []) {
     const teamCode = config?.primary_team ?? 'UTA';
     const timezone = config?.timezone ?? 'America/Denver';
     switch (intent.kind) {
@@ -59,8 +61,10 @@ async function runDataIntent(intent, guild, config) {
             const r = await (0, teamLookups_js_1.lookupPlayer)({ playerId });
             if (r.kind !== 'ok')
                 return { content: NHL_DOWN, logText: NHL_DOWN };
+            const nickname = (0, nicknames_js_1.nicknameUsedFor)(intent.player, nicknameHits);
+            const displayName = nickname ? (0, nicknames_js_1.formatNicknamed)(r.name, nickname) : r.name;
             const line = intent.stat
-                ? (0, intents_js_1.formatStatAnswer)(r.name, r.stats.position, r.stats.featuredStats?.regularSeason?.subSeason, intent.stat, (0, teamLookups_js_1.seasonLabel)(r.stats.featuredStats?.season))
+                ? (0, intents_js_1.formatStatAnswer)(displayName, r.stats.position, r.stats.featuredStats?.regularSeason?.subSeason, intent.stat, (0, teamLookups_js_1.seasonLabel)(r.stats.featuredStats?.season))
                 : null;
             return { content: line ?? undefined, embeds: [r.embed], logText: line ?? `[player embed] ${r.name}` };
         }

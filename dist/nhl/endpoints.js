@@ -57,8 +57,9 @@ function playerSearchUrl(query) {
 function playerStatsUrl(playerId) {
     return `${BASE_URL}/v1/player/${playerId}/landing`;
 }
-function searchPlayersUrl(query) {
-    return `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=10&q=${encodeURIComponent(query)}`;
+function searchPlayersUrl(query, opts = {}) {
+    const active = opts.activeOnly ? '&active=true' : '';
+    return `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=${opts.limit ?? 10}${active}&q=${encodeURIComponent(query)}`;
 }
 function rosterUrl(teamCode) {
     return `${BASE_URL}/v1/roster/${teamCode}/current`;

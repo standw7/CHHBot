@@ -106,8 +106,8 @@ export async function getStandings(fresh = false): Promise<StandingsResponse | n
   return fetchJson<StandingsResponse>(endpoints.standingsUrl(), SCHEDULE_CACHE_TTL, fresh);
 }
 
-export async function searchPlayers(query: string): Promise<PlayerSearchResult[] | null> {
-  return fetchJson<PlayerSearchResult[]>(endpoints.searchPlayersUrl(query), SCHEDULE_CACHE_TTL);
+export async function searchPlayers(query: string, opts: { activeOnly?: boolean; limit?: number } = {}): Promise<PlayerSearchResult[] | null> {
+  return fetchJson<PlayerSearchResult[]>(endpoints.searchPlayersUrl(query, opts), SCHEDULE_CACHE_TTL);
 }
 
 export async function getPlayerStats(playerId: number): Promise<PlayerLandingResponse | null> {
