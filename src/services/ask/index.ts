@@ -6,10 +6,10 @@ import {
 } from '../../db/queries.js';
 import type { AskTier } from '../../db/models.js';
 import { runDataIntent } from './data.js';
-import { askDay, checkCaps, Cooldown, todayLong, type CapLimits } from './guards.js';
+import { askDay, checkCaps, Cooldown, isCapExempt, todayLong, type CapLimits } from './guards.js';
 import { parseIntent } from './intents.js';
 import { runAskLlm, type MessagesClient } from './llm.js';
-import { templateVars } from './podcast.js';
+import { CLEAN_HITS, templateVars } from './podcast.js';
 import {
   CAPPED_GUILD_REPLIES, CAPPED_USER_REPLIES, DEFLECTIONS, EMPTY_PING_REPLIES, ERROR_REPLIES,
   fillTemplate, groupPresets, matchPreset, pickRandom, starterPresetRows,
@@ -132,7 +132,13 @@ async function handleMessage(client: Client, message: Message, options: AskOptio
     await replyText('deflect', pickRandom(DEFLECTIONS));
     return;
   }
-  const cap = checkCaps(countAskLlmUsage(guild.id, message.author.id, day), options.caps);
+  const member = message.member;
+  const exempt = !!member && isCapExempt(
+    flag => member.permissions.has(flag),
+    member.roles.cache.map(r => r.name),
+    CLEAN_HITS.crewRoleName
+  );
+  const cap = exempt ? { ok: true as const } : checkCaps(countAskLlmUsage(guild.id, message.author.id, day), options.caps);
   if (!cap.ok) {
     await replyText('capped', pickRandom(cap.scope === 'user' ? CAPPED_USER_REPLIES : CAPPED_GUILD_REPLIES));
     return;

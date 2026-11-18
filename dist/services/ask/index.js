@@ -118,7 +118,9 @@ async function handleMessage(client, message, options) {
         await replyText('deflect', (0, presets_js_1.pickRandom)(presets_js_1.DEFLECTIONS));
         return;
     }
-    const cap = (0, guards_js_1.checkCaps)((0, queries_js_1.countAskLlmUsage)(guild.id, message.author.id, day), options.caps);
+    const member = message.member;
+    const exempt = !!member && (0, guards_js_1.isCapExempt)(flag => member.permissions.has(flag), member.roles.cache.map(r => r.name), podcast_js_1.CLEAN_HITS.crewRoleName);
+    const cap = exempt ? { ok: true } : (0, guards_js_1.checkCaps)((0, queries_js_1.countAskLlmUsage)(guild.id, message.author.id, day), options.caps);
     if (!cap.ok) {
         await replyText('capped', (0, presets_js_1.pickRandom)(cap.scope === 'user' ? presets_js_1.CAPPED_USER_REPLIES : presets_js_1.CAPPED_GUILD_REPLIES));
         return;

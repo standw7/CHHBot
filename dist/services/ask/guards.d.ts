@@ -24,6 +24,13 @@ export declare function checkCaps(usage: {
     user: number;
     guild: number;
 }, limits: CapLimits): CapDecision;
+/** Mod-level permissions that lift the daily caps (Discord permission flag names). */
+export declare const UNCAPPED_PERMISSIONS: readonly ["Administrator", "ManageGuild", "ManageMessages", "ModerateMembers"];
+/**
+ * Mods and the Clean Hits Crew have no daily cap (the per-user cooldown still applies).
+ * Pure: takes the member's permission check and role names so it's unit tested directly.
+ */
+export declare function isCapExempt(hasPermission: (flag: (typeof UNCAPPED_PERMISSIONS)[number]) => boolean, roleNames: string[], crewRoleName: string): boolean;
 /** The cap "day" (YYYY-MM-DD in America/Denver). */
 export declare function askDay(now?: Date): string;
 /** "Tuesday, November 17, 2026" in America/Denver (goes in the LLM user turn). */

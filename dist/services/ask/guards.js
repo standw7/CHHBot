@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Cooldown = exports.ASK_ZONE = exports.ASK_COOLDOWN_MS = void 0;
+exports.UNCAPPED_PERMISSIONS = exports.Cooldown = exports.ASK_ZONE = exports.ASK_COOLDOWN_MS = void 0;
 exports.checkCaps = checkCaps;
+exports.isCapExempt = isCapExempt;
 exports.askDay = askDay;
 exports.todayLong = todayLong;
 const luxon_1 = require("luxon");
@@ -40,6 +41,18 @@ function checkCaps(usage, limits) {
     if (usage.user >= limits.user)
         return { ok: false, scope: 'user' };
     return { ok: true };
+}
+/** Mod-level permissions that lift the daily caps (Discord permission flag names). */
+exports.UNCAPPED_PERMISSIONS = ['Administrator', 'ManageGuild', 'ManageMessages', 'ModerateMembers'];
+/**
+ * Mods and the Clean Hits Crew have no daily cap (the per-user cooldown still applies).
+ * Pure: takes the member's permission check and role names so it's unit tested directly.
+ */
+function isCapExempt(hasPermission, roleNames, crewRoleName) {
+    if (exports.UNCAPPED_PERMISSIONS.some(flag => hasPermission(flag)))
+        return true;
+    const crew = crewRoleName.toLowerCase();
+    return roleNames.some(name => name.toLowerCase() === crew);
 }
 /** The cap "day" (YYYY-MM-DD in America/Denver). */
 function askDay(now = new Date()) {

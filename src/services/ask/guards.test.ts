@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { askDay, checkCaps, Cooldown, todayLong } from './guards.js';
+import { askDay, checkCaps, Cooldown, isCapExempt, todayLong } from './guards.js';
 
 describe('Cooldown', () => {
   test('blocks the same user for 5 seconds, not others', () => {
@@ -41,4 +41,13 @@ describe('days in America/Denver', () => {
   test('long date', () => {
     assert.equal(todayLong(new Date('2026-11-17T18:00:00Z')), 'Tuesday, November 17, 2026');
   });
+});
+
+describe('isCapExempt', () => {
+  const none = () => false;
+  test('regular member is capped', () => assert.equal(isCapExempt(none, ['Fans', '@everyone'], 'Clean Hits Crew'), false));
+  test('Clean Hits Crew role (any case) is exempt', () => assert.equal(isCapExempt(none, ['clean hits crew'], 'Clean Hits Crew'), true));
+  for (const flag of ['Administrator', 'ManageGuild', 'ManageMessages', 'ModerateMembers'] as const) {
+    test(`${flag} is exempt`, () => assert.equal(isCapExempt(f => f === flag, [], 'Clean Hits Crew'), true));
+  }
 });
