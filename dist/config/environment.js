@@ -27,6 +27,7 @@ function loadConfig() {
         anthropicApiKey: process.env.ANTHROPIC_API_KEY || undefined,
         askUserDailyCap: intEnv('ASK_USER_DAILY_CAP', 20),
         askGuildDailyCap: intEnv('ASK_GUILD_DAILY_CAP', 300),
+        askSearchDailyCap: intEnv('ASK_SEARCH_DAILY_CAP', 15),
     };
 }
 //# sourceMappingURL=environment.js.map

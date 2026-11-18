@@ -76,6 +76,7 @@ exports.logAsk = logAsk;
 exports.setAskReplyMessageId = setAskReplyMessageId;
 exports.isAskReply = isAskReply;
 exports.countAskLlmUsage = countAskLlmUsage;
+exports.countAskWebSearches = countAskWebSearches;
 exports.getAskMisses = getAskMisses;
 exports.getAskNicknames = getAskNicknames;
 exports.addAskNickname = addAskNickname;
@@ -462,9 +463,9 @@ function seedAskPresetsOnce(guildId, presets) {
 }
 function logAsk(entry) {
     const { lastInsertRowid } = (0, database_js_1.getDb)().prepare(`
-    INSERT INTO ask_log (created_at, day, guild_id, channel_id, user_id, question, tier, answer, llm_used, input_tokens, output_tokens)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(new Date().toISOString(), entry.day, entry.guildId, entry.channelId, entry.userId, entry.question, entry.tier, entry.answer, entry.llmUsed ? 1 : 0, entry.inputTokens, entry.outputTokens);
+    INSERT INTO ask_log (created_at, day, guild_id, channel_id, user_id, question, tier, answer, llm_used, input_tokens, output_tokens, web_searches)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(new Date().toISOString(), entry.day, entry.guildId, entry.channelId, entry.userId, entry.question, entry.tier, entry.answer, entry.llmUsed ? 1 : 0, entry.inputTokens, entry.outputTokens, entry.webSearches ?? 0);
     return Number(lastInsertRowid);
 }
 function setAskReplyMessageId(logId, replyMessageId) {
@@ -480,6 +481,11 @@ function countAskLlmUsage(guildId, userId, day) {
     const user = db.prepare('SELECT COUNT(*) AS n FROM ask_log WHERE user_id = ? AND day = ? AND llm_used = 1').get(userId, day);
     const guild = db.prepare('SELECT COUNT(*) AS n FROM ask_log WHERE guild_id = ? AND day = ? AND llm_used = 1').get(guildId, day);
     return { user: user.n, guild: guild.n };
+}
+/** Web searches Ask Tusky made today in a guild (everyone counts, including cap-exempt users). */
+function countAskWebSearches(guildId, day) {
+    const row = (0, database_js_1.getDb)().prepare('SELECT COALESCE(SUM(web_searches), 0) AS n FROM ask_log WHERE guild_id = ? AND day = ?').get(guildId, day);
+    return row.n;
 }
 /** Recent questions that went to the LLM or were deflected — candidates for new presets. */
 function getAskMisses(guildId, limit) {

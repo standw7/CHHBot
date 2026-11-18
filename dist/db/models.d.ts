@@ -104,6 +104,7 @@ export interface AskLogEntry {
     input_tokens: number;
     output_tokens: number;
     reply_message_id: string | null;
+    web_searches: number;
 }
 export interface AskNickname {
     id: number;

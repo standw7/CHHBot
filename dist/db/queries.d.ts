@@ -131,6 +131,7 @@ export declare function logAsk(entry: {
     llmUsed: boolean;
     inputTokens: number;
     outputTokens: number;
+    webSearches?: number;
 }): number;
 export declare function setAskReplyMessageId(logId: number, replyMessageId: string): void;
 /** True if `messageId` is one of Tusky's Ask answers (replying to it continues the conversation). */
@@ -140,6 +141,8 @@ export declare function countAskLlmUsage(guildId: string, userId: string, day: s
     user: number;
     guild: number;
 };
+/** Web searches Ask Tusky made today in a guild (everyone counts, including cap-exempt users). */
+export declare function countAskWebSearches(guildId: string, day: string): number;
 /** Recent questions that went to the LLM or were deflected — candidates for new presets. */
 export declare function getAskMisses(guildId: string, limit: number): AskLogEntry[];
 /** Stable order (player, then nickname) so the LLM system prompt built from it stays cacheable. */

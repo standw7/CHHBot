@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { Client, Message, MessageReplyOptions } from 'discord.js';
 import pino from 'pino';
 import {
-  countAskLlmUsage, getAskNicknames, getAskPresets, listGifKeyCounts, getGuildConfig, isAskReply, logAsk, seedAskNicknamesOnce,
+  countAskLlmUsage, countAskWebSearches, getAskNicknames, getAskPresets, listGifKeyCounts, getGuildConfig, isAskReply, logAsk, seedAskNicknamesOnce,
   seedAskPresetsOnce, setAskReplyMessageId,
 } from '../../db/queries.js';
 import type { AskTier } from '../../db/models.js';
@@ -87,10 +87,11 @@ async function handleMessage(client: Client, message: Message, options: AskOptio
   const day = askDay();
   const vars = templateVars(guild);
 
-  const reply = async (tier: AskTier, payload: MessageReplyOptions, logText: string, llm?: { used: boolean; input: number; output: number }) => {
+  type LlmLog = { used: boolean; input: number; output: number; searches?: number };
+  const reply = async (tier: AskTier, payload: MessageReplyOptions, logText: string, llm?: LlmLog) => {
     const logId = logAsk({
       guildId: guild.id, channelId: message.channelId, userId: message.author.id, day, question,
-      tier, answer: logText, llmUsed: llm?.used ?? false, inputTokens: llm?.input ?? 0, outputTokens: llm?.output ?? 0,
+      tier, answer: logText, llmUsed: llm?.used ?? false, inputTokens: llm?.input ?? 0, outputTokens: llm?.output ?? 0, webSearches: llm?.searches ?? 0,
     });
     try {
       const sent = await message.reply({ ...payload, allowedMentions: NO_PINGS });
@@ -99,7 +100,7 @@ async function handleMessage(client: Client, message: Message, options: AskOptio
       logger.warn({ err, guildId: guild.id }, 'Ask Tusky reply failed');
     }
   };
-  const replyText = (tier: AskTier, text: string, llm?: { used: boolean; input: number; output: number }) =>
+  const replyText = (tier: AskTier, text: string, llm?: LlmLog) =>
     reply(tier, { content: text }, text, llm);
 
   // Bare mention
@@ -155,6 +156,7 @@ async function handleMessage(client: Client, message: Message, options: AskOptio
     return;
   }
 
+  const webSearch = countAskWebSearches(guild.id, day) < (options.caps.search ?? 0);
   const repliedTo = refId ? await repliedText(message) : undefined;
   const stopTyping = startTyping(message);
   let outcome;
@@ -163,6 +165,7 @@ async function handleMessage(client: Client, message: Message, options: AskOptio
       client: options.llmClient,
       input: { question, repliedTo, today: todayLong() },
       nicknames,
+      webSearch,
       executeTool: createToolExecutor({
         teamCode: config?.primary_team ?? 'UTA',
         timezone: config?.timezone ?? 'America/Denver',
@@ -174,7 +177,7 @@ async function handleMessage(client: Client, message: Message, options: AskOptio
     stopTyping();
   }
 
-  const llm = { used: true, input: outcome.inputTokens, output: outcome.outputTokens };
+  const llm = { used: true, input: outcome.inputTokens, output: outcome.outputTokens, searches: outcome.webSearches };
   switch (outcome.kind) {
     case 'answer':
       await replyText('llm', fillTemplate(outcome.answer, vars), llm);

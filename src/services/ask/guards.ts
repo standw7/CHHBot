@@ -28,6 +28,8 @@ export class Cooldown {
 export interface CapLimits {
   user: number;
   guild: number;
+  /** Guild-wide web searches per day; 0 turns web search off. Applies to cap-exempt users too. */
+  search?: number;
 }
 
 export type CapDecision = { ok: true } | { ok: false; scope: 'user' | 'guild' };

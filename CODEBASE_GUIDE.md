@@ -212,6 +212,7 @@ IDLE → (schedule check, game within 24h) → PRE_GAME → (API shows LIVE) →
 | `RSSHUB_URL` | No | Custom RSSHub instance URL for feed bridge |
 | `ANTHROPIC_API_KEY` | No | Ask Tusky LLM fallback; unset = presets + live data only, everything else deflected |
 | `ASK_USER_DAILY_CAP` / `ASK_GUILD_DAILY_CAP` | No | Daily Ask Tusky LLM calls per user / per guild (default 20 / 300, America/Denver day) |
+| `ASK_SEARCH_DAILY_CAP` | No | Ask Tusky web searches per guild per day (default 15, everyone counts; 0 disables). Search is limited to hockey sites (`SEARCH_DOMAINS` in `src/services/ask/llm.ts`) |
 
 ---
 

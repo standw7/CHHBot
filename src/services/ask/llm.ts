@@ -62,7 +62,7 @@ export function loadKnowledge(): string {
  * `nicknames` come from the guild's ask_nicknames table; formatNicknameList sorts them, so the
  * prompt (and its cache entry) only changes when an admin edits the list.
  */
-export function buildSystemPrompt(knowledge: string, nicknames: readonly Nickname[] = [], commandRef = ''): string {
+export function buildSystemPrompt(knowledge: string, nicknames: readonly Nickname[] = [], commandRef = '', webSearch = false): string {
   const nicknameList = formatNicknameList(nicknames);
   return [
     'You are Tusky, the bot in a Discord server for fans of the Utah Mammoth (NHL). People @mention you with questions.',
@@ -75,7 +75,13 @@ export function buildSystemPrompt(knowledge: string, nicknames: readonly Nicknam
     'Facts:',
     '- Current or changing facts (scores, results, stats, standings, schedules, rosters, injuries, trades, contracts, the newest podcast episode) must come from your tools in this conversation. Never state one that a tool did not return.',
     '- Stable facts about the team, the podcast and this server come only from the knowledge file below. If a podcast detail is not in the knowledge file, say you don\'t know it.',
-    '- General hockey knowledge (rules, terminology, how the playoffs work, well-established history) is fine from your own knowledge.',
+    '- General hockey knowledge (rules, terminology, how the playoffs or the draft work) is fine from your own knowledge.',
+    '- Your memory of specific hockey facts is unreliable: who was drafted, traded or signed, who coaches or captains a team, past results, records, dates and numbers. Never state one from memory. Use the knowledge file first, then the tools.',
+    ...(webSearch ? [
+      '- If the knowledge file and the data tools don\'t cover a specific hockey fact, look it up with web_search (one search, hockey sites only) and answer only from what the results say. Do not search for anything off topic, and don\'t search when the knowledge file or a data tool already answers it.',
+    ] : [
+      '- Web search is unavailable right now. If the knowledge file and the data tools don\'t cover a specific fact, say you don\'t have it.',
+    ]),
     '- If the tools fail or don\'t cover the question, or you are unsure, say so plainly. A short "I don\'t have that" beats a guess.',
     '- Today\'s date is given in the user turn. Your training data is older than that; anything about the current season comes from the tools.',
     '- "We", "us" and "our team" mean the Utah Mammoth.',
@@ -187,6 +193,21 @@ export const ASK_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
+/** Sites the web search may read: league, reference, and hockey news only. */
+export const SEARCH_DOMAINS = [
+  'nhl.com', 'en.wikipedia.org', 'hockey-reference.com', 'eliteprospects.com', 'hockeydb.com',
+  'puckpedia.com', 'capwages.com', 'dailyfaceoff.com', 'thehockeynews.com', 'thehockeywriters.com',
+  'espn.com', 'tsn.ca', 'deseret.com', 'ksl.com', 'sltrib.com', 'cleanhits.substack.com',
+];
+
+/** Server-side web search: ~$0.01 a search plus the result tokens, so one per question. */
+export const WEB_SEARCH_TOOL = {
+  type: 'web_search_20250305',
+  name: 'web_search',
+  max_uses: 1,
+  allowed_domains: SEARCH_DOMAINS,
+} as const satisfies Anthropic.WebSearchTool20250305;
+
 export interface AskLlmInput {
   question: string; // mention stripped, ≤500 chars
   repliedTo?: string; // ≤300 chars of the message being replied to
@@ -212,6 +233,7 @@ export interface MessagesClient {
 export interface Usage {
   inputTokens: number;
   outputTokens: number;
+  webSearches: number;
 }
 
 export type LlmErrorReason = 'timeout' | 'rate_limited' | 'auth' | 'overloaded' | 'api' | 'max_tokens' | 'bad_output' | 'unknown';
@@ -262,6 +284,7 @@ function addUsage(total: Usage, msg: Anthropic.Message): void {
   const u = msg.usage;
   total.inputTokens += (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
   total.outputTokens += u.output_tokens ?? 0;
+  total.webSearches += u.server_tool_use?.web_search_requests ?? 0;
 }
 
 class DeadlineError extends Error {}
@@ -285,6 +308,7 @@ export interface RunAskLlmOptions {
   knowledge?: string;
   nicknames?: readonly Nickname[];
   commandRef?: string; // defaults to the README command manual
+  webSearch?: boolean; // offer the capped web_search server tool
   timeoutMs?: number;
   maxCalls?: number;
 }
@@ -294,7 +318,8 @@ export interface RunAskLlmOptions {
  * "none", the overall deadline and the client mock in tests are all explicit.
  */
 export async function runAskLlm(opts: RunAskLlmOptions): Promise<LlmOutcome> {
-  const usage: Usage = { inputTokens: 0, outputTokens: 0 };
+  const usage: Usage = { inputTokens: 0, outputTokens: 0, webSearches: 0 };
+  const tools: Anthropic.ToolUnion[] = opts.webSearch ? [...ASK_TOOLS, WEB_SEARCH_TOOL] : ASK_TOOLS;
   const maxCalls = opts.maxCalls ?? MAX_API_CALLS;
   const timeoutMs = opts.timeoutMs ?? LLM_TIMEOUT_MS;
   const deadline = Date.now() + timeoutMs;
@@ -302,7 +327,7 @@ export async function runAskLlm(opts: RunAskLlmOptions): Promise<LlmOutcome> {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   const system: Anthropic.TextBlockParam[] = [
-    { type: 'text', text: buildSystemPrompt(opts.knowledge ?? loadKnowledge(), opts.nicknames, opts.commandRef ?? loadCommandReference()), cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: buildSystemPrompt(opts.knowledge ?? loadKnowledge(), opts.nicknames, opts.commandRef ?? loadCommandReference(), opts.webSearch), cache_control: { type: 'ephemeral' } },
   ];
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: buildUserTurn(opts.input) }];
 
@@ -314,7 +339,7 @@ export async function runAskLlm(opts: RunAskLlmOptions): Promise<LlmOutcome> {
           model: ASK_MODEL,
           max_tokens: MAX_TOKENS,
           system,
-          tools: ASK_TOOLS,
+          tools,
           tool_choice: lastCall ? { type: 'none' } : { type: 'auto' },
           output_config: { effort: 'low', format: { type: 'json_schema', schema: ANSWER_SCHEMA } },
           messages,
@@ -325,6 +350,12 @@ export async function runAskLlm(opts: RunAskLlmOptions): Promise<LlmOutcome> {
 
       if (response.stop_reason === 'refusal') return { kind: 'refusal', ...usage };
       if (response.stop_reason === 'max_tokens') return { kind: 'error', reason: 'max_tokens', ...usage };
+
+      // The server-side search loop paused: send the turn back as-is and it resumes
+      if (response.stop_reason === 'pause_turn' && !lastCall) {
+        messages.push({ role: 'assistant', content: response.content });
+        continue;
+      }
 
       if (response.stop_reason === 'tool_use' && !lastCall) {
         const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
@@ -358,6 +389,13 @@ export async function runAskLlm(opts: RunAskLlmOptions): Promise<LlmOutcome> {
     }
     return { kind: 'error', reason: 'bad_output', ...usage };
   } catch (error) {
+    // A search domain that starts blocking Anthropic's crawler makes every request a 400.
+    // Answer without search rather than failing every question.
+    if (opts.webSearch && error instanceof Anthropic.BadRequestError && /domain/i.test(error.message)) {
+      clearTimeout(timer);
+      const retry = await runAskLlm({ ...opts, webSearch: false, timeoutMs: Math.max(1000, deadline - Date.now()) });
+      return { ...retry, inputTokens: retry.inputTokens + usage.inputTokens, outputTokens: retry.outputTokens + usage.outputTokens };
+    }
     if (error instanceof DeadlineError) return { kind: 'error', reason: 'timeout', error, ...usage };
     return { kind: 'error', reason: classifyError(error), error, ...usage };
   } finally {

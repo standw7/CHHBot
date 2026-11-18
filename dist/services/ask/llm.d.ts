@@ -13,7 +13,7 @@ export declare function loadKnowledge(): string;
  * `nicknames` come from the guild's ask_nicknames table; formatNicknameList sorts them, so the
  * prompt (and its cache entry) only changes when an admin edits the list.
  */
-export declare function buildSystemPrompt(knowledge: string, nicknames?: readonly Nickname[], commandRef?: string): string;
+export declare function buildSystemPrompt(knowledge: string, nicknames?: readonly Nickname[], commandRef?: string, webSearch?: boolean): string;
 export declare const ANSWER_SCHEMA: {
     readonly type: "object";
     readonly properties: {
@@ -30,6 +30,15 @@ export declare const ANSWER_SCHEMA: {
     readonly additionalProperties: false;
 };
 export declare const ASK_TOOLS: Anthropic.Tool[];
+/** Sites the web search may read: league, reference, and hockey news only. */
+export declare const SEARCH_DOMAINS: string[];
+/** Server-side web search: ~$0.01 a search plus the result tokens, so one per question. */
+export declare const WEB_SEARCH_TOOL: {
+    readonly type: "web_search_20250305";
+    readonly name: "web_search";
+    readonly max_uses: 1;
+    readonly allowed_domains: string[];
+};
 export interface AskLlmInput {
     question: string;
     repliedTo?: string;
@@ -49,6 +58,7 @@ export interface MessagesClient {
 export interface Usage {
     inputTokens: number;
     outputTokens: number;
+    webSearches: number;
 }
 export type LlmErrorReason = 'timeout' | 'rate_limited' | 'auth' | 'overloaded' | 'api' | 'max_tokens' | 'bad_output' | 'unknown';
 export type LlmOutcome = ({
@@ -78,6 +88,7 @@ export interface RunAskLlmOptions {
     knowledge?: string;
     nicknames?: readonly Nickname[];
     commandRef?: string;
+    webSearch?: boolean;
     timeoutMs?: number;
     maxCalls?: number;
 }

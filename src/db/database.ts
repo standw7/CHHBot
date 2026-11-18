@@ -317,4 +317,10 @@ function runMigrations(db: Database.Database): void {
   if (!hofColNames.includes('hof_reply_followup_id')) {
     db.exec('ALTER TABLE hof_messages ADD COLUMN hof_reply_followup_id TEXT');
   }
+
+  // Ask Tusky: web searches per answer (they cost extra, so they have their own daily cap)
+  const askLogColumns = db.prepare("PRAGMA table_info(ask_log)").all() as { name: string }[];
+  if (!askLogColumns.some(c => c.name === 'web_searches')) {
+    db.exec('ALTER TABLE ask_log ADD COLUMN web_searches INTEGER NOT NULL DEFAULT 0');
+  }
 }

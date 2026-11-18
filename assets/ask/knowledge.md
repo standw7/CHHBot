@@ -1,8 +1,8 @@
 # Tusky knowledge file
 
 Read by Ask Tusky's LLM fallback (src/services/ask/llm.ts) on every question. Keep it short:
-every line here is sent with every LLM call. Anything marked TODO is unknown, and Tusky
-says so instead of guessing. Links here should match CLEAN_HITS in src/services/ask/podcast.ts.
+every line here is sent with every LLM call. Anything not here is looked up with
+the live tools or a capped web search, never from the model's memory. Team facts verified Nov 2026. Links here should match CLEAN_HITS in src/services/ask/podcast.ts.
 
 ## Clean Hits Hockey (the podcast)
 
@@ -24,7 +24,10 @@ says so instead of guessing. Links here should match CLEAN_HITS in src/services/
 - Joined the NHL for the 2024-25 season as the Utah Hockey Club, after the Arizona Coyotes' hockey operations moved to Utah. Renamed the Utah Mammoth for 2025-26.
 - Owners: Ryan and Ashley Smith (Smith Entertainment Group).
 - Mascot: Tusky, a woolly mammoth.
-- Head coach, general manager, captain: TODO (not recorded here; say you don't have it).
+- Captain: Clayton Keller, the first captain in franchise history (named for 2024-25, still captain for 2026-27). Lawson Crouse wears an A as associate captain; the other A rotates (Mikhail Sergachev, Alexander Kerfoot, Nick Schmaltz have worn it).
+- Head coach: André Tourigny, nicknamed "Bear". Coached the Coyotes from 2021, then Utah; signed a multiyear extension in June 2026 after a playoff run. Assistants include Blaine Forsythe and Adam Foote.
+- General manager: Bill Armstrong, often "GMBA" in this server. Hired by the Coyotes in September 2020 and kept the job through the move to Utah.
+- Draft trivia: Utah's first-ever draft pick was Tij Iginla, 6th overall in 2024. GMBA's first draft (2020) began with Mitchell Miller in the 4th round (111th); the team renounced his rights weeks later, and Armstrong had agreed not to run that draft. The first draft he ran was 2021, where his first pick was Dylan Guenther, 9th overall (a pick acquired from Vancouver). Logan Cooley went 3rd overall in 2022.
 - Current roster, stats, schedule, standings and results: always use the tools. Rosters change.
 
 ## This Discord server

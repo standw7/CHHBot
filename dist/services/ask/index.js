@@ -78,7 +78,7 @@ async function handleMessage(client, message, options) {
     const reply = async (tier, payload, logText, llm) => {
         const logId = (0, queries_js_1.logAsk)({
             guildId: guild.id, channelId: message.channelId, userId: message.author.id, day, question,
-            tier, answer: logText, llmUsed: llm?.used ?? false, inputTokens: llm?.input ?? 0, outputTokens: llm?.output ?? 0,
+            tier, answer: logText, llmUsed: llm?.used ?? false, inputTokens: llm?.input ?? 0, outputTokens: llm?.output ?? 0, webSearches: llm?.searches ?? 0,
         });
         try {
             const sent = await message.reply({ ...payload, allowedMentions: NO_PINGS });
@@ -134,6 +134,7 @@ async function handleMessage(client, message, options) {
         await replyText('capped', (0, presets_js_1.pickRandom)(cap.scope === 'user' ? presets_js_1.CAPPED_USER_REPLIES : presets_js_1.CAPPED_GUILD_REPLIES));
         return;
     }
+    const webSearch = (0, queries_js_1.countAskWebSearches)(guild.id, day) < (options.caps.search ?? 0);
     const repliedTo = refId ? await repliedText(message) : undefined;
     const stopTyping = startTyping(message);
     let outcome;
@@ -142,6 +143,7 @@ async function handleMessage(client, message, options) {
             client: options.llmClient,
             input: { question, repliedTo, today: (0, guards_js_1.todayLong)() },
             nicknames,
+            webSearch,
             executeTool: (0, tools_js_1.createToolExecutor)({
                 teamCode: config?.primary_team ?? 'UTA',
                 timezone: config?.timezone ?? 'America/Denver',
@@ -153,7 +155,7 @@ async function handleMessage(client, message, options) {
     finally {
         stopTyping();
     }
-    const llm = { used: true, input: outcome.inputTokens, output: outcome.outputTokens };
+    const llm = { used: true, input: outcome.inputTokens, output: outcome.outputTokens, searches: outcome.webSearches };
     switch (outcome.kind) {
         case 'answer':
             await replyText('llm', (0, presets_js_1.fillTemplate)(outcome.answer, vars), llm);

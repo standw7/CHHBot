@@ -44,7 +44,7 @@ async function main(): Promise<void> {
   registerLinkFixer(client);
   registerAskHandler(client, {
     apiKey: config.anthropicApiKey,
-    caps: { user: config.askUserDailyCap, guild: config.askGuildDailyCap },
+    caps: { user: config.askUserDailyCap, guild: config.askGuildDailyCap, search: config.askSearchDailyCap },
   });
 
   // When bot is ready, start game trackers for all configured guilds

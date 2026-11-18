@@ -8,6 +8,7 @@ export interface AppConfig {
     anthropicApiKey: string | undefined;
     askUserDailyCap: number;
     askGuildDailyCap: number;
+    askSearchDailyCap: number;
 }
 export declare function loadConfig(): AppConfig;
 //# sourceMappingURL=environment.d.ts.map

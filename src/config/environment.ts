@@ -12,6 +12,7 @@ export interface AppConfig {
   anthropicApiKey: string | undefined;
   askUserDailyCap: number;
   askGuildDailyCap: number;
+  askSearchDailyCap: number; // guild-wide web searches per day (~$0.015 each)
 }
 
 function intEnv(name: string, fallback: number): number {
@@ -37,5 +38,6 @@ export function loadConfig(): AppConfig {
     anthropicApiKey: process.env.ANTHROPIC_API_KEY || undefined,
     askUserDailyCap: intEnv('ASK_USER_DAILY_CAP', 20),
     askGuildDailyCap: intEnv('ASK_GUILD_DAILY_CAP', 300),
+    askSearchDailyCap: intEnv('ASK_SEARCH_DAILY_CAP', 15),
   };
 }

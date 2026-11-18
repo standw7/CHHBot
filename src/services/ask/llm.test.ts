@@ -46,7 +46,7 @@ describe('runAskLlm', () => {
       client, input, knowledge: 'KB',
       executeTool: async (name, args) => { toolCalls.push([name, args]); return 'Clayton Keller G: 9'; },
     });
-    assert.deepEqual(out, { kind: 'answer', answer: 'Clayton Keller has 9 goals. everyone rejoice.', inputTokens: 400, outputTokens: 60 });
+    assert.deepEqual(out, { kind: 'answer', answer: 'Clayton Keller has 9 goals. everyone rejoice.', inputTokens: 400, outputTokens: 60, webSearches: 0 });
     assert.deepEqual(toolCalls, [['get_player_stats', { name: 'Keller' }]]);
 
     const first = client.calls[0];
@@ -67,6 +67,36 @@ describe('runAskLlm', () => {
     const result = (second.messages[2].content as Anthropic.ToolResultBlockParam[])[0];
     assert.equal(result.tool_use_id, 'tu1');
     assert.equal(result.content, 'Clayton Keller G: 9');
+  });
+
+  test('web search: tool offered only when enabled, searches counted, pause_turn resumes', async () => {
+    const off = mockClient([msg('end_turn', [text('{"on_topic":true,"answer":"ok"}')])]);
+    await runAskLlm({ client: off, input, knowledge: '', executeTool: async () => '' });
+    assert.ok(!(off.calls[0].tools ?? []).some(t => t.name === 'web_search'));
+    assert.match(JSON.stringify(off.calls[0].system), /Web search is unavailable/);
+
+    const paused = msg('pause_turn', [{ type: 'server_tool_use', id: 'srv1', name: 'web_search', input: { query: 'q' } }]);
+    const done = msg('end_turn', [text('{"on_topic":true,"answer":"Dylan Guenther, 9th overall."}')], { input_tokens: 100, output_tokens: 20 });
+    (done.usage as unknown as Record<string, unknown>).server_tool_use = { web_search_requests: 1, web_fetch_requests: 0 };
+    const on = mockClient([paused, done]);
+    const out = await runAskLlm({ client: on, input, knowledge: '', webSearch: true, executeTool: async () => '' });
+    assert.deepEqual(out, { kind: 'answer', answer: 'Dylan Guenther, 9th overall.', inputTokens: 200, outputTokens: 40, webSearches: 1 });
+    const search = (on.calls[0].tools ?? []).find(t => t.name === 'web_search') as { max_uses?: number; allowed_domains?: string[] };
+    assert.equal(search.max_uses, 1);
+    assert.ok(search.allowed_domains?.includes('nhl.com'));
+    assert.match(JSON.stringify(on.calls[0].system), /look it up with web_search/);
+    // resumed with the paused assistant turn and no extra user message
+    assert.equal(on.calls[1].messages.length, 2);
+    assert.equal(on.calls[1].messages[1].role, 'assistant');
+  });
+
+  test('a blocked search domain (400) retries once without web search', async () => {
+    const blocked = new Anthropic.BadRequestError(400, { type: 'error', error: { type: 'invalid_request_error', message: "The following domains are not accessible to our user agent: ['x.com']" } }, "The following domains are not accessible to our user agent: ['x.com']", new Headers());
+    const client = mockClient([blocked, msg('end_turn', [text('{"on_topic":true,"answer":"ok"}')])]);
+    const out = await runAskLlm({ client, input, knowledge: '', webSearch: true, executeTool: async () => '' });
+    assert.equal(out.kind, 'answer');
+    assert.ok((client.calls[0].tools ?? []).some(t => t.name === 'web_search'));
+    assert.ok(!(client.calls[1].tools ?? []).some(t => t.name === 'web_search'));
   });
 
   test('off-topic → off_topic (caller deflects; model text never used)', async () => {

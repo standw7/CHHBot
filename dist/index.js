@@ -42,7 +42,7 @@ async function main() {
     (0, linkFixer_js_1.registerLinkFixer)(client);
     (0, index_js_1.registerAskHandler)(client, {
         apiKey: config.anthropicApiKey,
-        caps: { user: config.askUserDailyCap, guild: config.askGuildDailyCap },
+        caps: { user: config.askUserDailyCap, guild: config.askGuildDailyCap, search: config.askSearchDailyCap },
     });
     // When bot is ready, start game trackers for all configured guilds
     client.once('ready', () => {

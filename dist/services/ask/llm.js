@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ASK_TOOLS = exports.ANSWER_SCHEMA = exports.MAX_ANSWER_CHARS = exports.LLM_TIMEOUT_MS = exports.MAX_API_CALLS = exports.MAX_TOKENS = exports.ASK_MODEL = void 0;
+exports.WEB_SEARCH_TOOL = exports.SEARCH_DOMAINS = exports.ASK_TOOLS = exports.ANSWER_SCHEMA = exports.MAX_ANSWER_CHARS = exports.LLM_TIMEOUT_MS = exports.MAX_API_CALLS = exports.MAX_TOKENS = exports.ASK_MODEL = void 0;
 exports.extractSections = extractSections;
 exports.loadCommandReference = loadCommandReference;
 exports.loadKnowledge = loadKnowledge;
@@ -74,7 +74,7 @@ function loadKnowledge() {
  * `nicknames` come from the guild's ask_nicknames table; formatNicknameList sorts them, so the
  * prompt (and its cache entry) only changes when an admin edits the list.
  */
-function buildSystemPrompt(knowledge, nicknames = [], commandRef = '') {
+function buildSystemPrompt(knowledge, nicknames = [], commandRef = '', webSearch = false) {
     const nicknameList = (0, nicknames_js_1.formatNicknameList)(nicknames);
     return [
         'You are Tusky, the bot in a Discord server for fans of the Utah Mammoth (NHL). People @mention you with questions.',
@@ -87,7 +87,13 @@ function buildSystemPrompt(knowledge, nicknames = [], commandRef = '') {
         'Facts:',
         '- Current or changing facts (scores, results, stats, standings, schedules, rosters, injuries, trades, contracts, the newest podcast episode) must come from your tools in this conversation. Never state one that a tool did not return.',
         '- Stable facts about the team, the podcast and this server come only from the knowledge file below. If a podcast detail is not in the knowledge file, say you don\'t know it.',
-        '- General hockey knowledge (rules, terminology, how the playoffs work, well-established history) is fine from your own knowledge.',
+        '- General hockey knowledge (rules, terminology, how the playoffs or the draft work) is fine from your own knowledge.',
+        '- Your memory of specific hockey facts is unreliable: who was drafted, traded or signed, who coaches or captains a team, past results, records, dates and numbers. Never state one from memory. Use the knowledge file first, then the tools.',
+        ...(webSearch ? [
+            '- If the knowledge file and the data tools don\'t cover a specific hockey fact, look it up with web_search (one search, hockey sites only) and answer only from what the results say. Do not search for anything off topic, and don\'t search when the knowledge file or a data tool already answers it.',
+        ] : [
+            '- Web search is unavailable right now. If the knowledge file and the data tools don\'t cover a specific fact, say you don\'t have it.',
+        ]),
         '- If the tools fail or don\'t cover the question, or you are unsure, say so plainly. A short "I don\'t have that" beats a guess.',
         '- Today\'s date is given in the user turn. Your training data is older than that; anything about the current season comes from the tools.',
         '- "We", "us" and "our team" mean the Utah Mammoth.',
@@ -196,6 +202,19 @@ exports.ASK_TOOLS = [
         input_schema: { type: 'object', properties: {}, additionalProperties: false },
     },
 ];
+/** Sites the web search may read: league, reference, and hockey news only. */
+exports.SEARCH_DOMAINS = [
+    'nhl.com', 'en.wikipedia.org', 'hockey-reference.com', 'eliteprospects.com', 'hockeydb.com',
+    'puckpedia.com', 'capwages.com', 'dailyfaceoff.com', 'thehockeynews.com', 'thehockeywriters.com',
+    'espn.com', 'tsn.ca', 'deseret.com', 'ksl.com', 'sltrib.com', 'cleanhits.substack.com',
+];
+/** Server-side web search: ~$0.01 a search plus the result tokens, so one per question. */
+exports.WEB_SEARCH_TOOL = {
+    type: 'web_search_20250305',
+    name: 'web_search',
+    max_uses: 1,
+    allowed_domains: exports.SEARCH_DOMAINS,
+};
 function buildUserTurn(input) {
     const parts = [`Today's date (America/Denver): ${input.today}`];
     if (input.repliedTo)
@@ -248,6 +267,7 @@ function addUsage(total, msg) {
     const u = msg.usage;
     total.inputTokens += (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
     total.outputTokens += u.output_tokens ?? 0;
+    total.webSearches += u.server_tool_use?.web_search_requests ?? 0;
 }
 class DeadlineError extends Error {
 }
@@ -265,14 +285,15 @@ function withDeadline(p, signal) {
  * "none", the overall deadline and the client mock in tests are all explicit.
  */
 async function runAskLlm(opts) {
-    const usage = { inputTokens: 0, outputTokens: 0 };
+    const usage = { inputTokens: 0, outputTokens: 0, webSearches: 0 };
+    const tools = opts.webSearch ? [...exports.ASK_TOOLS, exports.WEB_SEARCH_TOOL] : exports.ASK_TOOLS;
     const maxCalls = opts.maxCalls ?? exports.MAX_API_CALLS;
     const timeoutMs = opts.timeoutMs ?? exports.LLM_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const system = [
-        { type: 'text', text: buildSystemPrompt(opts.knowledge ?? loadKnowledge(), opts.nicknames, opts.commandRef ?? loadCommandReference()), cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: buildSystemPrompt(opts.knowledge ?? loadKnowledge(), opts.nicknames, opts.commandRef ?? loadCommandReference(), opts.webSearch), cache_control: { type: 'ephemeral' } },
     ];
     const messages = [{ role: 'user', content: buildUserTurn(opts.input) }];
     try {
@@ -282,7 +303,7 @@ async function runAskLlm(opts) {
                 model: exports.ASK_MODEL,
                 max_tokens: exports.MAX_TOKENS,
                 system,
-                tools: exports.ASK_TOOLS,
+                tools,
                 tool_choice: lastCall ? { type: 'none' } : { type: 'auto' },
                 output_config: { effort: 'low', format: { type: 'json_schema', schema: exports.ANSWER_SCHEMA } },
                 messages,
@@ -292,6 +313,11 @@ async function runAskLlm(opts) {
                 return { kind: 'refusal', ...usage };
             if (response.stop_reason === 'max_tokens')
                 return { kind: 'error', reason: 'max_tokens', ...usage };
+            // The server-side search loop paused: send the turn back as-is and it resumes
+            if (response.stop_reason === 'pause_turn' && !lastCall) {
+                messages.push({ role: 'assistant', content: response.content });
+                continue;
+            }
             if (response.stop_reason === 'tool_use' && !lastCall) {
                 const toolUses = response.content.filter((b) => b.type === 'tool_use');
                 if (toolUses.length > 0) {
@@ -329,6 +355,13 @@ async function runAskLlm(opts) {
         return { kind: 'error', reason: 'bad_output', ...usage };
     }
     catch (error) {
+        // A search domain that starts blocking Anthropic's crawler makes every request a 400.
+        // Answer without search rather than failing every question.
+        if (opts.webSearch && error instanceof sdk_1.default.BadRequestError && /domain/i.test(error.message)) {
+            clearTimeout(timer);
+            const retry = await runAskLlm({ ...opts, webSearch: false, timeoutMs: Math.max(1000, deadline - Date.now()) });
+            return { ...retry, inputTokens: retry.inputTokens + usage.inputTokens, outputTokens: retry.outputTokens + usage.outputTokens };
+        }
         if (error instanceof DeadlineError)
             return { kind: 'error', reason: 'timeout', error, ...usage };
         return { kind: 'error', reason: classifyError(error), error, ...usage };

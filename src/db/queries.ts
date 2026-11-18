@@ -496,13 +496,13 @@ export function seedAskPresetsOnce(guildId: string, presets: { trigger: string; 
 
 export function logAsk(entry: {
   guildId: string; channelId: string | null; userId: string; day: string; question: string;
-  tier: AskTier; answer: string | null; llmUsed: boolean; inputTokens: number; outputTokens: number;
+  tier: AskTier; answer: string | null; llmUsed: boolean; inputTokens: number; outputTokens: number; webSearches?: number;
 }): number {
   const { lastInsertRowid } = getDb().prepare(`
-    INSERT INTO ask_log (created_at, day, guild_id, channel_id, user_id, question, tier, answer, llm_used, input_tokens, output_tokens)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO ask_log (created_at, day, guild_id, channel_id, user_id, question, tier, answer, llm_used, input_tokens, output_tokens, web_searches)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(new Date().toISOString(), entry.day, entry.guildId, entry.channelId, entry.userId, entry.question,
-    entry.tier, entry.answer, entry.llmUsed ? 1 : 0, entry.inputTokens, entry.outputTokens);
+    entry.tier, entry.answer, entry.llmUsed ? 1 : 0, entry.inputTokens, entry.outputTokens, entry.webSearches ?? 0);
   return Number(lastInsertRowid);
 }
 
@@ -521,6 +521,12 @@ export function countAskLlmUsage(guildId: string, userId: string, day: string): 
   const user = db.prepare('SELECT COUNT(*) AS n FROM ask_log WHERE user_id = ? AND day = ? AND llm_used = 1').get(userId, day) as { n: number };
   const guild = db.prepare('SELECT COUNT(*) AS n FROM ask_log WHERE guild_id = ? AND day = ? AND llm_used = 1').get(guildId, day) as { n: number };
   return { user: user.n, guild: guild.n };
+}
+
+/** Web searches Ask Tusky made today in a guild (everyone counts, including cap-exempt users). */
+export function countAskWebSearches(guildId: string, day: string): number {
+  const row = getDb().prepare('SELECT COALESCE(SUM(web_searches), 0) AS n FROM ask_log WHERE guild_id = ? AND day = ?').get(guildId, day) as { n: number };
+  return row.n;
 }
 
 /** Recent questions that went to the LLM or were deflected — candidates for new presets. */
